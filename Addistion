@@ -1,0 +1,57 @@
+import io.restassured.RestAssured;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+
+public class RallyCreateAndVerifyTestCase {
+
+    public static void main(String[] args) {
+        String baseUrl = "https://rally1.rallydev.com/slm/webservice/v2.0"; // Replace with your Rally base URL
+        String apiKey = "_your_api_key"; // Replace with your Rally API key
+        String projectName = "Your Project Name"; // Replace with the name of your Rally project
+
+        RestAssured.baseURI = baseUrl;
+
+        // Create the JSON payload for the test case
+        String jsonPayload = "{\n" +
+                "  \"TestCase\": {\n" +
+                "    \"Name\": \"Sample Test Case\",\n" +
+                "    \"Project\": \"" + projectName + "\",\n" +
+                "    \"Method\": \"Manual\",\n" +
+                "    \"Priority\": \"High\",\n" +
+                "    \"Objective\": \"Verify the functionality of X\"\n" +
+                "  }\n" +
+                "}";
+
+        // Send POST request to create the test case
+        Response createResponse = RestAssured.given()
+                .header("Authorization", "Bearer " + apiKey)
+                .contentType(ContentType.JSON)
+                .body(jsonPayload)
+                .post("/testcase");
+
+        // Verify if the test case creation was successful
+        if (createResponse.getStatusCode() == 201) { // HTTP status code 201 indicates successful creation
+            System.out.println("Test case created successfully.");
+
+            // Extract the ID of the created test case
+            String testCaseId = createResponse.jsonPath().getString("TestCase.ObjectID");
+
+            // Send GET request to fetch details of the created test case
+            Response getResponse = RestAssured.given()
+                    .header("Authorization", "Bearer " + apiKey)
+                    .get("/testcase/" + testCaseId);
+
+            // Verify project details of the created test case
+            String actualProjectName = getResponse.jsonPath().getString("TestCase.Project.Name");
+            System.out.println("Actual Project Name: " + actualProjectName);
+
+            if (actualProjectName.equals(projectName)) {
+                System.out.println("Test case created in the correct project.");
+            } else {
+                System.out.println("Test case created in a different project than expected.");
+            }
+        } else {
+            System.out.println("Failed to create test case. Status code: " + createResponse.getStatusCode());
+        }
+    }
+}
