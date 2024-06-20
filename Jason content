@@ -1,0 +1,11 @@
+{
+    "rallyURL": "https://rally1.rallydev.com",
+    "apiKey": "Uwk®1XQORPk2ctMLiR9PAM]nßE6spnDEmSj1pk*",  // replace with your API Key
+    "projectRef": "17893258189911",
+    "testCase": {
+        "Name": "Aiham Sample Test Case",
+        "Method": "Manual",
+        "Priority": "High",
+        "Objective": "Verify the functionality of x"
+    }
+}
