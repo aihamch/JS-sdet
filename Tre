@@ -1,0 +1,15 @@
+// Method to get tag reference from Rally
+private static String getTagReference(RallyRestApi restApi, String tagName) throws Exception {
+    QueryRequest tagRequest = new QueryRequest("Tag");
+    tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
+    QueryResponse tagQueryResponse = restApi.query(tagRequest);
+
+    if (tagQueryResponse.wasSuccessful() && tagQueryResponse.getTotalResultCount() > 0) {
+        JsonArray tags = tagQueryResponse.getResults();
+        JsonObject tag = tags.get(0).getAsJsonObject();
+        return tag.get("_ref").getAsString();
+    } else {
+        System.out.println("Tag not found: " + tagName);
+        return null;
+    }
+}
