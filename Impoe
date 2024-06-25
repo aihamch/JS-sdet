@@ -1,3 +1,22 @@
 1import com.rallydev.rest.request.QueryRequest;
 import com.rallydev.rest.response.QueryResponse;
 import com.rallydev.rest.util.QueryFilter;
+// Handle Tags property as references
+JsonArray tagRefs = new JsonArray();
+JsonElement tagsElement = testCaseData.get("Tags");
+if (tagsElement != null && tagsElement.isJsonArray()) {
+    JsonArray tagsArray = tagsElement.getAsJsonArray();
+    for (JsonElement tagElement : tagsArray) {
+        if (tagElement != null && tagElement.isJsonObject()) {
+            JsonObject tagObject = tagElement.getAsJsonObject();
+            String tagName = tagObject.get("Name").getAsString(); // Assuming "Name" is the tag name property
+            String tagRef = getTagReference(restApi, tagName);
+            if (tagRef != null) {
+                JsonObject tagRefObject = new JsonObject();
+                tagRefObject.addProperty("_ref", tagRef);
+                tagRefs.add(tagRefObject);
+            }
+        }
+    }
+}
+newTestCase.add("Tags", tagRefs);
