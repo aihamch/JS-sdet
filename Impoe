@@ -68,5 +68,18 @@ public class RallyCreateTC {
             e.printStackTrace();
             return null;
         }
+    }{
+    "testCase": {
+        "Name": "Verify Billing and Eligibility",
+        "Method": "Automated", 
+        "Priority": "High", 
+        "Objective": "Verify billing and eligibility functionalities",
+        "Owner": "John Doe",
+        "Tags": [
+            {
+                "_ref": "/tag/56011614555"  // Replace with the correct _ref for "Billing and Eligibility"
+            }
+        ]
     }
+}
 }
