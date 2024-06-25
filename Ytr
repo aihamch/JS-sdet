@@ -70,3 +70,23 @@ public class RallyCreateTC {
         }
     }
 }
+// Add Tags to the test case
+JsonArray tagsArray =
+testCaseData.getAsJsonArray ("Tags");
+if (tagsArray != null) {
+JsonArray newTagsArray = new
+JsonArray();
+for (JsonElement tagElement :
+tagsArray) {
+JsonObject tagObject =
+tagElement getAsJsonObject ();
+String tagRef =
+tagObject.get("
+_ref"). getAsString();
+JsonObject newTagObject =
+new IsonObject ();
+newTagObject.addProperty("_ref", tagRef);
+newTagsArray. add (newTagObject);
+newTestCase. add ("Tags",
+newTagsArray);
+// Create the test case
