@@ -1,0 +1,35 @@
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
+
+import static io.restassured.RestAssured.given;
+
+public class RestAssuredCreateTestCase {
+
+    public static void main(String[] args) {
+        String baseUrl = "https://example.com/api";  // Replace with your API base URL
+        String apiKey = "_your_api_key";  // Replace with your API key
+        String projectName = "Your Project Name";  // Replace with your project name or ID
+
+        RestAssured.baseURI = baseUrl;
+
+        // Create the request specification
+        RequestSpecification requestSpec = given()
+                .header("Authorization", "ApiKey " + apiKey)
+                .header("Content-Type", "application/json")
+                .body("{\n" +
+                        "  \"name\": \"Sample Test Case\",\n" +
+                        "  \"project\": \"" + projectName + "\",\n" +
+                        "  \"method\": \"Manual\",\n" +
+                        "  \"priority\": \"High\",\n" +
+                        "  \"objective\": \"Verify the functionality of X\"\n" +
+                        "}");
+
+        // Send POST request to create the test case
+        Response response = requestSpec.post("/testcases");
+
+        // Print response details
+        System.out.println("Response status code: " + response.getStatusCode());
+        System.out.println("Response body: " + response.getBody().asString());
+    }
+}
