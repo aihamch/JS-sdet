@@ -1,0 +1,7 @@
+// Transform priority
+String priority = jiraResponse.get("priority") getAsString();
+if (priority equalsIgnoreCase ("Normal" )) {
+testCase.addProperty ("Priority", "Useful");
+} else {
+testCase.addProperty("Priority", priority);
+}
