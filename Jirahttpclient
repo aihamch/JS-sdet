@@ -1,0 +1,43 @@
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+import java.io.FileWriter;
+import java.io.IOException;
+
+public class JiraClient {
+
+    private static final String JIRA_URL = "https://your-jira-instance/rest/api/2/issue/";
+    private static final String BEARER_TOKEN = "your-bearer-token";
+
+    public static void main(String[] args) {
+        String issueKey = "TEST-1"; // Replace with your test case issue key
+
+        try (CloseableHttpClient client = HttpClients.createDefault()) {
+            HttpGet request = new HttpGet(JIRA_URL + issueKey);
+            request.setHeader("Authorization", "Bearer " + BEARER_TOKEN);
+
+            HttpResponse response = client.execute(request);
+            HttpEntity entity = response.getEntity();
+            if (entity != null) {
+                String result = EntityUtils.toString(entity);
+                saveJsonToFile(result, "jira_response.json");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void saveJsonToFile(String jsonString, String fileName) {
+        try (FileWriter file = new FileWriter(fileName)) {
+            file.write(jsonString);
+            System.out.println("Successfully copied JSON Object to file...");
+            System.out.println("\nJSON Object: " + jsonString);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
