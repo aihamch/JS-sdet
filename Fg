@@ -1,0 +1,65 @@
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+import java.io.FileWriter;
+import java.io.IOException;
+
+public class JiraTestFolders {
+
+    private static final String JIRA_URL = "https://your-jira-instance.atlassian.net";
+    private static final String BEARER_TOKEN = "your-bearer-token";
+
+    public static void main(String[] args) {
+        String projectKey = "YOUR_PROJECT_KEY";
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+
+        try {
+            // Construct the URL
+            String url = JIRA_URL + "/rest/zephyr/latest/testfolder?projectKey=" + projectKey;
+
+            // Create the HttpGet request
+            HttpGet request = new HttpGet(url);
+            request.setHeader("Authorization", "Bearer " + BEARER_TOKEN);
+            request.setHeader("Accept", "application/json");
+
+            // Execute the request
+            CloseableHttpResponse response = httpClient.execute(request);
+
+            try {
+                // Check the response status code
+                if (response.getStatusLine().getStatusCode() == 200) {
+                    // Get the response entity
+                    HttpEntity entity = response.getEntity();
+                    if (entity != null) {
+                        // Convert the entity to a String
+                        String result = EntityUtils.toString(entity);
+
+                        // Print the response (or process it as needed)
+                        System.out.println("Response: " + result);
+
+                        // Save the JSON response to a file
+                        try (FileWriter file = new FileWriter("./ProjectKey.json")) {
+                            file.write(result);
+                        }
+                    }
+                } else {
+                    System.out.println("Failed to retrieve test folders. HTTP code: " + response.getStatusLine().getStatusCode());
+                }
+            } finally {
+                response.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                httpClient.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
