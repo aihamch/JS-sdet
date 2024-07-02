@@ -1,0 +1,217 @@
+Sure, I'll break down the code and explain its functionality in a clear manner for your presentation:
+
+---
+
+### **Overview**
+
+This Java program retrieves a test case from JIRA, transforms its data, and then creates a new test case in Rally. It uses HTTP requests to interact with JIRA and the Rally API for creating the test case.
+
+---
+
+### **Code Breakdown**
+
+1. **Import Statements**
+   - These imports include libraries for JSON processing (`Gson`), HTTP client operations, and Rally API interaction.
+
+2. **Main Method**
+
+```java
+public static void main(String[] args) throws Exception {
+    // Define constants
+    String testCaseId = "CC2-T44983";
+    String jiraBaseUri = "https://jira.healthcareit.net/";
+    String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5"; // Replace with your actual token
+    String projectRef = "789325818991";
+```
+
+- **Constants**: Define the JIRA test case ID, JIRA base URI, authentication token, and Rally project reference.
+
+3. **Retrieve Test Case from JIRA**
+
+```java
+    // Send the GET request to JIRA using HttpClient
+    HttpClient client = HttpClients.createDefault();
+    HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+    request.setHeader("Authorization", "Bearer " + authToken);
+    request.setHeader("Accept", "application/json");
+
+    HttpResponse response = client.execute(request);
+    String responseBody = EntityUtils.toString(response.getEntity());
+
+    System.out.println("Pretty Response: " + responseBody);
+
+    // Parse the JIRA response
+    JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+```
+
+- **HTTP Request**: Uses `HttpClient` to send a GET request to JIRA.
+- **Headers**: Sets the `Authorization` and `Accept` headers.
+- **Response Handling**: Reads the response and prints it.
+- **JSON Parsing**: Parses the response into a `JsonObject`.
+
+4. **Create Rally JSON Object**
+
+```java
+    // Create the Rally JSON object
+    JsonObject rallyJson = new JsonObject();
+    rallyJson.addProperty("projectRef", projectRef);
+```
+
+- **Rally JSON Object**: Initializes a new JSON object for Rally and adds the project reference.
+
+5. **Transform JIRA Data to Rally Format**
+
+```java
+    // Create a new test case
+    JsonObject testCase = new JsonObject();
+    testCase.addProperty("Name", jiraJson.get("name").getAsString());
+    testCase.addProperty("Method", "Manual"); // Assuming a default value
+
+    // Add priority
+    String priority = jiraJson.get("priority").getAsString();
+    if (priority.equalsIgnoreCase("Normal")) {
+        testCase.addProperty("Priority", "Useful");
+    } else {
+        testCase.addProperty("Priority", priority);
+    }
+
+    // Add owner
+    testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
+    
+    // Add Status
+    testCase.addProperty("Ready", jiraJson.get("status").getAsString().equals("Ready"));  // Assuming a default value
+
+    // Add Tags
+    JsonArray tagsArray = new JsonArray();
+    JsonObject tagObject = new JsonObject();
+    tagObject.addProperty("_ref", "/tag/56011614555");
+    tagObject.addProperty("Name", "Billing and Eligibility");
+    tagsArray.add(tagObject);
+    testCase.add("Tags", tagsArray);
+
+    // Add TestFolder
+    JsonObject testFolder = new JsonObject();
+    testFolder.addProperty("_ref", "/testfolder/790320784037");
+    rallyJson.add("TestFolder", testFolder);
+
+    // Add the testCase object to the rallyJson
+    rallyJson.add("testCase", testCase);
+
+    // Save the transformed JSON to a variable
+    String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+    // Print the transformed JSON string
+    System.out.println("Transformed JSON: " + rallyJsonString);
+```
+
+- **Create Test Case Object**: Populates the test case object with properties from the JIRA response.
+- **Add Tags and Test Folder**: Adds a predefined tag and test folder to the test case.
+- **Add to Rally JSON**: Adds the test case object to the Rally JSON.
+- **Print JSON**: Converts the Rally JSON to a pretty-printed string and prints it.
+
+6. **Interact with Rally API**
+
+```java
+    // Now we can use the rallyJsonString in a different class as needed
+    RallyJsonObj rallyJsonObj = new RallyJsonObj();
+
+    JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+    String rallyURL = "https://rally1.rallydev.com";
+    String apiKey = "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk";  // replace with your API Key : different for different users
+
+    // Initialize Rally API
+    RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+    restApi.setApplicationName("CreateTestCaseApp");
+
+    // Extract values from JSON:
+    // 1-test Case data
+    JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+
+    // 2-TestFolder data
+    JsonObject testFolderData = null;
+    JsonElement testFolderElement = jsonData.get("TestFolder");
+    if (testFolderElement != null && testFolderElement.isJsonObject()) {
+        testFolderData = testFolderElement.getAsJsonObject();
+    } else {
+        System.out.println("Error: TestFolder data not found in JSON.");
+        restApi.close();
+        return;
+    }
+
+    try {
+        // Create a new test case
+        JsonObject newTestCase = new JsonObject();
+        newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+        newTestCase.addProperty("Project", projectRef);
+        newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+        newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+        newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+        newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+        // Add Tags to the test case from the JSON file
+        JsonArray newTagsArray = new JsonArray();
+        JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+        if (tagsArrayFromJson != null) {
+            for (JsonElement tagElement : tagsArrayFromJson) {
+                JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                JsonObject newTagObject = new JsonObject();
+                newTagObject.addProperty("_ref", tagRef);
+                newTagsArray.add(newTagObject);
+            }
+            newTestCase.add("Tags", newTagsArray);
+        }
+
+        // Add TestFolder to the test case from the JSON file
+        String testFolderRef = testFolderData.get("_ref").getAsString();
+        newTestCase.addProperty("TestFolder", testFolderRef);
+
+        CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+        CreateResponse createResponse = restApi.create(createRequest);
+
+        if (createResponse.wasSuccessful()) {
+            System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+        } else {
+            System.out.println("Error occurred creating test case:");
+            for (String error : createResponse.getErrors()) {
+                System.out.println(error);
+            }
+        }
+    } finally {
+        // Release resources
+        restApi.close();
+    }
+}
+```
+
+- **Rally JSON Parsing**: Parses the Rally JSON string back into a `JsonObject`.
+- **Initialize Rally API**: Sets up the Rally API connection with the provided URL and API key.
+- **Extract Data**: Extracts test case and test folder data from the JSON.
+- **Create New Test Case in Rally**:
+  - Populates a new test case object with the extracted data.
+  - Sends a create request to Rally using `CreateRequest`.
+  - Handles the response, printing success or error messages.
+- **Close API**: Ensures the API connection is closed to release resources.
+
+---
+
+### **Presentation Tips**
+
+1. **Introduction**
+   - Briefly explain the purpose: integrating data from JIRA to Rally by transforming the test case data.
+
+2. **Step-by-Step Walkthrough**
+   - **Initialization**: Explain the constants and why they are needed.
+   - **JIRA Request**: Describe how the program fetches data from JIRA.
+   - **Data Transformation**: Show how the JIRA data is transformed to the Rally format.
+   - **Rally API Interaction**: Detail how the program creates a new test case in Rally.
+
+3. **Conclusion**
+   - Summarize the process: fetching, transforming, and creating.
+   - Highlight the importance of API interactions and data transformation.
+
+4. **Q&A**
+   - Be prepared to answer questions about specific parts of the code, API usage, or data handling.
+
+By following this structure, you can effectively present the code and its functionality to your team.
