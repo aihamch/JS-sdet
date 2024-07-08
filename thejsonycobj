@@ -1,0 +1,35 @@
+JSON Object: {
+    "owner": "JIRAUSER117446",
+    "updatedBy": "JIRAUSER109514",
+    "customFields": {
+        "Original issue key": "ALM-34701",
+        "Migrate Test to Rally": true
+    },
+    "keyNumber": 44983,
+    "updatedOn": "2024-05-16T21:04:52.590Z",
+    "priority": "Normal",
+    "majorVersion": 1,
+    "createdOn": "2022-06-21T08:23:02.497Z",
+    "objective": "<html><b>Objective:<\/b>   <br><br><br><br><br><br><b>Prerequisite:<\/b>  <br><\/html>",
+    "projectKey": "CC2",
+    "folder": "/Subject/ConnectCenter/Release 5.6/ConnectCenter - FY21 iteration 17/CC-7498 Search functionalities- Remit and Claims Search-Check data to be shown to the user",
+    "createdBy": "JIRAUSER117446",
+    "latestVersion": true,
+    "testScript": {
+        "id": 416530,
+        "type": "STEP_BY_STEP",
+        "steps": [{
+            "expectedResult": "",
+            "index": 0,
+            "description": "<html>\n<body>\n<div align=\"left\" style=\"min-height: 9pt; background: #c5e0b3; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"font-size:8pt\">10A REMIT-Internal<\/span><\/font><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"> user-TUL (Verify) GT 1 Affiliated Submitter (Go To Claim-Success)<\/span><\/font><br /><\/div>\n<div align=\"right\" style=\"min-height: 9pt; background: #c5e0b3; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"font-size:8pt\">CC-7498<\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"min-height: 9pt; \"><br /><\/div>\n<div align=\"left\" style=\"min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>Given<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\">&nbsp;an Internal user logs into Connect Center <\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>and<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\"> Remit search to a biller and/or submitter different than the submitter bar<\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"margin-left:0mm; margin-right:0mm; text-indent:13mm; margin-top:0mm; margin-bottom:0mm; min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>and<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\"> display the Remit Details for a check with the following specs:<\/span><\/font><br /><\/div>\n<ul style=\"margin-top: 0mm; margin-bottom: 0mm; margin-left: 0mm; padding-left: 0pt;list-style-type: disc; \">\n<li style=\"margin-left: 108pt; margin-right: 0pt; padding-left: 0pt; text-indent: 0pt; font-size: 10pt;  color: #172b4d;  \"><font face=\"arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt; font-family:arial; color:#172b4d; font-weight:Normal; font-style:Normal; font-decoration:Normal\">&gt;1 Claim that Claim Level Xref to different submitters<\/span><\/font><\/li>\n<li style=\"margin-left: 108pt; margin-right: 0pt; padding-left: 0pt; text-indent: 0pt; font-size: 10pt;  color: #172b4d;  \"><font face=\"arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt; font-family:arial; color:#172b4d; font-weight:Normal; font-style:Normal; font-decoration:Normal\">One of the claims is under a different Biller/Submitter than search IDs<\/span><\/font><\/li>\n<li style=\"margin-left: 108pt; margin-right: 0pt; padding-left: 0pt; text-indent: 0pt; font-size: 10pt;  color: #172b4d;  \"><font face=\"arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt; font-family:arial; color:#172b4d; font-weight:Normal; font-style:Normal; font-decoration:Normal\">Submitter is affiliated to search IDs<\/span><\/font><\/li>\n<\/ul>\n<div align=\"left\" style=\"min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>When<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\">&nbsp;the first Claim ID is clicked<\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>Then<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\">&nbsp;Claim Information page displays <\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"margin-left:0mm; margin-right:0mm; text-indent:13mm; margin-top:0mm; margin-bottom:0mm; min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>and<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\"> the GO TO CLAIM and EOB buttons are active<\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"margin-left:0mm; margin-right:0mm; text-indent:13mm; margin-top:0mm; margin-bottom:0mm; min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>and<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\"> click the GO TO CLAIM button<\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"margin-left:0mm; margin-right:0mm; text-indent:13mm; margin-top:0mm; margin-bottom:0mm; min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>and<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\"> the correct Claim displays <\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"margin-left:0mm; margin-right:0mm; text-indent:13mm; margin-top:0mm; margin-bottom:0mm; min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt\"><b>and<\/b><\/span><span dir=\"ltr\" style=\"font-size:8pt\"> repeat the previous steps with the affiliated submitters claim from the remit <\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"margin-left:0mm; margin-right:0mm; text-indent:13mm; margin-top:0mm; margin-bottom:0mm; min-height: 9pt; \"><br /><\/div>\n<div align=\"left\" style=\"margin-left:0mm; margin-right:0mm; text-indent:13mm; margin-top:0mm; margin-bottom:0mm; min-height: 9pt; \"><font face=\"Arial\"><span dir=\"ltr\" style=\"color:rgb(23, 43, 77);font-size:8pt;background:#ff00ff\"><b>SEE 9A basically a duplicate of this because affiliations don't matter to internal<\/b><\/span><\/font><br /><\/div>\n<div align=\"left\" style=\"min-height: 9pt; \"><br /><\/div>\n<\/body>\n<\/html>",
+            "id": 4133987
+        }]
+    },
+    "name": "!Reg x10A REMIT-Internal user-DBQ (Verify) GT 1 Affiliated Submitter (Go To Claim-Success)",
+    "parameters": {
+        "variables": [],
+        "entries": []
+    },
+    "key": "CC2-T44983",
+    "status": "Manual Planned"
+}
