@@ -1,0 +1,108 @@
+3. **Assigning the Test Case to the Created Folder:**
+   - After creating or retrieving the deepest subfolder reference (`createdFolderRef`), the program assigns this folder to the `TestFolder` property of the test case.
+
+Here's the rest of the explanation and code continuation:
+
+### Explanation (continued):
+
+3. **Assigning the Test Case to the Created Folder (continued):**
+   - The `testCase` JSON object includes a property `TestFolder` which is set to the reference of the deepest subfolder created.
+   - The `newTestCase` JSON object for the test case in Rally includes this `TestFolder` reference to ensure the test case is correctly placed within the folder structure.
+
+### Full Code (continued):
+
+```java
+// Add the testCase object to the rallyJson
+rallyJson.add("testCase", testCase);
+
+// Save the transformed JSON to a variable
+String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+// Print the transformed JSON string
+System.out.println("Transformed JSON: " + rallyJsonString);
+
+JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+// Extract values from JSON:
+JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+
+// Create a new test case in Rally
+JsonObject newTestCase = new JsonObject();
+newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+newTestCase.addProperty("Project", projectRef);
+newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+newTestCase.addProperty("TestFolder", createdFolderRef);
+
+// Add Tags to the test case from the JSON file
+JsonArray newTagsArray = new JsonArray();
+JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+if (tagsArrayFromJson != null) {
+    for (JsonElement tagElement : tagsArrayFromJson) {
+        JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+        String tagRef = tagObjectFromJson.get("_ref").getAsString();
+        JsonObject newTagObject = new JsonObject();
+        newTagObject.addProperty("_ref", tagRef);
+        newTagsArray.add(newTagObject);
+    }
+    newTestCase.add("Tags", newTagsArray);
+}
+
+CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+CreateResponse createResponse = restApi.create(createRequest);
+
+if (createResponse.wasSuccessful()) {
+    System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+} else {
+    System.out.println("Error occurred creating test case:");
+    for (String error : createResponse.getErrors()) {
+        System.out.println(error);
+    }
+}
+
+// Release resources
+restApi.close();
+}
+
+private static String createOrGetFolder(RallyRestApi restApi, String folderName, String parentRef) throws Exception {
+// Query to see if the folder already exists
+QueryRequest folderRequest = new QueryRequest("TestFolder");
+folderRequest.setQueryFilter(new QueryFilter("Name", "=", folderName).and(new QueryFilter("Parent", "=", parentRef)));
+QueryResponse folderResponse = restApi.query(folderRequest);
+
+if (folderResponse.getResults().size() > 0) {
+    return folderResponse.getResults().get(0).getAsJsonObject().get("_ref").getAsString();
+} else {
+    // Create new folder
+    JsonObject newFolder = new JsonObject();
+    newFolder.addProperty("Name", folderName);
+    newFolder.addProperty("Parent", parentRef);
+    CreateRequest createFolderRequest = new CreateRequest("TestFolder", newFolder);
+    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+    if (createFolderResponse.wasSuccessful()) {
+        return createFolderResponse.getObject().get("_ref").getAsString();
+    } else {
+        throw new Exception("Failed to create folder: " + folderName);
+    }
+}
+}
+}
+```
+
+### Summary:
+
+1. **Extracting Folder Path from JIRA:**
+   - The program extracts the folder path (`folderPath`) from the JIRA response.
+
+2. **Creating Folder Structure in Rally:**
+   - The `createOrGetFolder` method handles folder creation, ensuring each folder is created under its parent.
+   - The folder creation logic ensures the entire path is created or retrieved correctly.
+
+3. **Assigning Test Case to Folder:**
+   - The deepest folder reference (`createdFolderRef`) is assigned to the `TestFolder` property of the test case.
+   - The test case is created in Rally with the correct folder structure and other properties derived from the JIRA response.
+
+This approach ensures that your test cases in Rally are organized according to the folder structure specified in the JIRA response, enhancing the organization and manageability of test cases.
