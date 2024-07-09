@@ -1,0 +1,143 @@
+The exception you are seeing, `Invalid folder name`, indicates that one of the folder names derived from the JIRA folder path is invalid according to Rally's naming rules. This could be due to special characters, length restrictions, or other constraints.
+
+Here's an enhanced version of the code that ensures folder names are validated before attempting to create them in Rally, along with detailed logging and error handling:
+
+### Updated Code with Enhanced Validation and Logging
+
+```java
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+
+import java.net.URI;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+public class FolderSolution {
+
+    private static final Logger logger = Logger.getLogger(FolderSolution.class.getName());
+
+    private RallyRestApi restApi;
+    private String projectRef;
+
+    public FolderSolution(String rallyUrl, String apiKey, String projectRef) throws Exception {
+        this.restApi = new RallyRestApi(new URI(rallyUrl), apiKey);
+        this.restApi.setApplicationName("CreateFoldersApp");
+        this.projectRef = projectRef;
+    }
+
+    public static void main(String[] args) {
+        try {
+            String rallyURL = "https://rally1.rallydev.com";
+            String apiKey = "_YOUR_API_KEY_";
+            String projectRef = "/project/789325818991";
+            String jiraJsonResponse = //... JSON response from JIRA
+
+            FolderSolution folderSolution = new FolderSolution(rallyURL, apiKey, projectRef);
+
+            // Parse the JIRA JSON response
+            JsonObject jiraJson = JsonParser.parseString(jiraJsonResponse).getAsJsonObject();
+
+            // Extract the folder path
+            String folderPath = jiraJson.get("folder").getAsString();
+
+            // Create folders in Rally based on the folder path from JIRA
+            folderSolution.createFoldersInRally(folderPath);
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Exception in main method", e);
+        }
+    }
+
+    public void createFoldersInRally(String folderPath) throws Exception {
+        if (folderPath == null || folderPath.trim().isEmpty()) {
+            throw new Exception("Invalid folder path");
+        }
+
+        String[] folders = folderPath.split("/");
+        String parentFolderRef = null;
+
+        for (String folderName : folders) {
+            if (folderName.trim().isEmpty()) {
+                continue;
+            }
+
+            logger.log(Level.INFO, "Processing folder: " + folderName);
+            folderName = folderName.trim();
+
+            if (!isValidFolderName(folderName)) {
+                throw new Exception("Invalid folder name: " + folderName);
+            }
+
+            parentFolderRef = createFolderIfNotExists(folderName, parentFolderRef);
+        }
+    }
+
+    private String createFolderIfNotExists(String folderName, String parentFolderRef) throws Exception {
+        QueryRequest folderRequest = new QueryRequest("TestFolder");
+        folderRequest.setFetch(new Fetch("Name", "Parent", "ObjectID"));
+        folderRequest.setQueryFilter(new QueryFilter("Name", "=", folderName));
+
+        if (parentFolderRef != null) {
+            folderRequest.setQueryFilter(folderRequest.getQueryFilter().and(new QueryFilter("Parent", "=", parentFolderRef)));
+        }
+
+        QueryResponse queryResponse = restApi.query(folderRequest);
+
+        if (queryResponse.getTotalResultCount() > 0) {
+            return queryResponse.getResults().get(0).getAsJsonObject().get("_ref").getAsString();
+        }
+
+        JsonObject newFolder = new JsonObject();
+        newFolder.addProperty("Name", folderName);
+        newFolder.addProperty("Project", projectRef);
+
+        if (parentFolderRef != null) {
+            newFolder.addProperty("Parent", parentFolderRef);
+        }
+
+        CreateRequest createRequest = new CreateRequest("TestFolder", newFolder);
+        CreateResponse createResponse = restApi.create(createRequest);
+
+        if (!createResponse.wasSuccessful()) {
+            StringBuilder errorMessage = new StringBuilder("Error occurred creating folder: ");
+            for (String error : createResponse.getErrors()) {
+                errorMessage.append(error).append(" ");
+            }
+            throw new Exception(errorMessage.toString());
+        }
+
+        return createResponse.getObject().get("_ref").getAsString();
+    }
+
+    private boolean isValidFolderName(String folderName) {
+        // Add your custom validation logic here (e.g., length, special characters, etc.)
+        return folderName != null && !folderName.trim().isEmpty();
+    }
+}
+```
+
+### Key Points in the Updated Code:
+
+1. **Validation**: The `isValidFolderName` method checks if the folder name is valid. You can expand this method to include more complex validation rules.
+
+2. **Logging**: Added logging statements to track folder processing and any errors encountered.
+
+3. **Error Handling**: Improved error handling to provide more detailed error messages, especially when folder creation fails.
+
+4. **Folder Path Processing**: The folder path is split and each folder name is trimmed to remove leading and trailing whitespace, reducing the risk of validation errors.
+
+### Next Steps:
+
+1. **Run and Test**: Execute the updated code and check if folders are created correctly in Rally based on the JIRA response.
+
+2. **Debugging**: If any issues arise, use the logs to diagnose where the process is failing.
+
+3. **Refinement**: Refine the validation logic in `isValidFolderName` as needed based on Rally's specific constraints.
+
+If you encounter further issues or need additional customization, please provide specific error messages or scenarios for more targeted assistance.
