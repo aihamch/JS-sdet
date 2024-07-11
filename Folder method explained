@@ -1,0 +1,188 @@
+Here's the detailed code with comments explaining each step:
+
+```java
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.util.QueryFilter;
+
+import java.net.URI;
+
+public class NoDuplicate {
+
+    public static void main(String[] args) throws Exception {
+        // Define the test case ID in JIRA
+        String testCaseId = "CC2-T6096";
+
+        // Define the base URI for JIRA API
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+
+        // Define the authorization token for JIRA API
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+
+        // Define the project reference in Rally
+        String projectRef = "789325818991";
+
+        // Send the GET request to JIRA using HttpClient (code skipped for brevity)
+
+        // Create a new JSON object to hold the data for Rally
+        JsonObject rallyJson = new JsonObject();
+
+        // Add the project reference to the rally JSON object
+        rallyJson.addProperty("projectRef", projectRef);
+
+        // (Code for creating testCase object skipped for brevity)
+
+        // Get folder hierarchy from JIRA response
+        String folderPath = ""; // Replace with actual folder path from JIRA response
+        String[] folderHierarchy = folderPath.split("/");
+
+        // Create the test folder hierarchy in Rally based on the retrieved folder hierarchy
+        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
+
+        // Check if the test folder was successfully created or retrieved
+        if (testFolder == null) {
+            System.out.println("Failed to create or retrieve TestFolder.");
+            return; // Exit the method or handle accordingly
+        }
+
+        // Add the test folder reference to the rally JSON object
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the test case object to the rally JSON (code skipped for brevity)
+
+        // Save the transformed JSON to a variable (skipped for brevity)
+
+        // Initialize Rally API and create the test case (code skipped for brevity)
+    }
+
+    private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+        // Initialize the last folder and its reference as null
+        JsonObject lastFolder = null;
+        String lastFolderRef = null;
+
+        RallyRestApi restApi = null;
+        try {
+            // Initialize RallyRestApi with the Rally URI and API key
+            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            // Iterate through the folder hierarchy
+            for (String folderName : folderHierarchy) {
+                // Validate folder name
+                if (folderName == null || folderName.trim().isEmpty()) {
+                    System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                    continue; // Skip invalid folder names
+                }
+
+                // Create a QueryRequest to check if the folder already exists in Rally
+                QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
+                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()));
+                folderExistenceRequest.setFetch(new String[]{"_ref", "Name", "Parent"}); // Set fields to fetch
+
+                // Execute the query to check for folder existence
+                QueryResponse queryResponse = restApi.query(folderExistenceRequest);
+
+                // Check if the query was successful
+                if (queryResponse.wasSuccessful()) {
+                    // Check if any folder with the specified name exists
+                    if (queryResponse.getTotalResultCount() > 0) {
+                        // Folder exists, retrieve its _ref and update the last folder reference
+                        lastFolder = queryResponse.getResults().get(0).getAsJsonObject();
+                        lastFolderRef = lastFolder.get("_ref").getAsString();
+                        System.out.println("Folder already exists: " + lastFolderRef);
+                    } else {
+                        // Folder does not exist, create a new folder
+                        JsonObject newFolder = new JsonObject();
+                        newFolder.addProperty("Name", folderName.trim());
+                        newFolder.addProperty("Project", projectRef);
+
+                        // If there's a parent folder, set it as the parent of the new folder
+                        if (lastFolderRef != null) {
+                            newFolder.addProperty("Parent", lastFolderRef);
+                        }
+
+                        // Create a CreateRequest to create the new folder in Rally
+                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                        // Check if the folder creation was successful
+                        if (createFolderResponse.wasSuccessful()) {
+                            // Update the last folder reference and object
+                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                            newFolder.addProperty("_ref", lastFolderRef);
+                            lastFolder = newFolder;
+                            System.out.println("Successfully created folder: " + lastFolderRef);
+                        } else {
+                            // Handle errors in folder creation
+                            System.out.println("Error occurred creating folder:");
+                            for (String error : createFolderResponse.getErrors()) {
+                                System.out.println(error);
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    // Handle errors in querying folders
+                    System.out.println("Error querying folders:");
+                    for (String error : queryResponse.getErrors()) {
+                        System.out.println(error);
+                    }
+                    break;
+                }
+            }
+
+            // Return the last created or retrieved folder
+            return lastFolder;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // Close the RallyRestApi to release resources
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        // Return null if folder creation or retrieval failed
+        return null;
+    }
+}
+```
+
+### Explanation:
+
+1. **Imports**: The necessary classes from Gson and Rally REST API libraries are imported.
+   
+2. **Main Method**:
+   - Define JIRA and Rally configurations (`testCaseId`, `jiraBaseUri`, `authToken`, `projectRef`).
+   - Placeholder for the code to send a GET request to JIRA and retrieve the test case JSON (skipped for brevity).
+   - Create a JSON object `rallyJson` to hold Rally data and add the project reference to it.
+   - Retrieve the folder hierarchy from the JIRA response (placeholder for actual folder path) and split it into an array `folderHierarchy`.
+   - Call `createTestFolder` to create the folder hierarchy in Rally and get the reference to the last folder.
+   - If the folder creation or retrieval fails, print an error message and exit.
+   - Add the test folder reference to `rallyJson` (placeholder for creating the test case object and adding it to `rallyJson`).
+   - Placeholder for saving the transformed JSON and creating the test case in Rally (skipped for brevity).
+
+3. **createTestFolder Method**:
+   - Initialize variables for the last folder object and its reference.
+   - Create a RallyRestApi instance with the Rally URI and API key, and set the application name.
+   - Iterate through the folder hierarchy:
+     - Validate the folder name to skip invalid names.
+     - Create a QueryRequest to check if the folder already exists in Rally.
+     - Execute the query and check for the existence of the folder.
+     - If the folder exists, retrieve its reference and update the last folder reference.
+     - If the folder does not exist, create a new folder and set its project and parent reference if applicable.
+     - Create a CreateRequest to create the new folder in Rally and handle the response.
+     - If the folder creation is successful, update the last folder reference and object.
+     - Handle errors during folder creation and query execution.
+   - Return the last created or retrieved folder.
+   - Ensure the RallyRestApi instance is closed to release resources.
+
+This detailed explanation and comments should help you understand the purpose and functionality of each part of the code.
