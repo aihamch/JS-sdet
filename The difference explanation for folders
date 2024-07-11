@@ -1,0 +1,119 @@
+Let's break down the difference between `lastFolder` and `lastFolderRef` in the context of the code:
+
+### `lastFolder`
+- **Type**: `JsonObject`
+- **Purpose**: Holds the complete JSON object of the last folder processed, which includes all details of the folder as returned by Rally's API.
+- **Use Case**: Useful when you need to access multiple properties or nested information about the folder. This object can include attributes such as `_ref`, `Name`, `Parent`, and other metadata.
+- **Example**: If you need to check multiple properties of the last folder or if you need to pass this object to another method that requires more than just the `_ref`.
+
+### `lastFolderRef`
+- **Type**: `String`
+- **Purpose**: Holds only the `_ref` string (unique identifier) of the last folder processed.
+- **Use Case**: Useful for setting parent references in new folders or other objects. This string is a unique identifier used by Rally to reference the folder.
+- **Example**: If you need to set the parent of a new folder, you would use `lastFolderRef`.
+
+### Code Example with Comments
+
+Here’s a segment of the code with comments to illustrate the difference and how each is used:
+
+```java
+private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+    // Initialize the last folder and its reference as null
+    JsonObject lastFolder = null;
+    String lastFolderRef = null;
+
+    RallyRestApi restApi = null;
+    try {
+        // Initialize RallyRestApi with the Rally URI and API key
+        restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        // Iterate through the folder hierarchy
+        for (String folderName : folderHierarchy) {
+            // Validate folder name
+            if (folderName == null || folderName.trim().isEmpty()) {
+                System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                continue; // Skip invalid folder names
+            }
+
+            // Query Rally to check if folder already exists
+            QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
+            folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()));
+            folderExistenceRequest.setFetch(new String[]{"_ref", "Name", "Parent"}); // Set fields to fetch
+
+            QueryResponse queryResponse = restApi.query(folderExistenceRequest);
+
+            if (queryResponse.wasSuccessful()) {
+                // Check if any folder with the specified name exists
+                if (queryResponse.getTotalResultCount() > 0) {
+                    // Folder exists, retrieve its JSON object and update lastFolder and lastFolderRef
+                    lastFolder = queryResponse.getResults().get(0).getAsJsonObject();
+                    lastFolderRef = lastFolder.get("_ref").getAsString();
+                    System.out.println("Folder already exists: " + lastFolderRef);
+                } else {
+                    // Folder does not exist, create a new folder
+                    JsonObject newFolder = new JsonObject();
+                    newFolder.addProperty("Name", folderName.trim());
+                    newFolder.addProperty("Project", projectRef);
+
+                    // If there's a parent folder, set it as the parent of the new folder
+                    if (lastFolderRef != null) {
+                        newFolder.addProperty("Parent", lastFolderRef);
+                    }
+
+                    // Create a CreateRequest to create the new folder in Rally
+                    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                    // Check if the folder creation was successful
+                    if (createFolderResponse.wasSuccessful()) {
+                        // Update the last folder reference and object
+                        lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                        newFolder.addProperty("_ref", lastFolderRef);
+                        lastFolder = newFolder;
+                        System.out.println("Successfully created folder: " + lastFolderRef);
+                    } else {
+                        // Handle errors in folder creation
+                        System.out.println("Error occurred creating folder:");
+                        for (String error : createFolderResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                        break;
+                    }
+                }
+            } else {
+                // Handle errors in querying folders
+                System.out.println("Error querying folders:");
+                for (String error : queryResponse.getErrors()) {
+                    System.out.println(error);
+                }
+                break;
+            }
+        }
+
+        // Return the last created or retrieved folder
+        return lastFolder;
+
+    } catch (Exception e) {
+        e.printStackTrace();
+    } finally {
+        // Close the RallyRestApi to release resources
+        if (restApi != null) {
+            try {
+                restApi.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    // Return null if folder creation or retrieval failed
+    return null;
+}
+```
+
+### Summary
+
+- **`lastFolder`**: The complete JSON object of the last folder processed, containing detailed information.
+- **`lastFolderRef`**: The `_ref` string of the last folder processed, used for setting parent references in new folders or other objects.
+
+By using both `lastFolder` and `lastFolderRef`, the code ensures it has access to both detailed folder information and the unique identifier necessary for creating new folders in the correct hierarchy.
