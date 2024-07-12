@@ -1,0 +1,228 @@
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+
+import java.net.URI;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+public class CreateTestCase {
+
+    public static void main(String[] args) throws Exception {
+    	
+    	
+    	
+    	
+    	// Define constants
+    	   String testCaseId = "CC2-T3170";
+           String jiraBaseUri = "https://jira.healthcareit.net/";
+           String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+           String projectRef = "789325818991";
+           
+           
+           
+           //**Retrieve Test Case from JIRA**
+           
+           // Send the GET request to JIRA using HttpClient
+           HttpClient client = HttpClients.createDefault();
+           HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+           request.setHeader("Authorization", "Bearer " + authToken);
+           request.setHeader("Accept", "application/json");
+
+           HttpResponse response = client.execute(request);
+           String responseBody = EntityUtils.toString(response.getEntity());
+
+           System.out.println("Pretty Response: " + responseBody);
+           
+
+           // Parse the JIRA response
+           JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+           
+
+//           - **HTTP Request**: Uses `HttpClient` to send a GET request to JIRA.
+//           - **Headers**: Sets the `Authorization` and `Accept` headers.
+//           - **Response Handling**: Reads the response and prints it.
+//           - **JSON Parsing**: Parses the response into a `JsonObject`.
+           
+           
+           
+           
+           
+           // Create the Rally JSON object
+           
+           
+           JsonObject rallyJson = new JsonObject();
+           rallyJson.addProperty("projectRef", projectRef);
+           
+           
+          // **Rally JSON Object**: Initializes a new JSON object for Rally and adds the project reference.
+    	
+    	
+    	
+    	
+    	
+    	
+           //      **Transform JIRA Data to Rally Format**
+        JsonObject testCase = new JsonObject();
+
+        
+        testCase.addProperty("Name", jiraJson.get("name").getAsString());
+        testCase.addProperty("Method", "Manual"); // Assuming a default value
+
+        
+        
+        
+        
+        
+        // Add priority
+        String priority = jiraJson.get("priority").getAsString();
+        if (priority.equalsIgnoreCase("Normal")) {
+            testCase.addProperty("Priority", "Useful");
+        } else {
+            testCase.addProperty("Priority", priority);
+        }
+        
+        
+        // Add owner
+        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
+        
+        // Add Status
+        testCase.addProperty("Ready", jiraJson.get("status").getAsString().equals("Ready"));  // Assuming a default value
+
+        // Add Tags
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        testCase.add("Tags", tagsArray);
+
+        // Add TestFolder
+        JsonObject testFolder = new JsonObject();
+        testFolder.addProperty("_ref", "/testfolder/790320784037");
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        rallyJson.add("testCase", testCase);
+
+        // Save the transformed JSON to a variable
+        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+        // Print the transformed JSON string
+        System.out.println("Transformed JSON: " + rallyJsonString); 
+        
+//        - **Create Test Case Object**: Populates the test case object with properties from the JIRA response.
+//        - **Add Tags and Test Folder**: Adds a predefined tag and test folder to the test case.
+//        - **Add to Rally JSON**: Adds the test case object to the Rally JSON.
+//        - **Print JSON**: Converts the Rally JSON to a pretty-printed string and prints it.
+        
+        
+        
+
+        // Now we can use the rallyJsonString in a different class as needed
+        
+   
+
+        RallyJsonObj rallyJsonObj = new RallyJsonObj();
+
+        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+        
+        //   **Interact with Rally API**
+        String rallyURL = "https://rally1.rallydev.com";
+        String apiKey = "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk";  // replace with your API Key : different for different users
+       
+
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        
+        // Extract values from JSON:
+        
+     // 1-test Case data
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+
+        
+        
+        //2-TestFolder data
+        JsonObject testFolderData = null;
+        JsonElement testFolderElement = jsonData.get("TestFolder");
+        if (testFolderElement != null && testFolderElement.isJsonObject()) {
+            testFolderData = testFolderElement.getAsJsonObject();
+        } else {
+            System.out.println("Error: TestFolder data not found in JSON.");
+            restApi.close();
+            return;
+        }
+
+        try {
+            // Create a new test case
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", projectRef);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+            // Add Tags to the test case from the JSON file
+            JsonArray newTagsArray = new JsonArray();
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagRef);
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+
+            // Add TestFolder to the test case from the JSON file
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+//        **Rally JSON Parsing**: Parses the Rally JSON string back into a `JsonObject`.
+//        - **Initialize Rally API**: Sets up the Rally API connection with the provided URL and API key.
+//        - **Extract Data**: Extracts test case and test folder data from the JSON.
+//        - **Create New Test Case in Rally**:
+//          - Populates a new test case object with the extracted data.
+//          - Sends a create request to Rally using `CreateRequest`.
+//          - Handles the response, printing success or error messages.
+//        - **Close API**: Ensures the API connection is closed to release resources.
+    
+    
+    
+    }
+    
+}
+im getting this error
+Error occurred creating test case:
+Could not read: Could not read referenced object null
+
+
