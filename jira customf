@@ -1,0 +1,41 @@
+JSON Object: {
+    "owner": "JIRAUSER133721",
+    "updatedBy": "JIRAUSER109514",
+    "customFields": {
+        "Valid Test?": "Valid",
+        "Core Regression Test?": "No",
+        "Migrate Test to Rally": true,
+        "Module": "Support Preferences",
+        "AutoBot Automated Review": "Review In-process"
+    },
+    "keyNumber": 53619,
+    "updatedOn": "2024-05-13T18:19:21.303Z",
+    "priority": "Normal",
+    "majorVersion": 1,
+    "createdOn": "2023-05-03T10:41:19.891Z",
+    "objective": "<strong>Given<\/strong> an External User that is associated with a Biller that is a Payer Sponsored Biller/Submitter, logs into Connect Center and selects the \u201cAdmin\u201d menu and then selects the sub-menu \u201cSupport Preferences.\u201d<br /><strong>When<\/strong> the \u201cSupport Preferences\u201d screen is displayed to the External User<br /><strong>Then<\/strong> the External User will see a new tab next to Account Support Preferences, which will be titled \u201cFile Management\u201d.  This new tab will allow for the attachment of Videos via the \u201cVideo icon\u201d.  Use a metadata filetype as \u201cTraining Video\u201d and the label links/icons will be derived by the description included in the support preferences meta data.",
+    "projectKey": "CC2",
+    "folder": "/ConnectCenter/Release 5.9.8/ConnectCenter - U_3_CC/CC2-12769 - White labeling - Modify marketing carousel for payer sponsored RTO Customers",
+    "latestVersion": true,
+    "createdBy": "JIRAUSER133721",
+    "testScript": {
+        "id": 580304,
+        "type": "STEP_BY_STEP",
+        "steps": [{
+            "testData": "User User ID JNL_Sub_160042/4829April# - If password doesn't work, change it and notify Jeff Lewis.  security/answer or white little dogs name/behr.",
+            "expectedResult": "The expected results should match the \"Then\" aspect of the Gherkin.  If they do not, contact Jeff lewis for resolution.",
+            "index": 0,
+            "description": "<strong>Given<\/strong> an External User that is associated with a Biller that is a Payer Sponsored Biller/Submitter, logs into Connect Center and selects the \u201cAdmin\u201d menu and then selects the sub-menu \u201cSupport Preferences.\u201d<br /><strong>When<\/strong> the \u201cSupport Preferences\u201d screen is displayed to the External User<br /><strong>Then<\/strong> the External User will see a new tab next to Account Support Preferences, which will be titled \u201cFile Management\".  This new tab will allow for the attachment of Videos via the \u201cVideo icon\u201d.  Use a metadata filetype as \u201cTraining Video\u201d and the label links/icons will be derived by the description included in the support preferences meta data.",
+            "id": 4704871
+        }]
+    },
+    "issueLinks": ["CC2-12769"],
+    "lastTestResultStatus": "Pass",
+    "name": "Gherkin 3 - CC2 = 12769 (This covers AC(s) 3 (External User), 3.1, 3.2, 3.3)",
+    "parameters": {
+        "variables": [],
+        "entries": []
+    },
+    "key": "CC2-T53619",
+    "status": "None"
+}
