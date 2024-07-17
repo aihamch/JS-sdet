@@ -1,0 +1,195 @@
+To update the `Runner` class to migrate the test folder based on the hierarchy coming from JIRA and create the test case accordingly, we need to ensure that the `StepDefinitions` class has the necessary methods to handle test folder hierarchy creation. Then, we will modify the `Runner` class to use these methods appropriately.
+
+### Updated `StepDefinitions.java`
+
+First, let's ensure the `StepDefinitions` class has the methods to create the test folder hierarchy and create the test case accordingly.
+
+```java
+public class StepDefinitions {
+
+    private RallyRestApiUtil rallyUtil;
+    private JIRAUtil jiraUtil;
+    private ConnectionInfo connectionInfo;
+
+    public StepDefinitions(ConnectionInfo connectionInfo, TestConfig config) throws Exception {
+        this.connectionInfo = connectionInfo;
+        this.rallyUtil = new RallyRestApiUtil(connectionInfo);
+        this.jiraUtil = new JIRAUtil(config.getJiraBaseUri(), config.getJiraAuthToken());
+    }
+
+    public void createTestCase(String name, String method, String priority, String owner, boolean ready, String tagRef, String folderRef) throws Exception {
+        JsonObject testCase = new JsonObject();
+        testCase.addProperty("Name", name);
+        testCase.addProperty("Project", connectionInfo.getProjectRef());
+        testCase.addProperty("Method", method);
+        testCase.addProperty("Priority", priority);
+        testCase.addProperty("Owner", owner);
+        testCase.addProperty("Ready", ready);
+
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tag = new JsonObject();
+        tag.addProperty("_ref", tagRef);
+        tagsArray.add(tag);
+        testCase.add("Tags", tagsArray);
+
+        if (folderRef != null && !folderRef.isEmpty()) {
+            testCase.addProperty("TestFolder", folderRef);
+        }
+
+        CreateResponse createResponse = rallyUtil.createTestCase(testCase);
+        if (createResponse.wasSuccessful()) {
+            System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+        } else {
+            System.out.println("Error creating test case:");
+            for (String error : createResponse.getErrors()) {
+                System.out.println(error);
+            }
+        }
+    }
+
+    public JsonObject createTestFolderHierarchy(String[] folderHierarchy, String projectRef) throws Exception {
+        JsonObject lastFolder = null;
+        String lastFolderRef = null;
+
+        for (String folderName : folderHierarchy) {
+            if (folderName == null || folderName.trim().isEmpty()) {
+                continue;
+            }
+
+            JsonObject existingFolder = rallyUtil.queryTestFolder(folderName);
+            if (existingFolder != null) {
+                lastFolder = existingFolder;
+                lastFolderRef = lastFolder.get("_ref").getAsString();
+            } else {
+                JsonObject newFolder = new JsonObject();
+                newFolder.addProperty("Name", folderName.trim());
+                newFolder.addProperty("Project", projectRef);
+
+                if (lastFolderRef != null) {
+                    newFolder.addProperty("Parent", lastFolderRef);
+                }
+
+                CreateResponse createFolderResponse = rallyUtil.createTestFolder(newFolder);
+                if (createFolderResponse.wasSuccessful()) {
+                    lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                    newFolder.addProperty("_ref", lastFolderRef);
+                    lastFolder = newFolder;
+                } else {
+                    throw new Exception("Error creating folder: " + String.join(", ", createFolderResponse.getErrors()));
+                }
+            }
+        }
+        return lastFolder;
+    }
+
+    public void migrateTestCaseFromJiraToRally(String jiraTestCaseId) throws Exception {
+        JsonObject jiraTestCase = jiraUtil.getTestCase(jiraTestCaseId);
+
+        // Transform JIRA test case to Rally test case format
+        JsonObject rallyTestCase = new JsonObject();
+        rallyTestCase.addProperty("Project", connectionInfo.getProjectRef());
+
+        // Add name
+        JsonElement nameElement = jiraTestCase.get("name");
+        if (nameElement != null && !nameElement.isJsonNull()) {
+            rallyTestCase.addProperty("Name", nameElement.getAsString());
+        } else {
+            rallyTestCase.addProperty("Name", "Default Test Case Name"); // default value
+        }
+
+        // Add method
+        rallyTestCase.addProperty("Method", "Manual"); // Assuming a default value
+
+        // Add priority
+        JsonElement priorityElement = jiraTestCase.get("priority");
+        if (priorityElement != null && !priorityElement.isJsonNull()) {
+            String priority = priorityElement.getAsString();
+            if (priority.equalsIgnoreCase("Normal")) {
+                rallyTestCase.addProperty("Priority", "Useful");
+            } else {
+                rallyTestCase.addProperty("Priority", priority);
+            }
+        } else {
+            rallyTestCase.addProperty("Priority", "Default Priority"); // default value
+        }
+
+        // Add owner
+        rallyTestCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
+
+        // Add status
+        JsonElement statusElement = jiraTestCase.get("status");
+        if (statusElement != null && !statusElement.isJsonNull()) {
+            rallyTestCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        } else {
+            rallyTestCase.addProperty("Ready", false); // default value
+        }
+
+        // Add Tags
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        rallyTestCase.add("Tags", tagsArray);
+
+        // Add TestFolder
+        String folderPath = jiraTestCase.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+        JsonObject testFolder = createTestFolderHierarchy(folderHierarchy, connectionInfo.getProjectRef());
+        String testFolderRef = testFolder != null ? testFolder.get("_ref").getAsString() : null;
+
+        // Create test case in Rally
+        createTestCase(
+            rallyTestCase.get("Name").getAsString(),
+            rallyTestCase.get("Method").getAsString(),
+            rallyTestCase.get("Priority").getAsString(),
+            rallyTestCase.get("Owner").getAsString(),
+            rallyTestCase.get("Ready").getAsBoolean(),
+            rallyTestCase.get("Tags").getAsJsonArray().get(0).getAsJsonObject().get("_ref").getAsString(),
+            testFolderRef
+        );
+    }
+
+    public void closeConnection() throws Exception {
+        rallyUtil.close();
+    }
+}
+```
+
+### Updated `Runner.java`
+
+Now let's update the `Runner` class to utilize the new method for migrating test cases along with their folder hierarchy.
+
+```java
+public class Runner {
+    public static void main(String[] args) {
+        try {
+            TestConfig config = new TestConfig();
+            ConnectionInfo connectionInfo = new ConnectionInfo(config.getRallyApiKey(), config.getRallyUri(), config.getProjectRef());
+
+            // Initialize StepDefinitions with connection info and config
+            StepDefinitions steps = new StepDefinitions(connectionInfo, config);
+
+            // Example usage: Migrate a specific test case from JIRA to Rally
+            String jiraTestCaseId = "CC2-T46114"; // Example JIRA test case ID
+            steps.migrateTestCaseFromJiraToRally(jiraTestCaseId);
+
+            // Clean up
+            steps.closeConnection();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### Summary
+
+1. **TestConfig.java:** Contains configuration details for connecting to JIRA and Rally.
+2. **JIRAUtil.java:** Utility class for fetching test cases from JIRA.
+3. **RallyRestApiUtil.java:** Utility class for creating test cases and folders in Rally.
+4. **ConnectionInfo.java:** Holds the connection details for Rally.
+5. **StepDefinitions.java:** Contains methods for creating test cases and folders in Rally and migrating test cases from JIRA to Rally, including handling folder hierarchy.
+6. **Runner.java:** Main class to run the migration process, now handling test folder hierarchy.
+
+This setup provides a framework to migrate test cases from JIRA to Rally while maintaining the test folder hierarchy.
