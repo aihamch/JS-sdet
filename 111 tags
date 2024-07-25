@@ -1,0 +1,42 @@
+// Add Tags
+JsonArray tagsArray = new JsonArray();
+
+// Parse and add labels from JIRA response as tags
+if (jiraJson.has("Labels") && jiraJson.get("Labels").isJsonArray()) {
+    JsonArray labelsArray = jiraJson.getAsJsonArray("Labels");
+    
+    // Initialize Rally API
+    String rallyURL = "https://rally1.rallydev.com";
+    String apiKey = "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk"; // Replace with your API Key
+    RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+    restApi.setApplicationName("CreateTestCaseApp");
+
+    try {
+        for (JsonElement labelElement : labelsArray) {
+            String label = labelElement.getAsString();
+
+            // Create new tag
+            JsonObject newTag = new JsonObject();
+            newTag.addProperty("Name", label);
+            newTag.addProperty("Project", projectRef);
+
+            CreateRequest createTagRequest = new CreateRequest("Tag", newTag);
+            CreateResponse createTagResponse = restApi.create(createTagRequest);
+
+            if (createTagResponse.wasSuccessful()) {
+                JsonObject createdTag = createTagResponse.getObject();
+                tagsArray.add(createdTag);
+            } else {
+                System.out.println("Error occurred creating tag:");
+                for (String error : createTagResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        }
+    } finally {
+        // Release resources
+        restApi.close();
+    }
+}
+
+testCase.add("Tags", tagsArray);
