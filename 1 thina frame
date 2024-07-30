@@ -1,0 +1,891 @@
+can you explain this frame work for me 
+calss 1 
+package com.optum.coe.automation.rally;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Properties;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+
+// This Class will help to load and retrieve the config values from .properties file
+
+public class ConfigLoader {
+
+	// Logger Initialization for ConfigLoader Class
+	private static final Logger logger = LogManager.getLogger();
+	
+	// Config file location 	
+	private static String CONFIG_FILE_LOCATION = Paths.get("").toAbsolutePath().toString() + "/resources/rally_migration_config.properties";	
+	
+	private static Properties properties = new Properties(); // Initialization of a object for Properties class. This variable will be used to load the config file 
+	
+	//Create a static block to load the properties file. 
+	//Since we are using Static block, the code will be executed one time while class is loaded first time in JVM.
+	
+	static {
+		
+		FileInputStream fis = null;
+		try {
+			fis = new FileInputStream(CONFIG_FILE_LOCATION);  
+		} catch (FileNotFoundException e) {
+			logger.error("The config file is not found." + CONFIG_FILE_LOCATION + "is not available", e);
+			
+		}
+		
+		try {
+			properties.load(fis); // Load the config file value
+		} catch (IOException e) {
+			logger.error("The config file is not loaded successfully." + CONFIG_FILE_LOCATION + " is the location", e);
+		}
+    }
+	
+	// A Method to get the Config value. This method accepts the key for the value available in Config file. For Example: RALLY_BASE_URL is the key and this method will return https://rally1.rallydev.com
+	
+	public static String getConfigValue(String key) {
+		
+		return properties.getProperty(key); // Return statement for the method
+		
+	}
+
+}
+
+class 2
+
+package com.optum.coe.automation.rally;
+
+//import org.apache.logging.log4j.LogManager;
+//import org.apache.logging.log4j.Logger;
+
+public class JiraAttachment {
+	
+	// Logger Initialization for JiraAttachment Class
+	//private static final Logger logger = LogManager.getLogger();
+	
+	private String fileName;
+	
+	
+	public void setFileName(String fileName) {
+		this.fileName = fileName;
+	}
+	
+	public String getFileName() {
+		return fileName;
+	}
+	
+	
+}
+
+class 3
+
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import org.apache.http.HttpEntity;
+import org.apache.http.ParseException;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+public class JiraOperation {
+
+	// Initialization of the class member variables. This section can be updated in future if more member variables are added during integration if needed. 
+	
+	private String jiraBaseURL; 
+	private String jiraApiKey;
+	private String jiraProjectKey;
+	private String max_chunk; 
+	private String tcAttachmentDownloadLocation;
+	
+	// Logger Initialization for JiraOperation Class
+	
+	private static final Logger logger = LogManager.getLogger();
+	
+	/* A Constructor loads the value from .properties file. These value will be loaded as soon as a object is created for this class.
+	 * Jira Base URL, Jira API Key, Jira Project Key, Max Chunk values are loaded from .properties file
+	 * max_chunk value refers that how many test cases should be migrated for a run. */
+	
+	public JiraOperation() {
+		
+		jiraBaseURL=ConfigLoader.getConfigValue("JIRA_BASE_URL");
+		jiraApiKey=ConfigLoader.getConfigValue("JIRA_API_TOKEN");
+		jiraProjectKey=ConfigLoader.getConfigValue("JIRA_PROJECT_KEY");
+		max_chunk=ConfigLoader.getConfigValue("MAX_VALUE_CHUNK");
+		tcAttachmentDownloadLocation=ConfigLoader.getConfigValue("TEST_CASE_ATTACHMENT_LOCATION");
+		logger.info("Jira values for the project key " + jiraProjectKey +" are assiged from rally_migration_config.properties file");
+		logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nJira Base URL - " + jiraBaseURL + "\nJira Project Key " + jiraProjectKey + "\nMax Chunk value - " + max_chunk + "\nTest Attachment Download location - " + tcAttachmentDownloadLocation);
+
+	}
+	
+	// Create a method to get non migrated testcase keys using JIRA REST Api and save them to Testcase array list
+	
+	public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
+		
+		// An ArrayList is used to store the testcases keys from Jira response
+		
+		ArrayList<String> testCaseKeys = new ArrayList<String>();
+		
+		// Preparation of URL string building.
+		
+		String encodededKey = null;
+		try {
+			encodededKey = URLEncoder.encode("projectKey = " + jiraProjectKey + " AND \"Migrate Test to Rally\" = true AND \"TestCase Migrated\" = false", StandardCharsets.UTF_8.toString());
+		} catch (UnsupportedEncodingException e) {
+			logger.error("Error while encoding a part of URL ", e );
+		}
+		
+		/* Jira URL string building. This URL will give the Jira Testcase keys
+	
+		   1. For max chunk configured numbers testcases. "max_result" is the URL argument which handles this part.
+		             AND
+		   2. For the testcases which are not migrated already. It will be determined by "TestCase Migrated" field which will be false for migrated testcase in Jira  
+		              AND
+		   3. For the testcases which need to be migrated. It will be determined by "Migrate Test to Rally" field which will be true for non-migated testcase in Jira
+					  AND
+		   4. For the testcases associated with the configured Jira project key */
+		
+		String url = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=" + max_chunk + "&query=" + encodededKey;
+		logger.info("String URL to get non migrated testcase keys from Jira " + url); // Log the string URL in log file
+		
+		  /* Call "getJiraResponse" from Utils class. This method will return the JIRA JSON response for the given URL.
+		   * Since the URL has been built such a way that to list the non migrated testcases, the output of this method would be Jira testcase keys in a JSON format */
+		
+		HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+	    
+		if (response !=  null) {
+	    	String result = null;
+			try {
+				// Parse the Json into string; meaning get the jira testcase keys as string value from Json
+				result = EntityUtils.toString(response);
+				
+			// Exceptional Handling while parsing the Json response
+			} catch (ParseException e) {
+				logger.error("Error while parsing the Json response ", e );
+				
+			} catch (IOException e) {
+				logger.error("Error while parsing the Json response" ,e);
+				
+			}
+			// Add the parsed Jira testcase keys into JSON Array.
+			
+	    	JSONArray jsonArray = new JSONArray(result);
+	    	
+	    	// Iterate each keys, get the value of testcase key and add it to ArrayList
+	    	for (int i = 0; i < jsonArray.length(); i++) {
+                 JSONObject jsonObject = jsonArray.getJSONObject(i);
+                 String key = jsonObject.getString("key");                
+                 logger.info("Key retrieved: " + jsonObject.getString("key"));
+                 testCaseKeys.add(key);
+             }
+	    	 
+	    } else {
+	    	// Log if null response
+	    	logger.error("Response is NULL from while retrieving non migrated keys from JIRA. Returning NULL");
+	    }
+		
+		return testCaseKeys;
+	}
+	
+    // Create a method to get the testcase details for a given jira testcase key. This method accepts Jira key as string argument and returns the testcase keys as Json Object for further processing
+	
+// Create a method to get JIRA Test case details for the current key
+	
+
+	public JsonObject getJiraTestCaseDetails(String key) {
+			JsonObject jiraJson = null;
+			
+			// Jira URL string building. This URL will give the Jira testcase details for the given testcase key
+			String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
+			
+			/* Call "getJiraResponse" from Utils class. This method will return the JIRA JSON response for the given URL.
+			 * Since the URL has been built such a way that to get the testcase details for the given testcase key, the output of this method would be Jira Testcase details in a JSON format */
+			
+			HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+			if ( response !=  null) {
+				try {
+					// Convert the response as String and then parse the string, Return the testcase details as JsonObject
+					String responseBody = EntityUtils.toString(response);
+					logger.info("Testcase details for the key" + key + ": " + responseBody);
+					jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+				
+				// Exception handling
+				} catch (ParseException e) {
+					logger.error("Failed to retrieving JIRA testcase details for the key " + key + "; Parser exception " , e);
+					
+				} catch (IOException e) {
+					logger.error("Failed to retrieving JIRA testcase details for the key " + key + "; IO exception " , e);
+				}
+				
+				
+			} else {
+				
+				logger.error("failed to get jira testcase details for the key " + key + "; Returning null");
+			}
+
+		return jiraJson;
+
+	}
+	
+	
+	
+	// create a method to download attachments. Future implementation
+	
+	
+	
+	
+	
+	
+	
+	
+
+}
+
+class 4
+package com.optum.coe.automation.rally;
+
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+
+public class JiraTestCase {
+	
+	// Logger Initialization for JiraAttachment Class
+	protected static final Logger logger = LogManager.getLogger();
+	
+	private String key;
+	private String name;
+	private String objective;
+	private String preCondition;
+	private String status;
+	private String priority;
+	private String owner;
+	private String testFolder;
+	private String lables;
+	private String project;
+	private List<JiraAttachment> attachments;
+	
+	public String getKey() {
+		return key;
+	}
+	 
+	 public void setKey(String key) {
+		this.key = key;
+	}
+	
+	
+	public String getName() {
+		return name;
+	}
+	
+	public void setName(String name) {
+		this.name = name;
+		
+	}
+	
+	
+	public String getObjective() {
+		return objective;
+	}
+	
+	public void setObjective(String objective) {
+		this.objective = objective;
+	}
+	
+	public List<JiraAttachment> getAttachments() {
+		return attachments;
+	}
+	
+	public void setAttachments(List<JiraAttachment> attachments) {
+		this.attachments = attachments;
+	}
+	
+	public String getLables() {
+		return lables;
+	}
+	
+	public void setLables(String lables) {
+		this.lables = lables;
+	}
+	
+	public String getOwner() {
+		return owner;
+	}
+	
+	public void setOwner(String owner) {
+		this.owner = owner;
+	}
+	
+	public String getPreCondition() {
+		return preCondition;
+	}
+	
+	public void setPreCondition(String preCondition) {
+		this.preCondition = preCondition;
+	}
+	
+	public String getPriority() {
+		return priority;
+	}
+	
+	public void setPriority(String priority) {
+		this.priority = priority;
+	}
+	
+	public void setProject(String project) {
+		this.project = project;
+	}
+	
+	public String getProject() {
+		return project;
+	}
+	
+	public void setStatus(String status) {
+		this.status = status;
+	}
+	
+	public String getStatus() {
+		return status;
+	}
+	
+	public void setTestFolder(String testFolder) {
+		this.testFolder = testFolder;
+	}
+	
+	public String getTestFolder() {
+		return testFolder;
+	}
+	
+	
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class 5
+
+package com.optum.coe.automation.rally;
+
+//import org.apache.logging.log4j.LogManager;
+//import org.apache.logging.log4j.Logger;
+
+public class JiraTestStep {
+	
+	// Logger Initialization for JiraTestStep Class
+	//private static final Logger logger = LogManager.getLogger();
+	
+
+}
+class 6
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+
+public class RallyOperation {
+
+	// Initialization of the class member variables. This section can be updated in future if more member variables are added during integration if needed. 
+	private String rallyBaseURL;
+	private String rallyApiKey;
+	private String rallyProjectKey;
+	private String rallyUser;
+
+	// Logger Initialization for RallyOperation Class
+	private static final Logger logger = LogManager.getLogger();
+	
+	/* A Constructor loads the value from .properties file. These value will be loaded as soon as a object is created for this class.
+	 * Rally Base URL, Rally API Key, Rally Project Reference, Rally user are loaded from .properties file */
+	
+public RallyOperation() {
+	
+		rallyBaseURL=ConfigLoader.getConfigValue("RALLY_BASE_URL");
+		rallyApiKey=ConfigLoader.getConfigValue("RALLY_API_KEY");
+		rallyProjectKey=ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
+		rallyUser=ConfigLoader.getConfigValue("RALLY_USER_REF");
+		logger.info("Rally values for the project key " + rallyProjectKey +" are assiged from rally_migration_config.properties file");
+		logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL + "\nRally Project Reference " + rallyProjectKey);
+
+	}
+	
+	
+	/* A method which handles below major functionalities
+	 * 1. Transform the Jira Testcase details to Rally Test variable
+	 * 2. Check if the Jira folder structure is available in Rally
+	 *      a. If folder structure is not available in rally, then create the same Jira folder structure in rally for the testcase 
+	 *      b. If folder structure is available in rally, no action is required 
+	 * 3. Create the testcase
+	 * 4. Log the testcase OID to the log file; This OID will be used while integrating TestStep, Attachments implementation for the testcase
+	 * 5. Returns a boolean value as true for a successful testcase creation in rally, else returns false */
+	
+	
+	public boolean createRallyTestcase(JsonObject jiraJson)  {
+		
+		boolean status = false;
+		// Create JSON object for rally Json and add rally project reference key
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", rallyProjectKey);
+        
+        // Create JSON object for testcase Json to add the rally testcase property
+        JsonObject testCase = new JsonObject();
+       
+        // Get testcase name from Jira Json body and add it to rally testcase as a property
+        JsonElement nameElement = jiraJson.get("name");
+        if (nameElement != null && !nameElement.isJsonNull()) {
+            testCase.addProperty("Name", nameElement.getAsString());
+        } else {
+            testCase.addProperty("Name", "Default Test Case Name - No TestCase name found in Jira"); // Give a default value if no name is found in Jira Json body
+        }
+
+        // Add method as Manual to rally testcase as a property
+        testCase.addProperty("Method", "Manual");
+
+        // Add priority value from Jira Json body to rally testcase as a property
+        JsonElement priorityElement = jiraJson.get("priority");
+        if (priorityElement != null && !priorityElement.isJsonNull()) {
+            String priority = priorityElement.getAsString();
+            if (priority.equalsIgnoreCase("Normal")) {
+                testCase.addProperty("Priority", "Useful");
+            } else {
+                testCase.addProperty("Priority", priority);
+            }
+        } else {
+            testCase.addProperty("Priority", "Default Priority"); // Add default value
+        }
+
+        // Add owner from config file to the rally testcase as a property
+        testCase.addProperty("Owner", "/user/" + rallyUser);
+
+        // Add status from Jira Json and add to the rally testcase as a property 
+        JsonElement statusElement = jiraJson.get("status");
+        if (statusElement != null && !statusElement.isJsonNull()) {
+            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        } else {
+            testCase.addProperty("Ready", false); // default value
+        }
+
+        // Add tags - Need implementation as discussed in code review meeting
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        testCase.add("Tags", tagsArray);
+
+        // Get folder hierarchy from JIRA response
+        String folderPath = jiraJson.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+
+        // Call a Util method to create test folder based on folder hierarchy
+        JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey , rallyBaseURL, rallyApiKey);
+        if (testFolder == null) {
+        	
+        	logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
+            return status;// Exit the method or handle accordingly
+        } else logger.info("Folder " + folderPath + " is  created successfully in Rally");
+        
+        // Add TestFolder to the test case
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        rallyJson.add("testCase", testCase);
+
+        // Save the transformed JSON to a variable
+        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+        //System.out.println("Transformed JSON: " + rallyJsonString);
+
+        // Initialize Rally API
+        RallyRestApi restApi = null;
+		try {
+			restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+		} catch (URISyntaxException e) {
+			logger.error("URI Sytntax error for the URL " + rallyBaseURL + ". Please check the URL." , e);
+		}
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+        // Extract values from JSON:
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+        try {
+            // Create a new test case
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", rallyProjectKey);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+            // Add Tags to the test case from the JSON file
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                JsonArray newTagsArray = new JsonArray();
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagRef);
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+
+            // Add TestFolder to the test case from the JSON file
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = null;
+			try {
+				createResponse = restApi.create(createRequest);
+			} catch (IOException e) {
+				logger.error("IO exception during create request." , e);
+			}
+
+            if (createResponse.wasSuccessful()) {
+            	status = true;
+            	logger.info("Successfully created test case and the OID for created testcase: " + createResponse.getObject().get("_ref").getAsString());
+             	
+            } else {
+            	logger.error("Error occurred creating test case");	
+                for (String error : createResponse.getErrors()) {
+                	logger.error(error);
+                }
+            }
+            
+            
+        } finally {
+            // Release resources
+            try {
+				restApi.close();
+				logger.info("Closed rest api resource in finally block");
+			} catch (IOException e) {
+				logger.error("Error occurred while closing rest api resource at finally block" , e);
+			}
+            
+        }
+         return status;
+        
+    }
+
+    
+}
+
+	
+	
+	
+	
+	
+	
+	
+
+class 7
+
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.gson.JsonObject;
+
+public class RunnerClass {
+
+	// Logger Initialization for Runner Class
+	private static final Logger logger = LogManager.getLogger();
+
+	// Main method
+	public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+		
+	    /* Main method calls below functionalities from com.optum.coe.automation.rally package
+	     * 1. Get Jira non migrated testcase keys 
+	     * 2. Get Jira Testcase details for the given testcase key. It is an iterative process
+	     * 3. Create the testcase in Rally using the Jira testcase details
+	     * 4. Validate if the testcase is created successfully ; Future implementation is required. US7440061*/
+				
+		JiraTestCase jiraTestCase = new JiraTestCase();
+		JiraOperation jiraOperation = new JiraOperation();
+		ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+		for (int i = 0 ; i < testcaseKeys.size() ; i++) {
+			jiraTestCase.setKey(testcaseKeys.get(i));
+			logger.info("Processing " + jiraTestCase.getKey());
+			JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+			RallyOperation rallyOperation = new RallyOperation();
+			boolean rallyTestcaseCreationStatus= rallyOperation.createRallyTestcase(jiraTestcaseJson);
+			/* Needs to be added calling methods for TestStep, Attachments, etc in future iterations. 
+			 * US7266086 - For Test Step
+			 * US7132986 - For Attachment ( Not Embedded )*/
+						
+			if (rallyTestcaseCreationStatus == true ) {
+				System.out.println("Rally Testcase Creation Status is true" );
+				// call the method to update the TestCase Migrated in Jira to "true". this method should go to Utils.Java Class
+				//Utils.updateTestCaseMigratedStatusinJira(true); // Yet to be implemented - US7382197
+			
+				
+			} else { 
+			    
+				logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey() + " is not created in rally");
+				return;
+			}
+			
+		}
+		
+		
+		
+		
+
+	
+
+	}
+
+}
+calss 8
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.URI;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.util.Fetch;
+import com.rallydev.rest.util.QueryFilter;
+
+import org.apache.http.HttpEntity;
+
+public class Utils {
+	
+	// Logger Initialization for Utils Class
+	
+	private static final Logger logger = LogManager.getLogger();
+	
+/* Create a method to establish a Jira connection.This method have two String arguments as "url" and "apiKey"
+ * ClosableHttpClient class is used to perform this operation instead HttpClient, so that a separate method is not required to close the connection each time.
+ * This method returns CloseableHttpClient's object instance once connection is established */
+	
+	public static HttpEntity getJiraResponse(String url, String apiKey) {
+			
+		CloseableHttpClient connection = HttpClients.createDefault();
+		HttpGet request = new HttpGet(url);
+		request.setHeader("Authorization", "Bearer " + apiKey);
+        request.setHeader("Accept", "application/json");
+        HttpResponse response = null;
+		try {
+			response = connection.execute(request);
+		} catch (ClientProtocolException e) {
+			logger.error("Error occurred in Jira connection" , e);
+		} catch (IOException e) {
+			logger.error("Error occurred in Jira connection" , e);
+		}
+        HttpEntity entity = response.getEntity();
+		if (entity != null) {
+			logger.info("Successfully returned HttpEntity response");
+			return entity;
+		} else {
+			
+			logger.error("Error occurred. HttpEntity is null and no respone is recevied.");
+			return null;
+			
+		}
+
+	}
+
+	
+	 /* Check if the Jira folder structure is available in Rally
+	 *      a. If folder structure is not available in rally, then create the same Jira folder structure in rally for the testcase 
+	 *      b. If folder structure is available in rally, no action is required */
+	
+	public static JsonObject createTestFolder(String[] folderHierarchy, String projectRef, String rallyBaseUrl, String rallyApiKey) {
+        JsonObject lastFolder = null;
+        String lastFolderRef = null;
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI(rallyBaseUrl), rallyApiKey);
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            for (int i = 0; i < folderHierarchy.length; i++) {
+                String folderName = folderHierarchy[i];
+                if (folderName == null || folderName.trim().isEmpty()) {
+                    logger.info("Invalid folder name encountered: '" + folderName + "'");
+                    continue;
+                }
+
+                // If it's the top-level folder, ensure it is created as a parent folder
+                if (i == 0) {
+                    // Check if the folder exists as a parent folder
+                    QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
+                    parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
+                    parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+
+                    QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
+
+                    if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
+                        // Folder exists as a parent folder
+                        lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
+                        lastFolderRef = lastFolder.get("_ref").getAsString();
+                        logger.info("Parent folder already exists: " + lastFolderRef);
+                    } else {
+                        // Folder does not exist as a parent folder, create it
+                        JsonObject newFolder = new JsonObject();
+                        newFolder.addProperty("Name", folderName.trim());
+                        newFolder.addProperty("Project", projectRef);
+
+                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                        if (createFolderResponse.wasSuccessful()) {
+                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                            newFolder.addProperty("_ref", lastFolderRef);
+                            lastFolder = newFolder;
+                            logger.info("Successfully created parent folder: " + lastFolderRef);
+                        } else {
+                            logger.error("Error occurred creating parent folder.");
+                            for (String error : createFolderResponse.getErrors()) {
+                                System.out.println(error);
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    // For subfolders, check and create under the last folder
+                    QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
+                    subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", lastFolderRef)));
+                    subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+
+                    QueryResponse subQueryResponse = restApi.query(subFolderExistenceRequest);
+
+                    if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
+                        // Folder exists as a subfolder
+                        lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
+                        lastFolderRef = lastFolder.get("_ref").getAsString();
+                        logger.info("Subfolder already exists: " + lastFolderRef);
+                    } else {
+                        // Folder does not exist, create it as a subfolder
+                        JsonObject newFolder = new JsonObject();
+                        newFolder.addProperty("Name", folderName.trim());
+                        newFolder.addProperty("Project", projectRef);
+                        newFolder.addProperty("Parent", lastFolderRef);
+
+                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                        if (createFolderResponse.wasSuccessful()) {
+                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                            newFolder.addProperty("_ref", lastFolderRef);
+                            lastFolder = newFolder;
+                            logger.info("Successfully created subfolder: " + lastFolderRef);
+                        } else {
+                            logger.error("Error occurred creating subfolder");
+                            for (String error : createFolderResponse.getErrors()) {
+                                System.out.println(error);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return lastFolder;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        } finally {
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+// Implementation to update the TestCase Migrated in Jira to "true". User story US7382197
+
+	public void updateTestCaseMigratedStatusinJira(boolean status) {
+			
+				
+			
+		}
+
+
+}
+
+	
+	
+	
+
+
+explain this frame work step by step with full details like you explain to amature in it
+
+
+
+
