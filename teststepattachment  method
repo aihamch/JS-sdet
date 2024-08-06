@@ -1,0 +1,58 @@
+public static void addAttachmentToTestStep(RallyRestApi restApi, JsonObject testStepJson, String testStepRef, String attachmentLocation, String jiraApiKey) {
+    // Check if the file exists
+    File file = new File(attachmentLocation);
+    if (!file.exists()) {
+        logger.error("File does not exist: " + attachmentLocation);
+        return;
+    }
+
+    String fileName = file.getName();
+    try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+        HttpPost uploadFile = new HttpPost("https://rally1.rallydev.com/slm/webservice/v2.0/attachment");
+        uploadFile.setHeader("Authorization", "Bearer " + jiraApiKey);
+        
+        // Create multipart entity for file upload
+        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+        builder.addPart("file", new FileBody(file, ContentType.DEFAULT_BINARY));
+        HttpEntity entity = builder.build();
+        uploadFile.setEntity(entity);
+
+        try (CloseableHttpResponse response = httpClient.execute(uploadFile)) {
+            HttpEntity responseEntity = response.getEntity();
+            if (responseEntity != null) {
+                String responseString = EntityUtils.toString(responseEntity);
+                JsonObject jsonResponse = JsonParser.parseString(responseString).getAsJsonObject();
+                
+                if (jsonResponse.has("_ref")) {
+                    String attachmentRef = jsonResponse.get("_ref").getAsString();
+                    logger.info("Attachment uploaded successfully: " + attachmentRef);
+
+                    // Add reference to the test step
+                    JsonArray attachmentsArray = testStepJson.has("attachments") 
+                        ? testStepJson.getAsJsonArray("attachments") 
+                        : new JsonArray();
+                    attachmentsArray.add(attachmentRef);
+
+                    JsonObject updatedTestStep = new JsonObject();
+                    updatedTestStep.add("attachments", attachmentsArray);
+                    UpdateRequest updateRequest = new UpdateRequest(testStepRef, updatedTestStep);
+                    UpdateResponse updateResponse = restApi.update(updateRequest);
+
+                    if (updateResponse.wasSuccessful()) {
+                        logger.info("Successfully updated test step with new attachment.");
+                    } else {
+                        logger.error("Error occurred updating test step with attachment:");
+                        for (String error : updateResponse.getErrors()) {
+                            logger.error(error);
+                        }
+                    }
+                } else {
+                    logger.error("Error occurred uploading attachment.");
+                    logger.error(responseString);
+                }
+            }
+        }
+    } catch (IOException e) {
+        logger.error("Exception occurred while adding attachment", e);
+    }
+}
