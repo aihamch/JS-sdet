@@ -182,7 +182,6 @@ public class RallyOperation {
         return status;
     }
 
-    // Method to retrieve the reference of the created test case
     public String getTestCaseRef(JsonObject jiraJson) {
         String testCaseRef = null;
         try {
@@ -207,7 +206,6 @@ public class RallyOperation {
         return testCaseRef;
     }
 
-    // Method to create test steps in Rally
     public boolean createRallyTestSteps(String testCaseRef, List<String> testSteps) {
         RallyRestApi restApi = null;
         try {
@@ -228,6 +226,8 @@ public class RallyOperation {
                         logger.error(error);
                     }
                     return false;
+                } else {
+                    logger.info("Test step created successfully in Rally for test case ref: " + testCaseRef);
                 }
             }
             return true;
