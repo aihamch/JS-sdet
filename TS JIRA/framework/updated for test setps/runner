@@ -15,12 +15,6 @@ public class RunnerClass {
     // Main method
     public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
         
-        /* Main method calls below functionalities from com.optum.coe.automation.rally package
-         * 1. Get Jira non migrated testcase keys 
-         * 2. Get Jira Testcase details for the given testcase key. It is an iterative process
-         * 3. Create the testcase in Rally using the Jira testcase details
-         * 4. Validate if the testcase is created successfully ; Future implementation is required. US7440061*/
-                
         JiraTestCase jiraTestCase = new JiraTestCase();
         JiraOperation jiraOperation = new JiraOperation();
         ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
@@ -33,20 +27,22 @@ public class RunnerClass {
             
             if (rallyTestcaseCreationStatus) {
                 logger.info("Rally Testcase Creation Status is true" );
-                // Retrieve test steps from Jira and create them in Rally
                 List<String> testSteps = jiraOperation.getJiraTestSteps(jiraTestCase.getKey());
                 if (testSteps != null && !testSteps.isEmpty()) {
                     String testCaseRef = rallyOperation.getTestCaseRef(jiraTestcaseJson);
-                    boolean rallyTestStepsCreationStatus = rallyOperation.createRallyTestSteps(testCaseRef, testSteps);
-                    if (rallyTestStepsCreationStatus) {
-                        logger.info("Test steps created successfully in Rally for test case: " + jiraTestCase.getKey());
+                    if (testCaseRef != null) {
+                        boolean rallyTestStepsCreationStatus = rallyOperation.createRallyTestSteps(testCaseRef, testSteps);
+                        if (rallyTestStepsCreationStatus) {
+                            logger.info("Test steps created successfully in Rally for test case: " + jiraTestCase.getKey());
+                        } else {
+                            logger.error("Failed to create test steps in Rally for test case: " + jiraTestCase.getKey());
+                        }
                     } else {
-                        logger.error("Failed to create test steps in Rally for test case: " + jiraTestCase.getKey());
+                        logger.error("Test case reference is null, cannot create test steps in Rally for test case: " + jiraTestCase.getKey());
                     }
+                } else {
+                    logger.info("No test steps found for Jira test case: " + jiraTestCase.getKey());
                 }
-                // Call the method to update the TestCase Migrated in Jira to "true". this method should go to Utils.Java Class
-                //Utils.updateTestCaseMigratedStatusinJira(true); // Yet to be implemented - US7382197
-            
             } else { 
                 logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey() + " is not created in rally");
                 return;
