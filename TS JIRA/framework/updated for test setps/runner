@@ -1,3 +1,12 @@
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
+
 public class RunnerClass {
 
     // Logger Initialization for Runner Class
@@ -38,13 +47,10 @@ public class RunnerClass {
                 // Call the method to update the TestCase Migrated in Jira to "true". this method should go to Utils.Java Class
                 //Utils.updateTestCaseMigratedStatusinJira(true); // Yet to be implemented - US7382197
             
-                
             } else { 
-                
                 logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey() + " is not created in rally");
                 return;
             }
-            
         }
     }
 }
