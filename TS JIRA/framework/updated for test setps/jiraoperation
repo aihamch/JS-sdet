@@ -1,0 +1,69 @@
+public List<String> getJiraTestSteps(String key) {
+    List<String> testSteps = new ArrayList<>();
+    
+    // Jira URL string building. This URL will give the Jira test steps for the given test case key
+    String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key + "/teststeps";
+    
+    HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+    if (response != null) {
+        try {
+            String responseBody = EntityUtils.toString(response);
+            logger.info("Test steps for the key " + key + ": " + responseBody);
+            JSONArray stepsArray = new JSONArray(responseBody);
+            for (int i = 0; i < stepsArray.length(); i++) {
+                JSONObject stepObject = stepsArray.getJSONObject(i);
+                String stepDescription = stepObject.getString("description");
+                testSteps.add(stepDescription);
+            }
+        } catch (ParseException | IOException e) {
+            logger.error("Failed to retrieve Jira test steps for the key " + key, e);
+        }
+    } else {
+        logger.error("Failed to get Jira test steps for the key " + key + "; Returning null");
+    }
+
+    return testSteps;
+}
+Step 3: Update RallyOperation.java
+Add methods to create test steps in Rally.
+
+java
+Copy code
+// Add the following method to create test steps in Rally
+
+public boolean createRallyTestSteps(String testCaseRef, List<String> testSteps) {
+    RallyRestApi restApi = null;
+    try {
+        restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+        
+        for (String step : testSteps) {
+            JsonObject newTestStep = new JsonObject();
+            newTestStep.addProperty("TestCase", testCaseRef);
+            newTestStep.addProperty("Input", step);
+            
+            CreateRequest createRequest = new CreateRequest("TestStep", newTestStep);
+            CreateResponse createResponse = restApi.create(createRequest);
+            
+            if (!createResponse.wasSuccessful()) {
+                logger.error("Error occurred creating test step");
+                for (String error : createResponse.getErrors()) {
+                    logger.error(error);
+                }
+                return false;
+            }
+        }
+        return true;
+    } catch (URISyntaxException | IOException e) {
+        logger.error("Error occurred while creating test steps in Rally", e);
+        return false;
+    } finally {
+        if (restApi != null) {
+            try {
+                restApi.close();
+            } catch (IOException e) {
+                logger.error("Error occurred while closing RallyRestApi", e);
+            }
+        }
+    }
+}
