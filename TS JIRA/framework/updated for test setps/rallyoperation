@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.rallydev.rest.RallyRestApi;
 import com.rallydev.rest.request.CreateRequest;
 import com.rallydev.rest.response.CreateResponse;
@@ -178,6 +179,10 @@ public class RallyOperation {
             if (createResponse.wasSuccessful()) {
                 status = true;
                 logger.info("Successfully created test case and the OID for created testcase: " + createResponse.getObject().get("_ref").getAsString());
+
+                // Create test steps
+                String testCaseRef = createResponse.getObject().get("_ref").getAsString();
+                createTestSteps(jiraTestCase, testCaseRef);
             } else {
                 logger.error("Error occurred creating test case");
                 for (String error : createResponse.getErrors()) {
@@ -199,6 +204,51 @@ public class RallyOperation {
             }
         }
         return status;
+    }
+
+    // Create test steps in Rally
+    private void createTestSteps(JiraTestCase jiraTestCase, String testCaseRef) {
+        List<JiraTestStep> steps = jiraTestCase.getTestSteps();
+        if (steps == null || steps.isEmpty()) {
+            return;
+        }
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            restApi.setApplicationName("CreateTestStepsApp");
+
+            for (JiraTestStep step : steps) {
+                JsonObject newTestStep = new JsonObject();
+                newTestStep.addProperty("TestCase", testCaseRef);
+                newTestStep.addProperty("Input", step.getDescription());
+                newTestStep.addProperty("ExpectedResult", step.getExpectedResult());
+                newTestStep.addProperty("Index", step.getIndex());
+
+                CreateRequest createRequest = new CreateRequest("TestCaseStep", newTestStep);
+                CreateResponse createResponse = restApi.create(createRequest);
+
+                if (createResponse.wasSuccessful()) {
+                    logger.info("Successfully created test step: " + createResponse.getObject().get("_ref").getAsString());
+                } else {
+                    logger.error("Error occurred creating test step");
+                    for (String error : createResponse.getErrors()) {
+                        logger.error(error);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Exception occurred while creating test steps", e);
+        } finally {
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                    logger.info("Closed rest api resource in finally block");
+                } catch (IOException e) {
+                    logger.error("Error occurred while closing rest api resource at finally block", e);
+                }
+            }
+        }
     }
 
     // Upload attachments
