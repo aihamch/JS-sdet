@@ -1,27 +1,8 @@
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.ParseException;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+in this line in jiraOperation: 
+String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachmentObject.getString("id") + "/" + attachmentObject.getString("fileName");
+                        File downloadedFile = downloadFile(attachmentUrl, attachmentObject.getString("fileName"));
+i have this error : The method getString(String) is undefined for the type JsonObject
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Map;
+in the runnerclass on this line  rallyOperation.uploadAttachments(rallyOperation.createRallyTestcase(jiraTestCaseDetails, testSteps, attachments), attachments);
+
+i have this error The method uploadAttachments(RallyRestApi, String, List<File>) in the type RallyOperation is not applicable for the arguments (boolean, List<File>)
