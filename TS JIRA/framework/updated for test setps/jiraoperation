@@ -149,6 +149,28 @@ public class JiraOperation {
         return jiraTestCase;
     }
 
+   // Parse test steps
+        List<JiraTestStep> testSteps = new ArrayList<>();
+        JsonObject jiraJson = JsonParser.parseString(jsonResponseString).getAsJsonObject(); // replace with actual response string
+
+        if (jiraJson.has("testScript") && jiraJson.get("testScript").getAsJsonObject().has("steps")) {
+            JsonArray stepsArray = jiraJson.get("testScript").getAsJsonObject().get("steps").getAsJsonArray();
+            for (int i = 0; i < stepsArray.size(); i++) {
+                JsonObject stepJson = stepsArray.get(i).getAsJsonObject();
+                JiraTestStep testStep = new JiraTestStep();
+                testStep.setDescription(stepJson.get("description").getAsString());
+                testStep.setExpectedResult(stepJson.get("expectedResult").getAsString());
+                testStep.setIndex(stepJson.get("index").getAsInt());
+                testSteps.add(testStep);
+                logger.info("Parsed test step: " + testStep.getDescription());
+            }
+        }
+        jiraTestCase.setTestSteps(testSteps);
+
+        logger.info("Parsed " + testSteps.size() + " test steps for key: " + key);
+        return jiraTestCase;
+
+
     // Download attachments
     public void downloadAttachments(JiraTestCase jiraTestCase) {
         downloadAttachmentList(jiraTestCase.getAttachments(), ConfigLoader.getConfigValue("TEST_CASE_ATTACHMENT_LOCATION"));
