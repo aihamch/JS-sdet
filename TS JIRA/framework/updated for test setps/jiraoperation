@@ -149,8 +149,7 @@ public class JiraOperation {
         return jiraTestCase;
     }
 
- // Parse test steps
-        List<JiraTestStep> testSteps = new ArrayList<>();
+ List<JiraTestStep> testSteps = new ArrayList<>();
         JsonObject jiraJson = JsonParser.parseString(jsonResponseString).getAsJsonObject(); // replace with actual response string
 
         logger.info("Parsing test steps for key: " + key);
@@ -172,7 +171,6 @@ public class JiraOperation {
 
         logger.info("Parsed " + testSteps.size() + " test steps for key: " + key);
         return jiraTestCase;
-
     // Download attachments
     public void downloadAttachments(JiraTestCase jiraTestCase) {
         downloadAttachmentList(jiraTestCase.getAttachments(), ConfigLoader.getConfigValue("TEST_CASE_ATTACHMENT_LOCATION"));
