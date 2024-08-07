@@ -155,7 +155,7 @@ public class RallyOperation {
                     logger.info("Closed rest api resource in finally block");
                 }
             } catch (IOException e) {
-                logger.error("Error occurred while closing RallyRestApi", e);
+                logger.error("Error occurred while closing rest api resource at finally block", e);
             }
         }
         return status;
@@ -178,7 +178,6 @@ public class RallyOperation {
                     logger.error(error);
                 }
             }
-            uploadStepAttachments(restApi, createResponse.getObject().get("_ref").getAsString(), step.getAttachments());
         }
     }
 
@@ -214,48 +213,5 @@ public class RallyOperation {
                 }
             }
         }
-    }
-
-    public void uploadStepAttachments(RallyRestApi restApi, String testStepRef, List<JiraAttachment> attachments) throws IOException {
-        for (JiraAttachment attachment : attachments) {
-            JsonObject attachmentContent = new JsonObject();
-            File attachmentFile = new File(attachment.getFilePath()); // You need to provide the logic to get the file path
-            attachmentContent.addProperty("Content", Utils.encodeFileToBase64(attachmentFile));
-            CreateRequest attachmentContentCreateRequest = new CreateRequest("attachmentcontent", attachmentContent);
-            CreateResponse attachmentContentResponse = restApi.create(attachmentContentCreateRequest);
-            if (attachmentContentResponse.wasSuccessful()) {
-                String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
-                JsonObject newAttachment = new JsonObject();
-                newAttachment.addProperty("Artifact", testStepRef);
-                newAttachment.addProperty("Content", attachmentContentRef);
-                newAttachment.addProperty("Name", attachment.getFileName());
-                newAttachment.addProperty("Description", "Attachment from Jira Step");
-                newAttachment.addProperty("ContentType", attachment.getContentType());
-                newAttachment.addProperty("Size", attachment.getFileSize());
-                CreateRequest attachmentCreateRequest = new CreateRequest("attachment", newAttachment);
-                CreateResponse attachmentCreateResponse = restApi.create(attachmentCreateRequest);
-                if (attachmentCreateResponse.wasSuccessful()) {
-                    logger.info("Successfully uploaded step attachment: " + attachment.getFileName());
-                } else {
-                    logger.error("Error occurred uploading step attachment: " + attachment.getFileName());
-                    for (String error : attachmentCreateResponse.getErrors()) {
-                        logger.error(error);
-                    }
-                }
-            } else {
-                logger.error("Error occurred creating step attachment content for: " + attachment.getFileName());
-                for (String error : attachmentContentResponse.getErrors()) {
-                    logger.error(error);
-                }
-            }
-        }
-    }
-
-    public String getRallyBaseURL() {
-        return rallyBaseURL;
-    }
-
-    public String getRallyApiKey() {
-        return rallyApiKey;
     }
 }
