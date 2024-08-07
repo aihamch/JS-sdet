@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
 
 public class RunnerClass {
     private static final Logger logger = LogManager.getLogger();
@@ -30,9 +29,8 @@ public class RunnerClass {
                     logger.info("Starting to download attachments for key: " + key);
                     attachments = jiraOperation.downloadAttachments(key);
                     logger.info("Downloaded attachments for key: " + key);
-                    RallyRestApi restApi = new RallyRestApi(new URI(rallyOperation.getRallyBaseURL()), rallyOperation.getRallyApiKey());
                     logger.info("Starting to upload attachments for key: " + key);
-                    rallyOperation.uploadAttachments(restApi, key, attachments);
+                    rallyOperation.uploadAttachments(rallyOperation.createRallyTestcase(jiraTestCaseDetails, testSteps, attachments), attachments);
                     logger.info("Uploaded attachments for key: " + key);
                     logger.info("Starting to cleanup attachments for key: " + key);
                     for (File attachment : attachments) {
