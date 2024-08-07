@@ -107,7 +107,7 @@ public class JiraOperation {
                 // Parse attachments
                 List<JiraAttachment> attachments = new ArrayList<>();
                 if (jiraJson.has("attachments")) {
-                    JSONArray attachmentsArray = jiraJson.getAsJsonArray("attachments");
+                    org.apache.hc.core5.json.JsonArray attachmentsArray = jiraJson.get("attachments").getAsJsonArray();
                     for (int i = 0; i < attachmentsArray.size(); i++) {
                         JsonObject attachment = attachmentsArray.get(i).getAsJsonObject();
                         String url = attachment.get("content").getAsString();
@@ -120,7 +120,7 @@ public class JiraOperation {
                 // Parse test step attachments
                 List<JiraAttachment> testStepAttachments = new ArrayList<>();
                 if (jiraJson.has("testStepAttachments")) {
-                    JSONArray testStepAttachmentsArray = jiraJson.getAsJsonArray("testStepAttachments");
+                    org.apache.hc.core5.json.JsonArray testStepAttachmentsArray = jiraJson.get("testStepAttachments").getAsJsonArray();
                     for (int i = 0; i < testStepAttachmentsArray.size(); i++) {
                         JsonObject attachment = testStepAttachmentsArray.get(i).getAsJsonObject();
                         String url = attachment.get("content").getAsString();
@@ -133,7 +133,7 @@ public class JiraOperation {
                 // Parse embedded attachments
                 List<JiraAttachment> embeddedAttachments = new ArrayList<>();
                 if (jiraJson.has("embeddedAttachments")) {
-                    JSONArray embeddedAttachmentsArray = jiraJson.getAsJsonArray("embeddedAttachments");
+                    org.apache.hc.core5.json.JsonArray embeddedAttachmentsArray = jiraJson.get("embeddedAttachments").getAsJsonArray();
                     for (int i = 0; i < embeddedAttachmentsArray.size(); i++) {
                         JsonObject attachment = embeddedAttachmentsArray.get(i).getAsJsonObject();
                         String url = attachment.get("content").getAsString();
