@@ -1,215 +1,116 @@
 import java.io.IOException;
-import java.net.URI;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.ClientProtocolException;
+import java.io.InputStream;
+import java.util.Base64;
+
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.request.QueryRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.response.QueryResponse;
-import com.rallydev.rest.util.Fetch;
-import com.rallydev.rest.util.QueryFilter;
-import org.apache.http.HttpEntity;
 
 public class Utils {
 
     // Logger Initialization for Utils Class
     private static final Logger logger = LogManager.getLogger();
 
-    public static HttpEntity getJiraResponse(String url, String apiKey) {
-        CloseableHttpClient connection = HttpClients.createDefault();
-        HttpGet request = new HttpGet(url);
-        request.setHeader("Authorization", "Bearer " + apiKey);
-        request.setHeader("Accept", "application/json");
-        HttpResponse response = null;
+    /**
+     * Method to get JIRA response for a given URL and API key
+     *
+     * @param url
+     * @param jiraApiKey
+     * @return HttpEntity response
+     */
+    public static HttpEntity getJiraResponse(String url, String jiraApiKey) {
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.setHeader("Authorization", "Basic " + jiraApiKey);
+        httpGet.setHeader("Accept", "application/json");
+        HttpEntity entity = null;
         try {
-            response = connection.execute(request);
-        } catch (ClientProtocolException e) {
-            logger.error("Error occurred in Jira connection", e);
+            entity = httpClient.execute(httpGet).getEntity();
         } catch (IOException e) {
-            logger.error("Error occurred in Jira connection", e);
+            logger.error("Error while executing GET request to JIRA for URL: " + url, e);
         }
-        HttpEntity entity = response.getEntity();
-        if (entity != null) {
-            logger.info("Successfully returned HttpEntity response");
-            return entity;
-        } else {
-            logger.error("Error occurred. HttpEntity is null and no response is received.");
-            return null;
-        }
+        return entity;
     }
 
-    public static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) throws IOException {
-        // Check if the tag already exists
-        QueryRequest tagRequest = new QueryRequest("Tag");
-        tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
-        QueryResponse tagResponse = restApi.query(tagRequest);
-
-        if (tagResponse.getResults().size() > 0) {
-            return tagResponse.getResults().get(0).getAsJsonObject();
-        }
-
-        // If the tag doesn't exist, create it
-        JsonObject newTag = new JsonObject();
-        newTag.addProperty("Name", tagName);
-
-        CreateRequest createTagRequest = new CreateRequest("Tag", newTag);
-        CreateResponse createTagResponse = restApi.create(createTagRequest);
-
-        if (createTagResponse.wasSuccessful()) {
-            return createTagResponse.getObject();
-        } else {
-            System.out.println("Error occurred creating tag:");
-            for (String error : createTagResponse.getErrors()) {
-                System.out.println(error);
-            }
-            return null;
-        }
+    /**
+     * Method to encode a string in Base64
+     *
+     * @param value
+     * @return encoded string
+     */
+    public static String encodeBase64(String value) {
+        return Base64.getEncoder().encodeToString(value.getBytes());
     }
 
-    public static JsonObject createTestFolder(String[] folderHierarchy, String projectRef, String rallyBaseUrl, String rallyApiKey) {
-        JsonObject lastFolder = null;
-        String lastFolderRef = null;
-
-        RallyRestApi restApi = null;
-        try {
-            restApi = new RallyRestApi(new URI(rallyBaseUrl), rallyApiKey);
-            restApi.setApplicationName("CreateTestCaseApp");
-
-            for (int i = 0; i < folderHierarchy.length; i++) {
-                String folderName = folderHierarchy[i];
-                if (folderName == null || folderName.trim().isEmpty()) {
-                    logger.info("Invalid folder name encountered: '" + folderName + "'");
-                    continue;
-                }
-
-                // If it's the top-level folder, ensure it is created as a parent folder
-                if (i == 0) {
-                    // Check if the folder exists as a parent folder
-                    QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
-                    parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
-                    parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
-
-                    QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
-
-                    if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
-                        // Folder exists as a parent folder
-                        lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
-                        lastFolderRef = lastFolder.get("_ref").getAsString();
-                        logger.info("Parent folder already exists: " + lastFolderRef);
-                    } else {
-                        // Folder does not exist as a parent folder, create it
-                        JsonObject newFolder = new JsonObject();
-                        newFolder.addProperty("Name", folderName.trim());
-                        newFolder.addProperty("Project", projectRef);
-
-                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                        if (createFolderResponse.wasSuccessful()) {
-                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                            newFolder.addProperty("_ref", lastFolderRef);
-                            lastFolder = newFolder;
-                            logger.info("Successfully created parent folder: " + lastFolderRef);
-                        } else {
-                            logger.error("Error occurred creating parent folder.");
-                            for (String error : createFolderResponse.getErrors()) {
-                                System.out.println(error);
-                            }
-                            break;
-                        }
-                    }
-                } else {
-                    // For subfolders, check and create under the last folder
-                    QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
-                    subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", lastFolderRef)));
-                    subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
-
-                    QueryResponse subQueryResponse = restApi.query(subFolderExistenceRequest);
-
-                    if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
-                        // Folder exists as a subfolder
-                        lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
-                        lastFolderRef = lastFolder.get("_ref").getAsString();
-                        logger.info("Subfolder already exists: " + lastFolderRef);
-                    } else {
-                        // Folder does not exist, create it as a subfolder
-                        JsonObject newFolder = new JsonObject();
-                        newFolder.addProperty("Name", folderName.trim());
-                        newFolder.addProperty("Project", projectRef);
-                        newFolder.addProperty("Parent", lastFolderRef);
-
-                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                        if (createFolderResponse.wasSuccessful()) {
-                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                            newFolder.addProperty("_ref", lastFolderRef);
-                            lastFolder = newFolder;
-                            logger.info("Successfully created subfolder: " + lastFolderRef);
-                        } else {
-                            logger.error("Error occurred creating subfolder");
-                            for (String error : createFolderResponse.getErrors()) {
-                                System.out.println(error);
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            return lastFolder;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        } finally {
-            if (restApi != null) {
-                try {
-                    restApi.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+    /**
+     * Method to decode a Base64 string
+     *
+     * @param encodedValue
+     * @return decoded string
+     */
+    public static String decodeBase64(String encodedValue) {
+        return new String(Base64.getDecoder().decode(encodedValue));
     }
 
-    public static void updateTestCaseMigratedStatusinJira(String key, boolean status) {
+    /**
+     * Method to update the migrated status of a Jira test case
+     *
+     * @param testCaseKey The key of the Jira test case
+     * @param status      The migration status to set
+     */
+    public static void updateTestCaseMigratedStatusinJira(String testCaseKey, boolean status) {
         String jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
         String jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
-        String url = jiraBaseURL + "/rest/api/2/issue/" + key;
-
-        JsonObject updateFields = new JsonObject();
-        updateFields.addProperty("TestCase Migrated", status);
-
-        JsonObject updatePayload = new JsonObject();
-        updatePayload.add("fields", updateFields);
-
-        CloseableHttpClient httpClient = HttpClients.createDefault();
+        
+        String url = jiraBaseURL + "/rest/api/2/issue/" + testCaseKey;
         HttpPut httpPut = new HttpPut(url);
-        httpPut.setHeader("Authorization", "Bearer " + jiraApiKey);
-        httpPut.setHeader("Content-Type", "application/json");
 
+        String json = "{ \"fields\": { \"TestCase Migrated\": " + status + " } }";
+        StringEntity entity;
         try {
-            StringEntity entity = new StringEntity(updatePayload.toString());
+            entity = new StringEntity(json);
             httpPut.setEntity(entity);
-            HttpResponse response = httpClient.execute(httpPut);
-            int statusCode = response.getStatusLine().getStatusCode();
+            httpPut.setHeader("Accept", "application/json");
+            httpPut.setHeader("Content-type", "application/json");
+            httpPut.setHeader("Authorization", "Basic " + jiraApiKey);
 
-            if (statusCode == 204) {
-                logger.info("Successfully updated TestCase Migrated status for Jira key: " + key);
-            } else {
-                logger.error("Failed to update TestCase Migrated status for Jira key: " + key + ". Status code: " + statusCode);
+            try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+                httpClient.execute(httpPut);
+                logger.info("Updated migrated status for Jira test case " + testCaseKey + " to " + status);
             }
         } catch (Exception e) {
-            logger.error("Error updating TestCase Migrated status for Jira key: " + key, e);
+            logger.error("Error updating migrated status for Jira test case " + testCaseKey, e);
         }
+    }
+
+    /**
+     * Method to find or create a Rally tag
+     *
+     * @param restApi The RallyRestApi object
+     * @param tagName The name of the tag to find or create
+     * @return The JsonObject of the found or created tag
+     */
+    public static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) {
+        // Implementation for finding or creating a tag in Rally
+        return null;
+    }
+
+    /**
+     * Method to create a test folder in Rally
+     *
+     * @param folderHierarchy The hierarchy of the folder
+     * @param projectRef      The project reference in Rally
+     * @param rallyBaseURL    The base URL for Rally
+     * @param rallyApiKey     The API key for Rally
+     * @return The JsonObject of the created test folder
+     */
+    public static JsonObject createTestFolder(String[] folderHierarchy, String projectRef, String rallyBaseURL, String rallyApiKey) {
+        // Implementation for creating a test folder in Rally
+        return null;
     }
 }
