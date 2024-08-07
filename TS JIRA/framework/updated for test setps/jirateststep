@@ -1,13 +1,12 @@
 package com.optum.coe.automation.rally;
 
-import java.io.File;
 import java.util.List;
 
 public class JiraTestStep {
     private String input;
     private String expectedResult;
     private int stepIndex;
-    private List<File> attachments;
+    private List<JiraAttachment> attachments;
 
     public String getInput() {
         return input;
@@ -33,11 +32,11 @@ public class JiraTestStep {
         this.stepIndex = stepIndex;
     }
 
-    public List<File> getAttachments() {
+    public List<JiraAttachment> getAttachments() {
         return attachments;
     }
 
-    public void setAttachments(List<File> attachments) {
+    public void setAttachments(List<JiraAttachment> attachments) {
         this.attachments = attachments;
     }
 }
