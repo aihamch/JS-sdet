@@ -15,6 +15,8 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -58,11 +60,11 @@ public class JiraOperation {
             } catch (ParseException | IOException e) {
                 logger.error("Error while parsing the Json response ", e);
             }
-            JsonArray jsonArray = JsonParser.parseString(result).getAsJsonArray();
-            for (int i = 0; i < jsonArray.size(); i++) {
-                JsonObject jsonObject = jsonArray.get(i).getAsJsonObject();
-                String key = jsonObject.get("key").getAsString();
-                logger.info("Key retrieved: " + key);
+            JSONArray jsonArray = new JSONArray(result);
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject jsonObject = jsonArray.getJSONObject(i);
+                String key = jsonObject.getString("key");
+                logger.info("Key retrieved: " + jsonObject.getString("key"));
                 testCaseKeys.add(key);
             }
         } else {
@@ -97,11 +99,11 @@ public class JiraOperation {
             try {
                 String responseBody = EntityUtils.toString(response);
                 logger.info("Attachment details for the key " + key + ": " + responseBody);
-                JsonArray attachmentsArray = JsonParser.parseString(responseBody).getAsJsonArray();
-                for (int i = 0; i < attachmentsArray.size(); i++) {
-                    JsonObject attachment = attachmentsArray.get(i).getAsJsonObject();
-                    String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachment.get("id").getAsString() + "/" + attachment.get("fileName").getAsString();
-                    File downloadedFile = downloadFile(attachmentUrl, attachment.get("fileName").getAsString());
+                JSONArray attachmentsArray = new JSONArray(responseBody);
+                for (int i = 0; i < attachmentsArray.length(); i++) {
+                    JSONObject attachment = attachmentsArray.getJSONObject(i);
+                    String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachment.getString("id") + "/" + attachment.getString("fileName");
+                    File downloadedFile = downloadFile(attachmentUrl, attachment.getString("fileName"));
                     if (downloadedFile != null) {
                         downloadedFiles.add(downloadedFile);
                     }
