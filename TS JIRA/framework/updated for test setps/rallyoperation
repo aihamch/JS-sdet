@@ -70,7 +70,7 @@ public class RallyOperation {
         }
 
         // Add owner from config file to the rally testcase as a property
-        testCase.addProperty("Owner", "/user/" + rallyUser);
+        testCase.addProperty("Owner", rallyUser);
 
         // Add status from Jira Json and add to the rally testcase as a property
         String statusValue = jiraTestCase.getStatus();
