@@ -128,7 +128,7 @@ public class RallyOperation {
             }
 
             // Add TestFolder to the test case
-            rallyJson.add("TestFolder", testFolder);
+            testCase.add("TestFolder", testFolder.get("_ref"));
         }
 
         // Add the testCase object to the rallyJson
@@ -150,7 +150,6 @@ public class RallyOperation {
 
         // Extract values from JSON
         JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
-        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
 
         try {
             // Create a new test case
@@ -168,8 +167,8 @@ public class RallyOperation {
             }
 
             // Add TestFolder to the test case from the JSON file if present
-            if (testFolderData != null && testFolderData.has("_ref")) {
-                String testFolderRef = testFolderData.get("_ref").getAsString();
+            if (testCaseData.has("TestFolder")) {
+                String testFolderRef = testCaseData.get("TestFolder").getAsString();
                 newTestCase.addProperty("TestFolder", testFolderRef);
             }
 
@@ -210,6 +209,7 @@ public class RallyOperation {
     private void createTestSteps(JiraTestCase jiraTestCase, String testCaseRef) {
         List<JiraTestStep> steps = jiraTestCase.getTestSteps();
         if (steps == null || steps.isEmpty()) {
+            logger.info("No test steps to create for test case: " + testCaseRef);
             return;
         }
 
