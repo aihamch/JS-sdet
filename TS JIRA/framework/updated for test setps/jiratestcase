@@ -1,23 +1,12 @@
+package com.optum.coe.automation.rally;
+
 import java.util.List;
 
 public class JiraTestCase {
-
     private String key;
-    private String name;
-    private String objective;
-    private String status;
-    private String priority;
-    private String owner;
-    private String testFolder;
-    private String preCondition;
-    private String labels;
-    private String project;
-    private List<JiraAttachment> attachments;
-    private List<JiraAttachment> testStepAttachments;
-    private List<JiraAttachment> embeddedAttachments;
-    private List<JiraTestStep> testSteps;
-
-    // Getters and setters for all fields
+    private String summary;
+    private String description;
+    private List<JiraTestStep> steps;
 
     public String getKey() {
         return key;
@@ -27,107 +16,27 @@ public class JiraTestCase {
         this.key = key;
     }
 
-    public String getName() {
-        return name;
+    public String getSummary() {
+        return summary;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setSummary(String summary) {
+        this.summary = summary;
     }
 
-    public String getObjective() {
-        return objective;
+    public String getDescription() {
+        return description;
     }
 
-    public void setObjective(String objective) {
-        this.objective = objective;
+    public void setDescription(String description) {
+        this.description = description;
     }
 
-    public String getStatus() {
-        return status;
+    public List<JiraTestStep> getSteps() {
+        return steps;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getPriority() {
-        return priority;
-    }
-
-    public void setPriority(String priority) {
-        this.priority = priority;
-    }
-
-    public String getOwner() {
-        return owner;
-    }
-
-    public void setOwner(String owner) {
-        this.owner = owner;
-    }
-
-    public String getTestFolder() {
-        return testFolder;
-    }
-
-    public void setTestFolder(String testFolder) {
-        this.testFolder = testFolder;
-    }
-
-    public String getPreCondition() {
-        return preCondition;
-    }
-
-    public void setPreCondition(String preCondition) {
-        this.preCondition = preCondition;
-    }
-
-    public String getLables() {
-        return labels;
-    }
-
-    public void setLables(String labels) {
-        this.labels = labels;
-    }
-
-    public String getProject() {
-        return project;
-    }
-
-    public void setProject(String project) {
-        this.project = project;
-    }
-
-    public List<JiraAttachment> getAttachments() {
-        return attachments;
-    }
-
-    public void setAttachments(List<JiraAttachment> attachments) {
-        this.attachments = attachments;
-    }
-
-    public List<JiraAttachment> getTestStepAttachments() {
-        return testStepAttachments;
-    }
-
-    public void setTestStepAttachments(List<JiraAttachment> testStepAttachments) {
-        this.testStepAttachments = testStepAttachments;
-    }
-
-    public List<JiraAttachment> getEmbeddedAttachments() {
-        return embeddedAttachments;
-    }
-
-    public void setEmbeddedAttachments(List<JiraAttachment> embeddedAttachments) {
-        this.embeddedAttachments = embeddedAttachments;
-    }
-
-    public List<JiraTestStep> getTestSteps() {
-        return testSteps;
-    }
-
-    public void setTestSteps(List<JiraTestStep> testSteps) {
-        this.testSteps = testSteps;
+    public void setSteps(List<JiraTestStep> steps) {
+        this.steps = steps;
     }
 }
