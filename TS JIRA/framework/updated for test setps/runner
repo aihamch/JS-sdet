@@ -1,47 +1,44 @@
-import java.io.IOException;
-import java.net.URISyntaxException;
+package com.optum.coe.automation.rally;
+
+import java.io.File;
 import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class RunnerClass {
+import com.google.gson.JsonObject;
 
-    // Logger Initialization for Runner Class
+public class RunnerClass {
     private static final Logger logger = LogManager.getLogger();
 
-    // Main method
-    public static void main(String[] args) throws IOException, URISyntaxException {
+    public static void main(String[] args) {
         JiraOperation jiraOperation = new JiraOperation();
         RallyOperation rallyOperation = new RallyOperation();
-        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-
-        for (String key : testcaseKeys) {
-            JiraTestCase jiraTestCase = jiraOperation.getJiraTestCaseDetails(key);
-            boolean rallyTestcaseCreationStatus = rallyOperation.createRallyTestcase(jiraTestCase);
-
-            if (rallyTestcaseCreationStatus) {
-                logger.info("Rally Testcase Creation Status is true for key: " + key);
-
-                // Download attachments from Jira
-                logger.info("Starting to download attachments for key: " + key);
-                jiraOperation.downloadAttachments(jiraTestCase);
-                logger.info("Downloaded attachments for key: " + key);
-
-                // Upload attachments to Rally
-                logger.info("Starting to upload attachments for key: " + key);
-                rallyOperation.uploadAttachments(jiraTestCase);
-                logger.info("Uploaded attachments for key: " + key);
-
-                // Cleanup local attachments
-                logger.info("Starting to cleanup attachments for key: " + key);
-                jiraOperation.cleanupAttachments(jiraTestCase);
-                logger.info("Cleaned up attachments for key: " + key);
-
-                // Update Jira Test Case Migrated status
-                Utils.updateTestCaseMigratedStatusinJira(key, true);
-            } else {
-                logger.error("The Jira testcase is not created in rally for key: " + key);
-                Utils.updateTestCaseMigratedStatusinJira(key, false);
+        List<String> keys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+        for (String key : keys) {
+            JsonObject jiraTestCaseDetails = jiraOperation.getJiraTestCaseDetails(key);
+            if (jiraTestCaseDetails != null) {
+                List<JiraTestStep> testSteps = jiraOperation.getTestSteps(jiraTestCaseDetails);
+                List<File> attachments = jiraOperation.downloadAttachments(key);
+                boolean rallyStatus = rallyOperation.createRallyTestcase(jiraTestCaseDetails, testSteps, attachments);
+                if (rallyStatus) {
+                    logger.info("Rally Testcase Creation Status is true for key: " + key);
+                    jiraOperation.updateTestCaseMigratedStatusInJira(key, true);
+                    logger.info("Starting to download attachments for key: " + key);
+                    attachments = jiraOperation.downloadAttachments(key);
+                    logger.info("Downloaded attachments for key: " + key);
+                    logger.info("Starting to upload attachments for key: " + key);
+                    rallyOperation.uploadAttachments(rallyOperation.createRallyTestcase(jiraTestCaseDetails, testSteps, attachments), attachments);
+                    logger.info("Uploaded attachments for key: " + key);
+                    logger.info("Starting to cleanup attachments for key: " + key);
+                    for (File attachment : attachments) {
+                        attachment.delete();
+                    }
+                    logger.info("Cleaned up attachments for key: " + key);
+                } else {
+                    logger.error("Rally Testcase Creation Status is false for key: " + key);
+                }
             }
         }
     }
