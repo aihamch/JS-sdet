@@ -43,8 +43,12 @@ public class JiraOperation {
             String jsonResponse = EntityUtils.toString(entity);
             JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
             JsonArray results = jsonObject.getAsJsonArray("results");
-            for (JsonElement result : results) {
-                keys.add(result.getAsJsonObject().get("key").getAsString());
+            if (results != null) {
+                for (JsonElement result : results) {
+                    keys.add(result.getAsJsonObject().get("key").getAsString());
+                }
+            } else {
+                logger.error("No results found for the query: " + queryUrl);
             }
         } catch (IOException e) {
             logger.error("Error occurred while retrieving Jira test case keys", e);
