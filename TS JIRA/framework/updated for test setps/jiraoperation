@@ -8,15 +8,15 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.ParseException;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -58,11 +58,11 @@ public class JiraOperation {
             } catch (ParseException | IOException e) {
                 logger.error("Error while parsing the Json response ", e);
             }
-            JSONArray jsonArray = new JSONArray(result);
-            for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject jsonObject = jsonArray.getJSONObject(i);
-                String key = jsonObject.getString("key");
-                logger.info("Key retrieved: " + jsonObject.getString("key"));
+            JsonArray jsonArray = JsonParser.parseString(result).getAsJsonArray();
+            for (int i = 0; i < jsonArray.size(); i++) {
+                JsonObject jsonObject = jsonArray.get(i).getAsJsonObject();
+                String key = jsonObject.get("key").getAsString();
+                logger.info("Key retrieved: " + key);
                 testCaseKeys.add(key);
             }
         } else {
@@ -97,11 +97,11 @@ public class JiraOperation {
             try {
                 String responseBody = EntityUtils.toString(response);
                 logger.info("Attachment details for the key " + key + ": " + responseBody);
-                JSONArray attachmentsArray = new JSONArray(responseBody);
-                for (int i = 0; i < attachmentsArray.length(); i++) {
-                    JSONObject attachment = attachmentsArray.getJSONObject(i);
-                    String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachment.getString("id") + "/" + attachment.getString("fileName");
-                    File downloadedFile = downloadFile(attachmentUrl, attachment.getString("fileName"));
+                JsonArray attachmentsArray = JsonParser.parseString(responseBody).getAsJsonArray();
+                for (int i = 0; i < attachmentsArray.size(); i++) {
+                    JsonObject attachment = attachmentsArray.get(i).getAsJsonObject();
+                    String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachment.get("id").getAsString() + "/" + attachment.get("fileName").getAsString();
+                    File downloadedFile = downloadFile(attachmentUrl, attachment.get("fileName").getAsString());
                     if (downloadedFile != null) {
                         downloadedFiles.add(downloadedFile);
                     }
@@ -127,16 +127,19 @@ public class JiraOperation {
                 step.setInput(stepObject.get("description").getAsString());
                 step.setExpectedResult(stepObject.get("expectedResult").getAsString());
 
-                List<File> stepAttachments = new ArrayList<>();
+                List<JiraAttachment> stepAttachments = new ArrayList<>();
                 if (stepObject.has("attachments")) {
                     JsonArray attachmentsArray = stepObject.getAsJsonArray("attachments");
                     for (int j = 0; j < attachmentsArray.size(); j++) {
                         JsonObject attachmentObject = attachmentsArray.get(j).getAsJsonObject();
-                        String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachmentObject.getString("id") + "/" + attachmentObject.getString("fileName");
-                        File downloadedFile = downloadFile(attachmentUrl, attachmentObject.getString("fileName"));
-                        if (downloadedFile != null) {
-                            stepAttachments.add(downloadedFile);
-                        }
+                        JiraAttachment attachment = new JiraAttachment();
+                        attachment.setId(attachmentObject.get("id").getAsString());
+                        attachment.setFileName(attachmentObject.get("fileName").getAsString());
+                        attachment.setContentType(attachmentObject.get("contentType").getAsString());
+                        attachment.setFileSize(attachmentObject.get("fileSize").getAsLong());
+                        attachment.setCreatedDate(attachmentObject.get("createdOn").getAsString());
+                        attachment.setAuthor(attachmentObject.get("userKey").getAsString());
+                        stepAttachments.add(attachment);
                     }
                 }
                 step.setAttachments(stepAttachments);
@@ -146,25 +149,26 @@ public class JiraOperation {
         return testSteps;
     }
 
-    private File downloadFile(String fileURL, String fileName) {
-        File file = new File(tcAttachmentDownloadLocation + File.separator + fileName);
-        try (FileOutputStream fos = new FileOutputStream(file)) {
-            HttpEntity response = Utils.getJiraResponse(fileURL, jiraApiKey);
+    private File downloadFile(String fileUrl, String fileName) {
+        File downloadedFile = new File(tcAttachmentDownloadLocation + "/" + fileName);
+        try (FileOutputStream fos = new FileOutputStream(downloadedFile)) {
+            HttpEntity response = Utils.getJiraResponse(fileUrl, jiraApiKey);
             if (response != null) {
                 response.writeTo(fos);
                 logger.info("Downloaded file: " + fileName);
-                return file;
+            } else {
+                logger.error("Failed to download file: " + fileName);
+                return null;
             }
         } catch (IOException e) {
-            logger.error("Failed to download file " + fileName, e);
+            logger.error("Error occurred while downloading file: " + fileName, e);
+            return null;
         }
-        return null;
+        return downloadedFile;
     }
 
     public void updateTestCaseMigratedStatusInJira(String key, boolean status) {
         // Implement the logic to update the test case status in JIRA
         // This is a placeholder for the actual implementation
     }
-
-    // Other methods (if any)
 }
