@@ -22,15 +22,26 @@ public class RunnerClass {
             if (rallyTestcaseCreationStatus) {
                 logger.info("Rally Testcase Creation Status is true for key: " + key);
 
-                // Download and upload attachments
+                // Download attachments from Jira
+                logger.info("Starting to download attachments for key: " + key);
                 jiraOperation.downloadAttachments(jiraTestCase);
+                logger.info("Downloaded attachments for key: " + key);
+
+                // Upload attachments to Rally
+                logger.info("Starting to upload attachments for key: " + key);
                 rallyOperation.uploadAttachments(jiraTestCase);
+                logger.info("Uploaded attachments for key: " + key);
+
+                // Cleanup local attachments
+                logger.info("Starting to cleanup attachments for key: " + key);
                 jiraOperation.cleanupAttachments(jiraTestCase);
+                logger.info("Cleaned up attachments for key: " + key);
 
                 // Update Jira Test Case Migrated status
                 Utils.updateTestCaseMigratedStatusinJira(key, true);
             } else {
                 logger.error("The Jira testcase is not created in rally for key: " + key);
+                Utils.updateTestCaseMigratedStatusinJira(key, false);
             }
         }
     }
