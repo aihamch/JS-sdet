@@ -1,170 +1,139 @@
 package com.optum.coe.automation.rally;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.http.HttpEntity;
-import org.apache.http.ParseException;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class JiraOperation {
-
-    private String jiraBaseURL;
-    private String jiraApiKey;
-    private String jiraProjectKey;
-    private String max_chunk;
-    private String tcAttachmentDownloadLocation;
-
     private static final Logger logger = LogManager.getLogger();
+    private final String jiraBaseURL;
+    private final String jiraApiKey;
+    private final String jiraProjectKey;
+    private final String attachmentDownloadLocation;
 
     public JiraOperation() {
         jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
-        jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
+        jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_KEY");
         jiraProjectKey = ConfigLoader.getConfigValue("JIRA_PROJECT_KEY");
-        max_chunk = ConfigLoader.getConfigValue("MAX_VALUE_CHUNK");
-        tcAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_CASE_ATTACHMENT_LOCATION");
+        attachmentDownloadLocation = ConfigLoader.getConfigValue("ATTACHMENT_DOWNLOAD_LOCATION");
         logger.info("Jira values for the project key " + jiraProjectKey + " are assigned from rally_migration_config.properties file");
-        logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nJira Base URL - " + jiraBaseURL + "\nJira Project Key " + jiraProjectKey + "\nMax Chunk value - " + max_chunk + "\nTest Attachment Download location - " + tcAttachmentDownloadLocation);
+        logger.info("Jira Project Key: " + jiraProjectKey + ", Max Chunk value: " + ConfigLoader.getConfigValue("MAX_CHUNK_VALUE")
+                + ", Test Attachment Download location: " + attachmentDownloadLocation);
     }
 
-    public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
-        ArrayList<String> testCaseKeys = new ArrayList<String>();
-        String encodededKey = null;
+    public List<String> getJiraNonMigratedTestcaseKeys() {
+        List<String> keys = new ArrayList<>();
+        String queryUrl = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults="
+                + ConfigLoader.getConfigValue("MAX_CHUNK_VALUE")
+                + "&query=projectKey+%3D+" + jiraProjectKey
+                + "+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false";
+        HttpEntity entity = Utils.getJiraResponse(queryUrl, jiraApiKey);
         try {
-            encodededKey = URLEncoder.encode("projectKey = " + jiraProjectKey + " AND \"Migrate Test to Rally\" = true AND \"TestCase Migrated\" = false", StandardCharsets.UTF_8.toString());
-        } catch (UnsupportedEncodingException e) {
-            logger.error("Error while encoding a part of URL ", e);
-        }
-        String url = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=" + max_chunk + "&query=" + encodededKey;
-        logger.info("String URL to get non migrated testcase keys from Jira " + url);
-        HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-        if (response != null) {
-            String result = null;
-            try {
-                result = EntityUtils.toString(response);
-            } catch (ParseException | IOException e) {
-                logger.error("Error while parsing the Json response ", e);
+            String jsonResponse = EntityUtils.toString(entity);
+            JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
+            JsonArray results = jsonObject.getAsJsonArray("results");
+            for (JsonElement result : results) {
+                keys.add(result.getAsJsonObject().get("key").getAsString());
             }
-            JsonArray jsonArray = JsonParser.parseString(result).getAsJsonArray();
-            for (int i = 0; i < jsonArray.size(); i++) {
-                JsonObject jsonObject = jsonArray.get(i).getAsJsonObject();
-                String key = jsonObject.get("key").getAsString();
-                logger.info("Key retrieved: " + key);
-                testCaseKeys.add(key);
-            }
-        } else {
-            logger.error("Response is NULL from while retrieving non migrated keys from JIRA. Returning NULL");
+        } catch (IOException e) {
+            logger.error("Error occurred while retrieving Jira test case keys", e);
         }
-        return testCaseKeys;
+        return keys;
     }
 
     public JsonObject getJiraTestCaseDetails(String key) {
-        JsonObject jiraJson = null;
-        String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
-        HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-        if (response != null) {
-            try {
-                String responseBody = EntityUtils.toString(response);
-                logger.info("Testcase details for the key" + key + ": " + responseBody);
-                jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
-            } catch (ParseException | IOException e) {
-                logger.error("Failed to retrieving JIRA testcase details for the key " + key + "; Exception ", e);
-            }
-        } else {
-            logger.error("failed to get jira testcase details for the key " + key + "; Returning null");
+        String queryUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
+        HttpEntity entity = Utils.getJiraResponse(queryUrl, jiraApiKey);
+        try {
+            String jsonResponse = EntityUtils.toString(entity);
+            return JsonParser.parseString(jsonResponse).getAsJsonObject();
+        } catch (IOException e) {
+            logger.error("Failed to retrieve JIRA testcase details for the key " + key, e);
         }
-        return jiraJson;
-    }
-
-    public List<File> downloadAttachments(String key) {
-        List<File> downloadedFiles = new ArrayList<>();
-        String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key + "/attachments";
-        HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-        if (response != null) {
-            try {
-                String responseBody = EntityUtils.toString(response);
-                logger.info("Attachment details for the key " + key + ": " + responseBody);
-                JsonArray attachmentsArray = JsonParser.parseString(responseBody).getAsJsonArray();
-                for (int i = 0; i < attachmentsArray.size(); i++) {
-                    JsonObject attachment = attachmentsArray.get(i).getAsJsonObject();
-                    String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachment.get("id").getAsString() + "/" + attachment.get("fileName").getAsString();
-                    File downloadedFile = downloadFile(attachmentUrl, attachment.get("fileName").getAsString());
-                    if (downloadedFile != null) {
-                        downloadedFiles.add(downloadedFile);
-                    }
-                }
-            } catch (ParseException | IOException e) {
-                logger.error("Failed to retrieve JIRA attachments for the key " + key + "; Exception ", e);
-            }
-        } else {
-            logger.error("Failed to get JIRA attachments for the key " + key + "; Returning null");
-        }
-        return downloadedFiles;
+        return null;
     }
 
     public List<JiraTestStep> getTestSteps(JsonObject jiraTestCaseDetails) {
         List<JiraTestStep> testSteps = new ArrayList<>();
         JsonObject testScript = jiraTestCaseDetails.getAsJsonObject("testScript");
-        if (testScript != null) {
+        if (testScript != null && testScript.has("steps")) {
             JsonArray stepsArray = testScript.getAsJsonArray("steps");
-            for (int i = 0; i < stepsArray.size(); i++) {
-                JsonObject stepObject = stepsArray.get(i).getAsJsonObject();
+            for (JsonElement stepElement : stepsArray) {
+                JsonObject stepObject = stepElement.getAsJsonObject();
                 JiraTestStep step = new JiraTestStep();
                 step.setStepIndex(stepObject.get("index").getAsInt());
                 step.setInput(stepObject.get("description").getAsString());
                 step.setExpectedResult(stepObject.get("expectedResult").getAsString());
-
-                List<JiraAttachment> stepAttachments = new ArrayList<>();
                 if (stepObject.has("attachments")) {
                     JsonArray attachmentsArray = stepObject.getAsJsonArray("attachments");
-                    for (int j = 0; j < attachmentsArray.size(); j++) {
-                        JsonObject attachmentObject = attachmentsArray.get(j).getAsJsonObject();
+                    List<JiraAttachment> attachments = new ArrayList<>();
+                    for (JsonElement attachmentElement : attachmentsArray) {
+                        JsonObject attachmentObject = attachmentElement.getAsJsonObject();
                         JiraAttachment attachment = new JiraAttachment();
-                        attachment.setId(attachmentObject.get("id").getAsString());
                         attachment.setFileName(attachmentObject.get("fileName").getAsString());
+                        attachment.setFilePath(downloadAttachment(attachmentObject.get("content").getAsString(), attachment.getFileName()));
                         attachment.setContentType(attachmentObject.get("contentType").getAsString());
-                        attachment.setFileSize(attachmentObject.get("fileSize").getAsLong());
-                        attachment.setCreatedDate(attachmentObject.get("createdOn").getAsString());
-                        attachment.setAuthor(attachmentObject.get("userKey").getAsString());
-                        stepAttachments.add(attachment);
+                        attachment.setFileSize(attachmentObject.get("fileSize").getAsInt());
+                        attachments.add(attachment);
                     }
+                    step.setAttachments(attachments);
                 }
-                step.setAttachments(stepAttachments);
                 testSteps.add(step);
             }
         }
         return testSteps;
     }
 
-    private File downloadFile(String fileUrl, String fileName) {
-        File downloadedFile = new File(tcAttachmentDownloadLocation + "/" + fileName);
-        try (FileOutputStream fos = new FileOutputStream(downloadedFile)) {
-            HttpEntity response = Utils.getJiraResponse(fileUrl, jiraApiKey);
-            if (response != null) {
-                response.writeTo(fos);
-                logger.info("Downloaded file: " + fileName);
-            } else {
-                logger.error("Failed to download file: " + fileName);
-                return null;
+    public List<File> downloadAttachments(String key) {
+        List<File> attachments = new ArrayList<>();
+        String queryUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + key + "/attachments";
+        HttpEntity entity = Utils.getJiraResponse(queryUrl, jiraApiKey);
+        try {
+            String jsonResponse = EntityUtils.toString(entity);
+            JsonArray attachmentsArray = JsonParser.parseString(jsonResponse).getAsJsonArray();
+            for (JsonElement attachmentElement : attachmentsArray) {
+                JsonObject attachmentObject = attachmentElement.getAsJsonObject();
+                String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachmentObject.get("id").getAsString() + "/" + attachmentObject.get("fileName").getAsString();
+                File downloadedFile = downloadFile(attachmentUrl, attachmentObject.get("fileName").getAsString());
+                attachments.add(downloadedFile);
             }
         } catch (IOException e) {
-            logger.error("Error occurred while downloading file: " + fileName, e);
-            return null;
+            logger.error("Error occurred while downloading attachments for key " + key, e);
+        }
+        return attachments;
+    }
+
+    private File downloadFile(String url, String fileName) {
+        File downloadedFile = new File(attachmentDownloadLocation + File.separator + fileName);
+        try (FileOutputStream fos = new FileOutputStream(downloadedFile)) {
+            HttpEntity entity = Utils.getJiraResponse(url, jiraApiKey);
+            entity.writeTo(fos);
+        } catch (IOException e) {
+            logger.error("Error occurred while downloading file " + fileName, e);
         }
         return downloadedFile;
+    }
+
+    public String downloadAttachment(String contentUrl, String fileName) {
+        String filePath = attachmentDownloadLocation + File.separator + fileName;
+        try (FileOutputStream fos = new FileOutputStream(filePath)) {
+            HttpEntity entity = Utils.getJiraResponse(contentUrl, jiraApiKey);
+            entity.writeTo(fos);
+        } catch (IOException e) {
+            logger.error("Error occurred while downloading attachment " + fileName, e);
+        }
+        return filePath;
     }
 
     public void updateTestCaseMigratedStatusInJira(String key, boolean status) {
