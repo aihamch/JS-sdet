@@ -115,6 +115,7 @@ public class RallyOperation {
                 logger.info("Successfully created test case and the OID for created testcase: " + createResponse.getObject().get("_ref").getAsString());
 
                 String testCaseRef = createResponse.getObject().get("_ref").getAsString();
+                logger.info("Creating test steps for test case: " + testCaseRef);
                 createTestSteps(jiraTestCase, testCaseRef);
             } else {
                 logger.error("Error occurred creating test case");
