@@ -1,8 +1,12 @@
-in this line in jiraOperation: 
-String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachmentObject.getString("id") + "/" + attachmentObject.getString("fileName");
-                        File downloadedFile = downloadFile(attachmentUrl, attachmentObject.getString("fileName"));
-i have this error : The method getString(String) is undefined for the type JsonObject
-
-in the runnerclass on this line  rallyOperation.uploadAttachments(rallyOperation.createRallyTestcase(jiraTestCaseDetails, testSteps, attachments), attachments);
-
-i have this error The method uploadAttachments(RallyRestApi, String, List<File>) in the type RallyOperation is not applicable for the arguments (boolean, List<File>)
+2024-08-07 18:28:14.772 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-07 18:28:14.774 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira Project Key: CC2, Max Chunk value: null, Test Attachment Download location: null
+2024-08-07 18:28:14.775 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key null are assigned from rally_migration_config.properties file
+2024-08-07 18:28:14.775 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference null
+Rally User - null
+2024-08-07 18:28:15.375 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response
+and got this error
+Exception in thread "main" java.lang.NullPointerException: Cannot invoke "com.google.gson.JsonArray.iterator()" because "results" is null
+	at com.optum.coe.automation.rally.JiraOperation.getJiraNonMigratedTestcaseKeys(JiraOperation.java:46)
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:19)
