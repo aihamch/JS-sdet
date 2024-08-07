@@ -39,11 +39,12 @@ public class RallyOperation {
         testCase.addProperty("Name", jiraJson.get("name").getAsString());
         if (jiraJson.has("summary")) {
             testCase.addProperty("Description", jiraJson.get("summary").getAsString());
-        } else if (jiraJson.has("description")) {
-            testCase.addProperty("Description", jiraJson.get("description").getAsString());
         } else {
-            testCase.addProperty("Description", "Test case created from Jira");
+            testCase.addProperty("Description", jiraJson.get("description").getAsString());
         }
+        testCase.addProperty("Project", rallyProjectKey);
+        testCase.addProperty("Priority", "Normal"); // Default priority, you can map it from Jira to Rally if needed
+        testCase.addProperty("Owner", rallyUser);
         testCase.addProperty("Method", "Manual");
 
         try (RallyRestApi restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey)) {
