@@ -35,7 +35,7 @@ public class RallyOperation {
     }
 
     // Create a Rally testcase
-    public boolean createRallyTestcase(JsonObject jiraJson) throws IOException {
+    public boolean createRallyTestcase(JiraTestCase jiraTestCase) throws IOException {
         boolean status = false;
 
         // Create JSON object for rally Json and add rally project reference key
@@ -46,9 +46,9 @@ public class RallyOperation {
         JsonObject testCase = new JsonObject();
 
         // Get testcase name from Jira Json body and add it to rally testcase as a property
-        JsonObject nameElement = jiraJson.getAsJsonObject("name");
-        if (nameElement != null && !nameElement.isJsonNull()) {
-            testCase.addProperty("Name", nameElement.getAsString());
+        String name = jiraTestCase.getName();
+        if (name != null && !name.isEmpty()) {
+            testCase.addProperty("Name", name);
         } else {
             testCase.addProperty("Name", "Default Test Case Name - No TestCase name found in Jira");
         }
@@ -57,9 +57,8 @@ public class RallyOperation {
         testCase.addProperty("Method", "Manual");
 
         // Add priority value from Jira Json body to rally testcase as a property
-        JsonObject priorityElement = jiraJson.getAsJsonObject("priority");
-        if (priorityElement != null && !priorityElement.isJsonNull()) {
-            String priority = priorityElement.getAsString();
+        String priority = jiraTestCase.getPriority();
+        if (priority != null && !priority.isEmpty()) {
             if (priority.equalsIgnoreCase("Normal")) {
                 testCase.addProperty("Priority", "Useful");
             } else {
@@ -73,28 +72,38 @@ public class RallyOperation {
         testCase.addProperty("Owner", "/user/" + rallyUser);
 
         // Add status from Jira Json and add to the rally testcase as a property
-        JsonObject statusElement = jiraJson.getAsJsonObject("status");
-        if (statusElement != null && !statusElement.isJsonNull()) {
-            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        String statusValue = jiraTestCase.getStatus();
+        if (statusValue != null && !statusValue.isEmpty()) {
+            testCase.addProperty("Ready", statusValue.equals("Ready"));
         } else {
             testCase.addProperty("Ready", false);
         }
 
         // Convert Jira labels to Rally tags if labels are present
-        if (jiraJson.has("labels")) {
-            JsonObject labels = jiraJson.getAsJsonObject("labels");
-            for (String label : labels.keySet()) {
-                JsonObject tag = Utils.findOrCreateTag(new RallyRestApi(new URI(rallyBaseURL), rallyApiKey), label);
-                if (tag != null) {
-                    testCase.add("Tags", tag);
+        String labels = jiraTestCase.getLables();
+        if (labels != null && !labels.isEmpty()) {
+            String[] labelArray = labels.split(",");
+            RallyRestApi restApi = null;
+            try {
+                restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+                for (String label : labelArray) {
+                    JsonObject tag = Utils.findOrCreateTag(restApi, label.trim());
+                    if (tag != null) {
+                        testCase.add("Tags", tag);
+                    }
+                }
+            } catch (URISyntaxException e) {
+                logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
+            } finally {
+                if (restApi != null) {
+                    restApi.close();
                 }
             }
         }
 
         // Get folder hierarchy from JIRA response
-        JsonObject folderElement = jiraJson.getAsJsonObject("folder");
-        if (folderElement != null && !folderElement.isJsonNull()) {
-            String folderPath = folderElement.getAsString();
+        String folderPath = jiraTestCase.getTestFolder();
+        if (folderPath != null && !folderPath.isEmpty()) {
             String[] folderHierarchy = folderPath.split("/");
 
             // Call a Util method to create test folder based on folder hierarchy
@@ -143,8 +152,7 @@ public class RallyOperation {
 
             // Add Tags to the test case from the JSON file if present
             if (testCaseData.has("Tags")) {
-                JsonObject tagsArrayFromJson = testCaseData.getAsJsonObject("Tags");
-                newTestCase.add("Tags", tagsArrayFromJson);
+                newTestCase.add("Tags", testCaseData.getAsJsonArray("Tags"));
             }
 
             // Add TestFolder to the test case from the JSON file if present
@@ -232,6 +240,7 @@ public class RallyOperation {
 
     private String getRallyTestCaseRef(JiraTestCase jiraTestCase) {
         // Implement logic to retrieve Rally TestCase reference
+        // This will typically involve querying Rally to get the reference of the created test case
         return ""; // Return the actual reference
     }
 }
