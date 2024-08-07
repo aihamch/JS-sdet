@@ -1,3 +1,5 @@
+package com.optum.coe.automation.rally;
+
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
