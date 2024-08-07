@@ -9,6 +9,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.rallydev.rest.RallyRestApi;
 import com.rallydev.rest.request.CreateRequest;
@@ -83,13 +84,14 @@ public class RallyOperation {
         String labels = jiraTestCase.getLables();
         if (labels != null && !labels.isEmpty()) {
             String[] labelArray = labels.split(",");
+            JsonArray tagsArray = new JsonArray();
             RallyRestApi restApi = null;
             try {
                 restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
                 for (String label : labelArray) {
                     JsonObject tag = Utils.findOrCreateTag(restApi, label.trim());
                     if (tag != null) {
-                        testCase.add("Tags", tag);
+                        tagsArray.add(tag);
                     }
                 }
             } catch (URISyntaxException e) {
@@ -99,6 +101,7 @@ public class RallyOperation {
                     restApi.close();
                 }
             }
+            testCase.add("Tags", tagsArray);
         }
 
         // Get folder hierarchy from JIRA response
