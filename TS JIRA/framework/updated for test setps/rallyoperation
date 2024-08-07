@@ -57,16 +57,24 @@ public class RallyOperation {
         // Add method as Manual to rally testcase as a property
         testCase.addProperty("Method", "Manual");
 
-        // Add priority value from Jira Json body to rally testcase as a property
+        // Map priority value from Jira to Rally
         String priority = jiraTestCase.getPriority();
         if (priority != null && !priority.isEmpty()) {
-            if (priority.equalsIgnoreCase("Normal")) {
-                testCase.addProperty("Priority", "Useful");
-            } else {
-                testCase.addProperty("Priority", priority);
+            switch (priority.toLowerCase()) {
+                case "critical":
+                    testCase.addProperty("Priority", "Critical");
+                    break;
+                case "important":
+                    testCase.addProperty("Priority", "Important");
+                    break;
+                case "useful":
+                case "normal":
+                default:
+                    testCase.addProperty("Priority", "Useful");
+                    break;
             }
         } else {
-            testCase.addProperty("Priority", "Default Priority");
+            testCase.addProperty("Priority", "Useful");
         }
 
         // Add owner from config file to the rally testcase as a property
@@ -75,7 +83,7 @@ public class RallyOperation {
         // Add status from Jira Json and add to the rally testcase as a property
         String statusValue = jiraTestCase.getStatus();
         if (statusValue != null && !statusValue.isEmpty()) {
-            testCase.addProperty("Ready", statusValue.equals("Ready"));
+            testCase.addProperty("Ready", statusValue.equals("Approved"));
         } else {
             testCase.addProperty("Ready", false);
         }
