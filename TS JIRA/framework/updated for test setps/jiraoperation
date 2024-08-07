@@ -107,8 +107,8 @@ public class JiraOperation {
                 // Parse attachments
                 List<JiraAttachment> attachments = new ArrayList<>();
                 if (jiraJson.has("attachments")) {
-                    org.apache.hc.core5.json.JsonArray attachmentsArray = jiraJson.get("attachments").getAsJsonArray();
-                    for (int i = 0; i < attachmentsArray.size(); i++) {
+                    JSONArray attachmentsArray = jiraJson.getAsJsonArray("attachments");
+                    for (int i = 0; i < attachmentsArray.length(); i++) {
                         JsonObject attachment = attachmentsArray.get(i).getAsJsonObject();
                         String url = attachment.get("content").getAsString();
                         String filename = attachment.get("filename").getAsString();
@@ -120,8 +120,8 @@ public class JiraOperation {
                 // Parse test step attachments
                 List<JiraAttachment> testStepAttachments = new ArrayList<>();
                 if (jiraJson.has("testStepAttachments")) {
-                    org.apache.hc.core5.json.JsonArray testStepAttachmentsArray = jiraJson.get("testStepAttachments").getAsJsonArray();
-                    for (int i = 0; i < testStepAttachmentsArray.size(); i++) {
+                    JSONArray testStepAttachmentsArray = jiraJson.getAsJsonArray("testStepAttachments");
+                    for (int i = 0; i < testStepAttachmentsArray.length(); i++) {
                         JsonObject attachment = testStepAttachmentsArray.get(i).getAsJsonObject();
                         String url = attachment.get("content").getAsString();
                         String filename = attachment.get("filename").getAsString();
@@ -133,8 +133,8 @@ public class JiraOperation {
                 // Parse embedded attachments
                 List<JiraAttachment> embeddedAttachments = new ArrayList<>();
                 if (jiraJson.has("embeddedAttachments")) {
-                    org.apache.hc.core5.json.JsonArray embeddedAttachmentsArray = jiraJson.get("embeddedAttachments").getAsJsonArray();
-                    for (int i = 0; i < embeddedAttachmentsArray.size(); i++) {
+                    JSONArray embeddedAttachmentsArray = jiraJson.getAsJsonArray("embeddedAttachments");
+                    for (int i = 0; i < embeddedAttachmentsArray.length(); i++) {
                         JsonObject attachment = embeddedAttachmentsArray.get(i).getAsJsonObject();
                         String url = attachment.get("content").getAsString();
                         String filename = attachment.get("filename").getAsString();
