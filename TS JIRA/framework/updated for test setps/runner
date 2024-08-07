@@ -1,5 +1,4 @@
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import org.apache.logging.log4j.LogManager;
@@ -11,7 +10,7 @@ public class RunnerClass {
     private static final Logger logger = LogManager.getLogger();
 
     // Main method
-    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+    public static void main(String[] args) throws IOException, URISyntaxException {
         JiraOperation jiraOperation = new JiraOperation();
         RallyOperation rallyOperation = new RallyOperation();
         ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
