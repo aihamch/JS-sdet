@@ -1,23 +1,33 @@
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.http.HttpEntity;
-import org.apache.http.ParseException;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class JiraOperation {
 
-    // Initialization of the class member variables. This section can be updated in future if more member variables are added during integration if needed.
+    // Logger Initialization for JiraOperation Class
+    private static final Logger logger = LogManager.getLogger();
 
     private String jiraBaseURL;
     private String jiraApiKey;
@@ -25,12 +35,7 @@ public class JiraOperation {
     private String max_chunk;
     private String tcAttachmentDownloadLocation;
 
-    // Logger Initialization for JiraOperation Class
-    private static final Logger logger = LogManager.getLogger();
-
-    /* A Constructor loads the value from .properties file. These value will be loaded as soon as a object is created for this class.
-     * Jira Base URL, Jira API Key, Jira Project Key, Max Chunk values are loaded from .properties file
-     * max_chunk value refers that how many test cases should be migrated for a run. */
+    // A Constructor loads the value from .properties file
     public JiraOperation() {
         jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
         jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
@@ -38,10 +43,10 @@ public class JiraOperation {
         max_chunk = ConfigLoader.getConfigValue("MAX_VALUE_CHUNK");
         tcAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_CASE_ATTACHMENT_LOCATION");
         logger.info("Jira values for the project key " + jiraProjectKey + " are assigned from rally_migration_config.properties file");
-        logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nJira Base URL - " + jiraBaseURL + "\nJira Project Key " + jiraProjectKey + "\nMax Chunk value - " + max_chunk + "\nTest Attachment Download location - " + tcAttachmentDownloadLocation);
+        logger.info("Jira Project Key: " + jiraProjectKey + ", Max Chunk value: " + max_chunk + ", Test Attachment Download location: " + tcAttachmentDownloadLocation);
     }
 
-    // Create a method to get non migrated testcase keys using JIRA REST Api and save them to Testcase array list
+    // Get non-migrated testcase keys
     public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
         ArrayList<String> testCaseKeys = new ArrayList<>();
         String encodedKey = null;
@@ -52,7 +57,7 @@ public class JiraOperation {
         }
 
         String url = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=" + max_chunk + "&query=" + encodedKey;
-        logger.info("String URL to get non migrated testcase keys from Jira " + url);
+        logger.info("String URL to get non-migrated testcase keys from Jira: " + url);
 
         HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
         if (response != null) {
@@ -65,17 +70,17 @@ public class JiraOperation {
                     logger.info("Key retrieved: " + key);
                     testCaseKeys.add(key);
                 }
-            } catch (ParseException | IOException e) {
+            } catch (Exception e) {
                 logger.error("Error while parsing the Json response ", e);
             }
         } else {
-            logger.error("Response is NULL from while retrieving non migrated keys from JIRA. Returning NULL");
+            logger.error("Response is NULL while retrieving non-migrated keys from JIRA. Returning NULL");
         }
 
         return testCaseKeys;
     }
 
-    // Create a method to get the testcase details for a given jira testcase key. This method accepts Jira key as string argument and returns the testcase keys as Json Object for further processing
+    // Get testcase details for a given jira testcase key
     public JiraTestCase getJiraTestCaseDetails(String key) {
         JiraTestCase jiraTestCase = new JiraTestCase();
         jiraTestCase.setKey(key);
@@ -138,7 +143,7 @@ public class JiraOperation {
                 }
                 jiraTestCase.setEmbeddedAttachments(embeddedAttachments);
 
-            } catch (ParseException | IOException e) {
+            } catch (Exception e) {
                 logger.error("Failed to retrieve JIRA testcase details for the key " + key + "; Exception ", e);
             }
         } else {
@@ -146,5 +151,70 @@ public class JiraOperation {
         }
 
         return jiraTestCase;
+    }
+
+    // Download attachments
+    public void downloadAttachments(JiraTestCase jiraTestCase) {
+        downloadAttachmentList(jiraTestCase.getAttachments(), ConfigLoader.getConfigValue("TEST_CASE_ATTACHMENT_LOCATION"));
+        downloadAttachmentList(jiraTestCase.getTestStepAttachments(), ConfigLoader.getConfigValue("TEST_STEP_ATTACHMENT_LOCATION"));
+        downloadAttachmentList(jiraTestCase.getEmbeddedAttachments(), ConfigLoader.getConfigValue("TEST_STEP_EMBEDDED_ATTACHMENT_LOCATION"));
+    }
+
+    private void downloadAttachmentList(List<JiraAttachment> attachments, String downloadPath) {
+        if (attachments == null || attachments.isEmpty()) {
+            return;
+        }
+
+        for (JiraAttachment attachment : attachments) {
+            String attachmentUrl = attachment.getUrl();
+            String localFilePath = downloadPath + "/" + attachment.getFilename();
+            downloadFile(attachmentUrl, localFilePath);
+        }
+    }
+
+    private void downloadFile(String url, String localFilePath) {
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+        HttpGet httpGet = new HttpGet(url);
+        try {
+            HttpEntity entity = httpClient.execute(httpGet).getEntity();
+            if (entity != null) {
+                try (InputStream inputStream = entity.getContent();
+                     FileOutputStream outputStream = new FileOutputStream(new File(localFilePath))) {
+                    byte[] buffer = new byte[1024];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
+                    logger.info("Downloaded attachment to " + localFilePath);
+                }
+            }
+        } catch (ClientProtocolException e) {
+            logger.error("Protocol error while downloading file " + url, e);
+        } catch (IOException e) {
+            logger.error("I/O error while downloading file " + url, e);
+        }
+    }
+
+    // Cleanup attachments
+    public void cleanupAttachments(JiraTestCase jiraTestCase) {
+        deleteAttachmentList(jiraTestCase.getAttachments(), ConfigLoader.getConfigValue("TEST_CASE_ATTACHMENT_LOCATION"));
+        deleteAttachmentList(jiraTestCase.getTestStepAttachments(), ConfigLoader.getConfigValue("TEST_STEP_ATTACHMENT_LOCATION"));
+        deleteAttachmentList(jiraTestCase.getEmbeddedAttachments(), ConfigLoader.getConfigValue("TEST_STEP_EMBEDDED_ATTACHMENT_LOCATION"));
+    }
+
+    private void deleteAttachmentList(List<JiraAttachment> attachments, String downloadPath) {
+        if (attachments == null || attachments.isEmpty()) {
+            return;
+        }
+
+        for (JiraAttachment attachment : attachments) {
+            String localFilePath = downloadPath + "/" + attachment.getFilename();
+            try {
+                Files.deleteIfExists(Paths.get(localFilePath));
+                logger.info("Deleted local attachment " + localFilePath);
+            } catch (IOException e) {
+                logger.error("Error deleting local attachment " + localFilePath, e);
+            }
+        }
     }
 }
