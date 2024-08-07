@@ -2,7 +2,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.google.gson.JsonObject;
@@ -14,38 +13,26 @@ public class RunnerClass {
 
     // Main method
     public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
-        
-        JiraTestCase jiraTestCase = new JiraTestCase();
         JiraOperation jiraOperation = new JiraOperation();
+        RallyOperation rallyOperation = new RallyOperation();
         ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-        for (int i = 0 ; i < testcaseKeys.size() ; i++) {
-            jiraTestCase.setKey(testcaseKeys.get(i));
-            logger.info("Processing " + jiraTestCase.getKey());
-            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-            RallyOperation rallyOperation = new RallyOperation();
-            boolean rallyTestcaseCreationStatus = rallyOperation.createRallyTestcase(jiraTestcaseJson);
-            
+
+        for (String key : testcaseKeys) {
+            JiraTestCase jiraTestCase = jiraOperation.getJiraTestCaseDetails(key);
+            boolean rallyTestcaseCreationStatus = rallyOperation.createRallyTestcase(jiraTestCase);
+
             if (rallyTestcaseCreationStatus) {
-                logger.info("Rally Testcase Creation Status is true" );
-                List<String> testSteps = jiraOperation.getJiraTestSteps(jiraTestCase.getKey());
-                if (testSteps != null && !testSteps.isEmpty()) {
-                    String testCaseRef = rallyOperation.getTestCaseRef(jiraTestcaseJson);
-                    if (testCaseRef != null) {
-                        boolean rallyTestStepsCreationStatus = rallyOperation.createRallyTestSteps(testCaseRef, testSteps);
-                        if (rallyTestStepsCreationStatus) {
-                            logger.info("Test steps created successfully in Rally for test case: " + jiraTestCase.getKey());
-                        } else {
-                            logger.error("Failed to create test steps in Rally for test case: " + jiraTestCase.getKey());
-                        }
-                    } else {
-                        logger.error("Test case reference is null, cannot create test steps in Rally for test case: " + jiraTestCase.getKey());
-                    }
-                } else {
-                    logger.info("No test steps found for Jira test case: " + jiraTestCase.getKey());
-                }
-            } else { 
-                logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey() + " is not created in rally");
-                return;
+                logger.info("Rally Testcase Creation Status is true for key: " + key);
+
+                // Download and upload attachments
+                jiraOperation.downloadAttachments(jiraTestCase);
+                rallyOperation.uploadAttachments(jiraTestCase);
+                jiraOperation.cleanupAttachments(jiraTestCase);
+
+                // Update Jira Test Case Migrated status
+                Utils.updateTestCaseMigratedStatusinJira(key, true);
+            } else {
+                logger.error("The Jira testcase is not created in rally for key: " + key);
             }
         }
     }
