@@ -24,16 +24,20 @@ public class RunnerClass {
                 if (rallyStatus) {
                     logger.info("Rally Testcase Creation Status is true for key: " + key);
                     jiraOperation.updateTestCaseMigratedStatusInJira(key, true);
-                    logger.info("Starting to download attachments for key: " + key);
-                    attachments = jiraOperation.downloadAttachments(key);
-                    logger.info("Downloaded attachments for key: " + key);
-                    RallyRestApi restApi = new RallyRestApi(new URI(rallyOperation.getRallyBaseURL()), rallyOperation.getRallyApiKey());
-                    logger.info("Starting to upload attachments for key: " + key);
-                    rallyOperation.uploadAttachments(restApi, key, attachments);
-                    logger.info("Uploaded attachments for key: " + key);
+                    try (RallyRestApi restApi = new RallyRestApi(new URI(rallyOperation.getRallyBaseURL()), rallyOperation.getRallyApiKey())) {
+                        logger.info("Starting to upload attachments for key: " + key);
+                        rallyOperation.uploadAttachments(restApi, key, attachments);
+                        logger.info("Uploaded attachments for key: " + key);
+                    } catch (Exception e) {
+                        logger.error("Error occurred during attachment upload for key: " + key, e);
+                    }
                     logger.info("Starting to cleanup attachments for key: " + key);
                     for (File attachment : attachments) {
-                        attachment.delete();
+                        if (attachment.delete()) {
+                            logger.info("Deleted attachment: " + attachment.getName());
+                        } else {
+                            logger.error("Failed to delete attachment: " + attachment.getName());
+                        }
                     }
                     logger.info("Cleaned up attachments for key: " + key);
                 } else {
