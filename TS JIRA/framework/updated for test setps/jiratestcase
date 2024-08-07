@@ -1,25 +1,23 @@
 import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class JiraTestCase {
-
-    // Logger Initialization for JiraTestCase Class
-    protected static final Logger logger = LogManager.getLogger();
 
     private String key;
     private String name;
     private String objective;
-    private String preCondition;
     private String status;
     private String priority;
     private String owner;
     private String testFolder;
-    private String lables;
+    private String preCondition;
+    private String labels;
     private String project;
     private List<JiraAttachment> attachments;
     private List<JiraAttachment> testStepAttachments;
     private List<JiraAttachment> embeddedAttachments;
+    private List<JiraTestStep> testSteps;
+
+    // Getters and setters for all fields
 
     public String getKey() {
         return key;
@@ -43,6 +41,62 @@ public class JiraTestCase {
 
     public void setObjective(String objective) {
         this.objective = objective;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
+    public String getOwner() {
+        return owner;
+    }
+
+    public void setOwner(String owner) {
+        this.owner = owner;
+    }
+
+    public String getTestFolder() {
+        return testFolder;
+    }
+
+    public void setTestFolder(String testFolder) {
+        this.testFolder = testFolder;
+    }
+
+    public String getPreCondition() {
+        return preCondition;
+    }
+
+    public void setPreCondition(String preCondition) {
+        this.preCondition = preCondition;
+    }
+
+    public String getLables() {
+        return labels;
+    }
+
+    public void setLables(String labels) {
+        this.labels = labels;
+    }
+
+    public String getProject() {
+        return project;
+    }
+
+    public void setProject(String project) {
+        this.project = project;
     }
 
     public List<JiraAttachment> getAttachments() {
@@ -69,59 +123,11 @@ public class JiraTestCase {
         this.embeddedAttachments = embeddedAttachments;
     }
 
-    public String getLables() {
-        return lables;
+    public List<JiraTestStep> getTestSteps() {
+        return testSteps;
     }
 
-    public void setLables(String lables) {
-        this.lables = lables;
-    }
-
-    public String getOwner() {
-        return owner;
-    }
-
-    public void setOwner(String owner) {
-        this.owner = owner;
-    }
-
-    public String getPreCondition() {
-        return preCondition;
-    }
-
-    public void setPreCondition(String preCondition) {
-        this.preCondition = preCondition;
-    }
-
-    public String getPriority() {
-        return priority;
-    }
-
-    public void setPriority(String priority) {
-        this.priority = priority;
-    }
-
-    public void setProject(String project) {
-        this.project = project;
-    }
-
-    public String getProject() {
-        return project;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setTestFolder(String testFolder) {
-        this.testFolder = testFolder;
-    }
-
-    public String getTestFolder() {
-        return testFolder;
+    public void setTestSteps(List<JiraTestStep> testSteps) {
+        this.testSteps = testSteps;
     }
 }
