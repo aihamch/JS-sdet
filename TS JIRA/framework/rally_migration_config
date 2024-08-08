@@ -4,13 +4,13 @@ JIRA_API_TOKEN=NjkzMzI2MjUyMTAxOjheeHwL8gYnhul3HZo2HojKKY1R
 JIRA_PROJECT_KEY=CC2
 
 # Attachment locations
-TEST_CASE_FILE_ATTACHMENT_LOCATION=Attachments///TestCase_attachments
-TEST_STEP_FILE_ATTACHMENT_LOCATION=Attachments//TestStep_Attachments
-#TEST_STEP_EMBEDDED_ATTACHMENT_LOCATION=C:\Users\trajend7\Documents\Thina\RallyMigration\attachments\TestStep_Embedded_Attachments
+TEST_CASE_FILE_ATTACHMENT_LOCATION=C:\attachments
+TEST_STEP_FILE_ATTACHMENT_LOCATION=C:\Users\aalchala\Documents\Thina\RallyMigration\attachments\TestStep_Attachments
+TEST_STEP_EMBEDDED_ATTACHMENT_LOCATION=C:\Users\aalchala\Documents\Thina\RallyMigration\attachments\TestStep_Embedded_Attachments
 
 # Rally details
 RALLY_BASE_URL=https://rally1.rallydev.com
-RALLY_API_KEY=_FdvSEEeiTJSQadLicRH2U9mpuvpy0VFgja2pgSQmrA
+RALLY_API_KEY=_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk
 RALLY_USER_REF=783605835347
 RALLY_PROJECT_REF=789325818991
-MAX_VALUE_CHUNK=3
+MAX_VALUE_CHUNK=2
