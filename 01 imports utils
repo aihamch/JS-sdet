@@ -1,9 +1,143 @@
-It looks like the `attachFilestoRallyTestcase` method in the `RallyOperation` class expects a `List<String>` of file paths, but we are trying to call it with a single `String` for each file path. We need to update the logic to ensure we are passing the correct arguments.
+It looks like there's an issue with the way files are being downloaded and possibly overwritten, resulting in a `FileAlreadyExistsException`. Here are the necessary changes and additions to ensure that the `attachFilestoRallyTestcase` method is correctly used and that the files are properly handled.
 
-Let's correct the code to pass the correct arguments.
+### `Utils.java`
+**Ensure Files are Not Overwritten by Adding a Check for Existing Files:**
+```java
+public static List<String> downloadFileAttachmentFromTestStep(String jsonResponse, String apiToken,
+        String testStepFileAttachmentLocationToBeSaved, String tC_Id, String baseURL) throws IOException {
+    List<String> filePaths = new ArrayList<String>();
+    JSONObject jsonObject = new JSONObject(jsonResponse);
+    JSONArray stepsArray = jsonObject.getJSONObject("testScript").getJSONArray("steps");
+    Path path = Paths.get(testStepFileAttachmentLocationToBeSaved);
+    if (!Files.exists(path)) {
+        try {
+            Files.createDirectories(path);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    for (int i = 0; i < stepsArray.length(); i++) {
+        JSONObject stepObject = stepsArray.getJSONObject(i);
+        int index = stepObject.getInt("index");
+        int stepNumber = index + 1;
+        if (stepObject.has("attachments")) {
+            JSONArray attachmentsArray = stepObject.getJSONArray("attachments");
+            for (int j = 0; j < attachmentsArray.length(); j++) {
+                JSONObject attachmentObject = attachmentsArray.getJSONObject(j);
+                int attachmentID = attachmentObject.getInt("id");
+                int attachmentNumber = j + 1;
+                String attachmentFileName = attachmentObject.getString("name");
+                String testStepAttachmentUrl = baseURL + "/rest/tests/1.0/attachment/" + attachmentID;
+                HttpEntity response = Utils.getJiraResponse(testStepAttachmentUrl, apiToken);
+                if (response != null) {
+                    try (InputStream in = response.getContent()) {
+                        Path filePath = Paths.get(testStepFileAttachmentLocationToBeSaved + "/" + stepNumber
+                                + "_" + attachmentNumber + "_" + attachmentFileName);
+                        if (Files.exists(filePath)) {
+                            filePath = Paths.get(testStepFileAttachmentLocationToBeSaved + "/" + stepNumber
+                                    + "_" + attachmentNumber + "_" + System.currentTimeMillis() + "_" + attachmentFileName);
+                        }
+                        try {
+                            Files.copy(in, filePath);
+                            filePaths.add(filePath.toString());
+                            EntityUtils.consume(response);
+                        } catch (IOException e) {
+                            logger.error("Failed to download the file attachments from Jira for Testcase level", e);
+                        }
+                        logger.info("File downloaded from Jira to tcAttachmentDownloadLocation. File Name:"
+                                + attachmentFileName);
+                    } catch (UnsupportedOperationException | IOException e1) {
+                        logger.error("Failed to download the file attachment " + attachmentFileName
+                                + " from Jira for Testcase level", e1);
+                    }
+                } else {
+                    logger.error("Failed to download the file attachment " + attachmentFileName
+                            + " from Jira for Testcase level. No Entity response found");
+                }
+            }
+        }
+    }
+    return filePaths;
+}
+
+public static List<String> downloadTestStepEmbeddedAttachments(String jsonResponse, String apiToken,
+        String testStepAttachmentLocationToBeSaved, String tC_Id, String baseURL, String columnName)
+        throws IOException {
+    List<String> filePaths = new ArrayList<String>();
+    JSONObject jsonObject = new JSONObject(jsonResponse);
+    JSONArray stepsArray = jsonObject.getJSONObject("testScript").getJSONArray("steps");
+    Path path = Paths.get(testStepAttachmentLocationToBeSaved);
+    if (!Files.exists(path)) {
+        try {
+            Files.createDirectories(path);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    for (int i = 0; i < stepsArray.length(); i++) {
+        JSONObject stepObject = stepsArray.getJSONObject(i);
+        int index = stepObject.getInt("index");
+        int stepNumber = index + 1;
+        if ((columnName.equals("description")) || (columnName.equals("testData")) || (columnName.equals("expectedResult"))) {
+            if (stepObject.has(columnName)) {
+                String htmlContent = stepObject.getString(columnName);
+                Document doc = Jsoup.parse(htmlContent);
+                Elements imgElements = doc.select("img");
+                if (!imgElements.isEmpty()) {
+                    int imageCount = 0;
+                    for (Element img : imgElements) {
+                        String imageUrl = img.attr("src");
+                        if (!imageUrl.isEmpty()) {
+                            imageCount++;
+                            String extractUrl = imageUrl.substring(2);
+                            String absoluteUrl = baseURL + extractUrl;
+                            HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken);
+                            if (response != null) {
+                                try (InputStream in = response.getContent()) {
+                                    Path filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + stepNumber
+                                            + "_" + imageCount + "_" + "_EmbbededFile_" + columnName + ".png");
+                                    if (Files.exists(filePath)) {
+                                        filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + stepNumber
+                                                + "_" + imageCount + "_" + System.currentTimeMillis() + "_EmbbededFile_" + columnName + ".png");
+                                    }
+                                    try {
+                                        Files.copy(in, filePath);
+                                        filePaths.add(filePath.toString());
+                                        EntityUtils.consume(response);
+                                    } catch (IOException e) {
+                                        logger.error(
+                                                "Failed to download the file attachments from Jira for test step level",
+                                                e);
+                                    }
+                                    logger.info(
+                                            "File downloaded from Jira to tcAttachmentDownloadLocation. File Name:"
+                                                    + stepNumber + "_" + imageCount + "_" + "_EmbbededFile_"
+                                                    + columnName + ".png");
+                                } catch (UnsupportedOperationException | IOException e1) {
+                                    logger.error("Failed to download the file attachment " + stepNumber + "_"
+                                            + imageCount + "_" + "_EmbbededFile_" + columnName
+                                            + " from Jira for Testcase level", e1);
+                                }
+                            } else {
+                                logger.error("Failed to download the file attachment " + stepNumber + "_"
+                                        + imageCount + "_" + "_EmbbededFile_" + columnName
+                                        + " from Jira for test step level. No Entity response found");
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            logger.error(
+                    "No Valid arugument is passed the method. it should be either description OR testData OR expectedResult");
+        }
+    }
+    return filePaths;
+}
+```
 
 ### `RunnerClass.java`
-**Updated Main Method with Correct Argument Passing:**
+**Correct Argument Passing and File Handling:**
 ```java
 package com.optum.coe.automation.rally;
 
@@ -63,7 +197,9 @@ public class RunnerClass {
             if (fileAttachmentDownloadPathsTestcaseLevel != null) {
                 logger.info("Attachment paths are found in the list.");
                 List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcase
+
+Level);
                 // Validation for Testcase file attachments 
                 if (!testcaseAttachmentOIDs.isEmpty()) {
                     rallyOverallTestStepAttachmentsStatus = true;	
@@ -79,9 +215,7 @@ public class RunnerClass {
 
             // Upload test step attachments to Rally
             if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                List<String> stepAttachmentPaths = new ArrayList<>();
-                stepAttachmentPaths.addAll(fileAttachmentDownloadPathsTestStepLevel);
-                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, stepAttachmentPaths);
+                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
                 Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
                 // Validation for Testcase file attachments
                 if (!testStepAttachmentOIDs.isEmpty()) {
@@ -94,9 +228,7 @@ public class RunnerClass {
             }
 
             if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                List<String> stepEmbeddedAttachmentPaths = new ArrayList<>();
-                stepEmbeddedAttachmentPaths.addAll(embeddedAttachmentDownloadPathsTestStepLevel);
-                List<String> embeddedTestStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, stepEmbeddedAttachmentPaths);
+                List<String> embeddedTestStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, embeddedAttachmentDownloadPathsTestStepLevel);
                 Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
                 // Validation for Testcase embedded attachments
                 if (!embeddedTestStepAttachmentOIDs.isEmpty()) {
@@ -119,39 +251,4 @@ public class RunnerClass {
 }
 ```
 
-### `RallyOperation.java`
-**Method Definition for `attachFilestoRallyTestcase`:**
-```java
-public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
-    List<String> testcaseAttachmentOIDs = new ArrayList<String>();
-    RallyRestApi rallyApi = null;
-    try {
-        rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-    } catch (URISyntaxException e) {
-        logger.error("Rally Base URL has some syntax error.",e );
-    }
-    try {
-        for (String filePath : filePaths) {
-            try {
-                testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
-                logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
-            } catch (IOException e) {
-                testcaseAttachmentOIDs.clear();
-                logger.error("File " + filePath + " is not attached to Rally due to IO exception.",e );
-                return testcaseAttachmentOIDs;
-            }
-        }
-    } finally {
-        try {
-            rallyApi.close();
-        } catch (IOException e) {
-            logger.error("Ready API resource is not closed due to IO exception.",e );
-        }
-    }
-    return testcaseAttachmentOIDs;
-}
-```
-
-*Location: This method should be already present in the `RallyOperation.java` class.*
-
-These corrections ensure that the correct arguments are passed when calling the `attachFilestoRallyTestcase` method.
+These updates ensure that the files are not overwritten and that the correct arguments are passed to the `attachFilestoRallyTestcase` method.
