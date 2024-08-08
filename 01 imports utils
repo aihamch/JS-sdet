@@ -1,12 +1,222 @@
-2024-08-07 18:28:14.772 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
-2024-08-07 18:28:14.774 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira Project Key: CC2, Max Chunk value: null, Test Attachment Download location: null
-2024-08-07 18:28:14.775 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key null are assigned from rally_migration_config.properties file
-2024-08-07 18:28:14.775 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
-Rally Base URL - https://rally1.rallydev.com
-Rally Project Reference null
-Rally User - null
-2024-08-07 18:28:15.375 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response
-and got this error
-Exception in thread "main" java.lang.NullPointerException: Cannot invoke "com.google.gson.JsonArray.iterator()" because "results" is null
-	at com.optum.coe.automation.rally.JiraOperation.getJiraNonMigratedTestcaseKeys(JiraOperation.java:46)
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:19)
+To add logic from your similar framework to handle the migration of tags (labels) from JIRA to Rally, you can integrate the tag handling code into your existing framework. The main change is to ensure that labels from JIRA are converted to tags in Rally during the test case creation process.
+
+Here's how you can do it:
+
+### Step 1: Modify JiraOperation Class to Get Labels
+Ensure the `JiraOperation` class retrieves labels when fetching test case details from JIRA.
+
+### Step 2: Modify RallyOperation Class to Create Tags in Rally
+Add logic to create tags in Rally if they do not already exist and associate them with the test case.
+
+### Step 3: Update RunnerClass to Call the New Methods
+Ensure the `RunnerClass` processes the labels and calls the methods to handle tags.
+
+Here is the detailed implementation:
+
+### Step 1: Update `JiraOperation` to Include Labels
+Add a method in `JiraOperation` to fetch labels if it's not already there.
+
+```java
+public JsonObject getJiraTestCaseDetails(String key) {
+    JsonObject jiraJson = null;
+    String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
+
+    HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+    if (response != null) {
+        try {
+            String responseBody = EntityUtils.toString(response);
+            logger.info("Testcase details for the key" + key + ": " + responseBody);
+            jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+
+            // Log labels
+            if (jiraJson.has("labels")) {
+                JsonArray labels = jiraJson.get("labels").getAsJsonArray();
+                logger.info("Labels found for test case " + key + ": " + labels.toString());
+            } else {
+                logger.info("No labels found for test case " + key);
+            }
+        } catch (Exception e) {
+            logger.error("Error while parsing the Json response for the key " + key, e);
+        }
+    } else {
+        logger.error("Failed to get jira testcase details for the key " + key + "; Returning null");
+    }
+    return jiraJson;
+}
+```
+
+### Step 2: Update `RallyOperation` to Handle Tags
+Add logic to `RallyOperation` to convert JIRA labels to Rally tags.
+
+```java
+public boolean createRallyTestcase(JsonObject jiraJson) throws IOException {
+    boolean status = false;
+    JsonObject rallyJson = new JsonObject();
+    rallyJson.addProperty("projectRef", rallyProjectKey);
+    JsonObject testCase = new JsonObject();
+
+    JsonElement nameElement = jiraJson.get("name");
+    if (nameElement != null && !nameElement.isJsonNull()) {
+        testCase.addProperty("Name", nameElement.getAsString());
+    } else {
+        testCase.addProperty("Name", "Default Test Case Name - No TestCase name found in Jira");
+    }
+
+    testCase.addProperty("Method", "Manual");
+
+    JsonElement priorityElement = jiraJson.get("priority");
+    if (priorityElement != null && !priorityElement.isJsonNull()) {
+        String priority = priorityElement.getAsString();
+        if (priority.equalsIgnoreCase("Normal")) {
+            testCase.addProperty("Priority", "Useful");
+        } else {
+            testCase.addProperty("Priority", priority);
+        }
+    } else {
+        testCase.addProperty("Priority", "Default Priority");
+    }
+
+    testCase.addProperty("Owner", "/user/" + rallyUser);
+
+    JsonElement statusElement = jiraJson.get("status");
+    if (statusElement != null && !statusElement.isJsonNull()) {
+        testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+    } else {
+        testCase.addProperty("Ready", false);
+    }
+
+    // Convert JIRA labels to Rally tags
+    JsonArray tagsArray = new JsonArray();
+    if (jiraJson.has("labels")) {
+        JsonArray labelsArray = jiraJson.get("labels").getAsJsonArray();
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            for (JsonElement labelElement : labelsArray) {
+                String label = labelElement.getAsString();
+                JsonObject tag = Utils.findOrCreateTag(restApi, label);
+                if (tag != null) {
+                    tagsArray.add(tag);
+                }
+            }
+        } catch (URISyntaxException e) {
+            logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
+        }
+        testCase.add("Tags", tagsArray);
+    }
+
+    JsonElement folderElement = jiraJson.get("folder");
+    if (folderElement != null && !folderElement.isJsonNull()) {
+        String folderPath = folderElement.getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+        JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey, rallyBaseURL, rallyApiKey);
+        if (testFolder == null) {
+            logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
+            return status;
+        } else {
+            logger.info("Folder " + folderPath + " is created successfully in Rally");
+        }
+        rallyJson.add("TestFolder", testFolder);
+    }
+
+    rallyJson.add("testCase", testCase);
+    String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+    RallyRestApi restApi = null;
+    try {
+        restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+    } catch (URISyntaxException e) {
+        logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
+    }
+    restApi.setApplicationName("CreateTestCaseApp");
+
+    JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+    JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+    JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+    try {
+        JsonObject newTestCase = new JsonObject();
+        newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+        newTestCase.addProperty("Project", rallyProjectKey);
+        newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+        newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+        newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+        newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+        if (testCaseData.has("Tags")) {
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                JsonArray newTagsArray = new JsonArray();
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagRef);
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+        }
+
+        if (testFolderData != null && testFolderData.has("_ref")) {
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
+        }
+
+        CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+        CreateResponse createResponse = restApi.create(createRequest);
+
+        if (createResponse.wasSuccessful()) {
+            status = true;
+            logger.info("Successfully created test case and the OID for created testcase: " + createResponse.getObject().get("_ref").getAsString());
+        } else {
+            logger.error("Error occurred creating test case");
+            for (String error : createResponse.getErrors()) {
+                logger.error(error);
+            }
+        }
+
+    } catch (IOException e) {
+        logger.error("IO exception during create request.", e);
+    } finally {
+        if (restApi != null) {
+            try {
+                restApi.close();
+                logger.info("Closed rest api resource in finally block");
+            } catch (IOException e) {
+                logger.error("Error occurred while closing rest api resource at finally block", e);
+            }
+        }
+    }
+    return status;
+}
+```
+
+### Step 3: Update `RunnerClass` to Call the Updated Methods
+Ensure `RunnerClass` processes the labels during the migration.
+
+```java
+public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+    JiraTestCase jiraTestCase = new JiraTestCase();
+    JiraOperation jiraOperation = new JiraOperation();
+    ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+    for (String key : testcaseKeys) {
+        jiraTestCase.setKey(key);
+        logger.info("Processing " + jiraTestCase.getKey());
+        JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+        RallyOperation rallyOperation = new RallyOperation();
+        boolean rallyTestcaseCreationStatus = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+
+        if (rallyTestcaseCreationStatus) {
+            logger.info("Rally Testcase Creation Status is true for key: " + jiraTestCase.getKey());
+        } else {
+            logger.error("The Jira testcase is not created in rally. Jira Testcase key " +
+
+ jiraTestCase.getKey() + " is not created in rally");
+            return;
+        }
+    }
+}
+```
+
+By following these steps, you can integrate tag (label) migration from JIRA to Rally into your existing framework without changing the overall structure.
