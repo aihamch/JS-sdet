@@ -56,7 +56,7 @@ public RallyOperation() {
 	 * 5. Returns a boolean value as true for a successful testcase creation in rally, else returns false */
 	
 	
-	public String createRallyTestcase(JsonObject jiraJson)  {
+	public String createRallyTestcase(JsonObject jiraJson) throws IOException  {
 		
 		//boolean status = false;
 		String rallyTestCaseOID = null;
@@ -103,13 +103,25 @@ public RallyOperation() {
         }
 
         // Add tags - Need implementation as discussed in code review meeting
+        // Convert Jira labels to Rally tags if labels are present
         JsonArray tagsArray = new JsonArray();
-        JsonObject tagObject = new JsonObject();
-        tagObject.addProperty("_ref", "/tag/56011614555");
-        tagObject.addProperty("Name", "Billing and Eligibility");
-        tagsArray.add(tagObject);
-        testCase.add("Tags", tagsArray);
-
+        if (jiraJson.has("labels")) {
+            JsonArray labelsArray = jiraJson.get("labels").getAsJsonArray();
+            RallyRestApi restApi = null;
+            try {
+                restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+                for (JsonElement labelElement : labelsArray) {
+                    String label = labelElement.getAsString();
+                    JsonObject tag = Utils.findOrCreateTag(restApi, label);
+                    if (tag != null) {
+                        tagsArray.add(tag);
+                    }
+                }
+            } catch (URISyntaxException e) {
+                logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
+            }
+            testCase.add("Tags", tagsArray);
+        }
         // Get folder hierarchy from JIRA response
         String folderPath = jiraJson.get("folder").getAsString();
         String[] folderHierarchy = folderPath.split("/");
