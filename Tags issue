@@ -1,0 +1,84 @@
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+
+import java.io.FileReader;
+import java.net.URI;
+
+public class RallyCreateTC {
+    public static void main(String[] args) throws Exception {
+        // Read JSON file
+        JsonObject jsonData = readJsonFromFile("CC2-T56142.json");
+
+        // Replace with your API Key
+        String rallyURL = "https://rally1.rallydev.com";
+        String apiKey = "_Uwk1XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk";
+        String projectRef = "789325818991"; // Replace with your project reference
+
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        // Extract values from JSON
+        JsonObject testCaseData = jsonData.get("testCase").getAsJsonObject();
+
+        // Create a new test case
+        JsonObject newTestCase = new JsonObject();
+        newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+        newTestCase.addProperty("Project", projectRef);
+        newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+        newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+        newTestCase.addProperty("Objective", testCaseData.get("Objective").getAsString());
+        newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+
+        // Handle "Tags" property
+        JsonElement tagsElement = testCaseData.get("Tags");
+        if (tagsElement != null) {
+            if (tagsElement.isJsonArray()) {
+                // Convert JSON array to a comma-separated string
+                StringBuilder tags = new StringBuilder();
+                for (JsonElement tag : tagsElement.getAsJsonArray()) {
+                    if (tags.length() > 0) {
+                        tags.append(",");
+                    }
+                    tags.append(tag.getAsString());
+                }
+                newTestCase.addProperty("Tags", tags.toString());
+            } else if (tagsElement.isJsonPrimitive() && tagsElement.getAsJsonPrimitive().isString()) {
+                newTestCase.addProperty("Tags", tagsElement.getAsString());
+            } else {
+                System.out.println("Unsupported type for 'Tags'");
+            }
+        }
+
+        // Create the test case in Rally
+        CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+        CreateResponse createResponse = restApi.create(createRequest);
+
+        // Check if the creation was successful
+        if (createResponse.wasSuccessful()) {
+            System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+        } else {
+            System.out.println("Error occurred creating test case:");
+            for (String error : createResponse.getErrors()) {
+                System.out.println(error);
+            }
+        }
+
+        // Release resources
+        restApi.close();
+    }
+
+    // Method to read JSON from a file
+    private static JsonObject readJsonFromFile(String filePath) {
+        try (FileReader reader = new FileReader(filePath)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+}

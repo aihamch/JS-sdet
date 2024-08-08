@@ -1,0 +1,117 @@
+Certainly! Let's dive into the part of the code where the test folders are created and posted to Rally, explaining it step by step.
+
+### Helper Method: `createTestFolder`
+
+```java
+private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+    JsonObject parentFolder = null;
+    String parentFolderRef = null;
+
+    RallyRestApi restApi = null;
+    try {
+        restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        for (String folderName : folderHierarchy) {
+            // Validate folder name
+            if (folderName == null || folderName.trim().isEmpty()) {
+                System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                continue;
+            }
+
+            JsonObject newFolder = new JsonObject();
+            newFolder.addProperty("Name", folderName.trim());
+            newFolder.addProperty("Project", projectRef);
+
+            if (parentFolderRef != null) {
+                newFolder.addProperty("Parent", parentFolderRef);
+            }
+
+            CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+            CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+            if (createFolderResponse.wasSuccessful()) {
+                parentFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                newFolder.addProperty("_ref", parentFolderRef);
+                parentFolder = newFolder;
+                System.out.println("Successfully created folder: " + parentFolderRef);
+            } else {
+                System.out.println("Error occurred creating folder:");
+                for (String error : createFolderResponse.getErrors()) {
+                    System.out.println(error);
+                }
+                break;
+            }
+        }
+
+        return parentFolder;
+    } catch (Exception e) {
+        e.printStackTrace();
+    } finally {
+        if (restApi != null) {
+            try {
+                restApi.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    return null;
+}
+```
+
+### Step-by-Step Explanation
+
+1. **Method Signature and Parameters**:
+    - `createTestFolder` takes two parameters:
+        - `folderHierarchy`: An array of folder names representing the hierarchy.
+        - `projectRef`: The reference ID of the project in Rally where the folders will be created.
+
+2. **Initialization**:
+    - `JsonObject parentFolder`: This will hold the reference to the most recently created folder.
+    - `String parentFolderRef`: This will hold the reference ID of the most recently created folder.
+
+3. **RallyRestApi Initialization**:
+    - `restApi`: The Rally REST API client is initialized with the Rally server URI and an authentication token.
+    - `setApplicationName`: Sets the application name for logging purposes.
+
+4. **Folder Creation Loop**:
+    - The method iterates over each folder name in `folderHierarchy`.
+
+    - **Validation**:
+        - Checks if the folder name is `null` or empty. If invalid, it prints a message and skips to the next folder.
+
+    - **Creating JSON Object for Folder**:
+        - A new `JsonObject` is created to represent the folder.
+        - `addProperty("Name", folderName.trim())`: Adds the folder name to the JSON object, ensuring it is trimmed of whitespace.
+        - `addProperty("Project", projectRef)`: Adds the project reference to the JSON object.
+
+    - **Handling Parent Folder**:
+        - If `parentFolderRef` is not `null`, the current folder is set to have this parent by adding a `Parent` property.
+
+    - **Creating Folder in Rally**:
+        - A `CreateRequest` is created for the folder with the type `"testfolder"` and the folder JSON object.
+        - The `create` method of `restApi` sends the request to create the folder in Rally.
+        - The response is captured in `CreateResponse`.
+
+    - **Handling Response**:
+        - If the creation is successful (`createFolderResponse.wasSuccessful()`):
+            - The reference ID of the created folder is extracted and assigned to `parentFolderRef`.
+            - The reference ID is added to the `newFolder` JSON object.
+            - `parentFolder` is updated to the newly created folder.
+            - A success message is printed with the folder reference ID.
+        - If there are errors:
+            - Error messages are printed, and the loop breaks to prevent further folder creation.
+
+5. **Returning the Parent Folder**:
+    - After the loop, `parentFolder` (the JSON object of the last created folder) is returned.
+
+6. **Exception Handling**:
+    - Any exceptions are caught and printed using `e.printStackTrace()`.
+
+7. **Resource Cleanup**:
+    - In the `finally` block, the `restApi` client is closed to release resources.
+
+### Summary
+
+This block of code takes a hierarchy of folder names, creates each folder in Rally, sets up the parent-child relationship, and returns the last created folder. It handles errors, validates inputs, and ensures proper resource management.

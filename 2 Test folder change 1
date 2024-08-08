@@ -1,0 +1,79 @@
+private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+    JsonObject lastFolder = null;
+    String lastFolderRef = null;
+
+    RallyRestApi restApi = null;
+    try {
+        restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        for (String folderName : folderHierarchy) {
+            if (folderName == null || folderName.trim().isEmpty()) {
+                System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                continue;
+            }
+
+            QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
+            if (lastFolderRef != null) {
+                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", lastFolderRef)));
+            } else {
+                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()));
+            }
+            folderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+
+            QueryResponse queryResponse = restApi.query(folderExistenceRequest);
+
+            if (queryResponse.wasSuccessful()) {
+                if (queryResponse.getTotalResultCount() > 0) {
+                    lastFolder = queryResponse.getResults().get(0).getAsJsonObject();
+                    lastFolderRef = lastFolder.get("_ref").getAsString();
+                    System.out.println("Folder already exists: " + lastFolderRef);
+                } else {
+                    JsonObject newFolder = new JsonObject();
+                    newFolder.addProperty("Name", folderName.trim());
+                    newFolder.addProperty("Project", projectRef);
+
+                    if (lastFolderRef != null) {
+                        newFolder.addProperty("Parent", lastFolderRef);
+                    }
+
+                    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                    if (createFolderResponse.wasSuccessful()) {
+                        lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                        newFolder.addProperty("_ref", lastFolderRef);
+                        lastFolder = newFolder;
+                        System.out.println("Successfully created folder: " + lastFolderRef);
+                    } else {
+                        System.out.println("Error occurred creating folder:");
+                        for (String error : createFolderResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                        break;
+                    }
+                }
+            } else {
+                System.out.println("Error querying folders:");
+                for (String error : queryResponse.getErrors()) {
+                    System.out.println(error);
+                }
+                break;
+            }
+        }
+
+        return lastFolder;
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        return null;
+    } finally {
+        if (restApi != null) {
+            try {
+                restApi.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}

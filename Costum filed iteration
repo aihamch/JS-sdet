@@ -1,0 +1,121 @@
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+import java.net.URI;
+
+public class CreateTestCase {
+    public static void main(String[] args) throws Exception {
+        // Define constants
+        String testCaseId = "CC2-T3170";
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+        String projectRef = "/project/789325818991";
+        String testFolderRef = "/testfolder/790320784037";
+        String apiKey = "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk"; // replace with your API Key
+        String rallyURL = "https://rally1.rallydev.com";
+
+        // Define custom field names to check
+        String[] customObjects = {
+            "Module", "Defect Type", "Deployed to Cert", "Deployed to Production",
+            "Security Violations Resolved", "Security Violations Reviewed", "Autobot Mismatch Fix",
+            "Autobot Automated Review", "Autobot Automated Mismatch", "Jira Created On"
+        };
+
+        // Retrieve Test Case from JIRA
+        HttpClient client = HttpClients.createDefault();
+        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+        request.setHeader("Authorization", "Bearer " + authToken);
+        request.setHeader("Accept", "application/json");
+
+        HttpResponse response = client.execute(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        System.out.println("Pretty Response: " + responseBody);
+
+        // Parse the JIRA response
+        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+
+        // Check if JIRA response has the key "customfields"
+        if (jiraJson.has("customfields")) {
+            JsonObject customFields = jiraJson.getAsJsonObject("customfields");
+
+            // Iterate through customObjects and check if they exist in customFields
+            for (String fieldName : customObjects) {
+                if (customFields.has(fieldName)) {
+                    System.out.println("Custom field found: " + fieldName + " = " + customFields.get(fieldName));
+                } else {
+                    System.out.println("Custom field not found: " + fieldName);
+                }
+            }
+        } else {
+            System.out.println("Key 'customfields' not found in JIRA response.");
+        }
+
+        // Transform JIRA Data to Rally Format
+        JsonObject testCase = new JsonObject();
+        testCase.addProperty("Name", jiraJson.get("name").getAsString());
+        testCase.addProperty("Method", "Manual"); // Assuming a default value
+
+        // Add priority
+        String priority = jiraJson.get("priority").getAsString();
+        if (priority.equalsIgnoreCase("Normal")) {
+            testCase.addProperty("Priority", "Useful");
+        } else {
+            testCase.addProperty("Priority", priority);
+        }
+
+        // Add owner
+        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
+
+        // Add Status
+        testCase.addProperty("Ready", jiraJson.get("status").getAsString().equals("Ready"));  // Assuming a default value
+
+        // Add Tags
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        testCase.add("Tags", tagsArray);
+
+        // Add TestFolder
+        JsonObject testFolder = new JsonObject();
+        testFolder.addProperty("_ref", testFolderRef);
+
+        // Create the Rally JSON object
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", projectRef);
+        rallyJson.add("TestFolder", testFolder);
+        rallyJson.add("testCase", testCase);
+
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        try {
+            // Create a new test case in Rally
+            CreateRequest createRequest = new CreateRequest("testcase", testCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+    }
+}

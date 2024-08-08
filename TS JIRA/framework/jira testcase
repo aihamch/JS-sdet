@@ -1,0 +1,120 @@
+package com.optum.coe.automation.rally;
+
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+
+public class JiraTestCase {
+	
+	// Logger Initialization for JiraAttachment Class
+	protected static final Logger logger = LogManager.getLogger();
+	
+	private String key;
+	private String name;
+	private String objective;
+	private String preCondition;
+	private String status;
+	private String priority;
+	private String owner;
+	private String testFolder;
+	private String lables;
+	private String project;
+	private List<JiraAttachment> attachments;
+	
+	public String getKey() {
+		return key;
+	}
+	 
+	 public void setKey(String key) {
+		this.key = key;
+	}
+	
+	
+	public String getName() {
+		return name;
+	}
+	
+	public void setName(String name) {
+		this.name = name;
+		
+	}
+	
+	
+	public String getObjective() {
+		return objective;
+	}
+	
+	public void setObjective(String objective) {
+		this.objective = objective;
+	}
+	
+	public List<JiraAttachment> getAttachments() {
+		return attachments;
+	}
+	
+	public void setAttachments(List<JiraAttachment> attachments) {
+		this.attachments = attachments;
+	}
+	
+	public String getLables() {
+		return lables;
+	}
+	
+	public void setLables(String lables) {
+		this.lables = lables;
+	}
+	
+	public String getOwner() {
+		return owner;
+	}
+	
+	public void setOwner(String owner) {
+		this.owner = owner;
+	}
+	
+	public String getPreCondition() {
+		return preCondition;
+	}
+	
+	public void setPreCondition(String preCondition) {
+		this.preCondition = preCondition;
+	}
+	
+	public String getPriority() {
+		return priority;
+	}
+	
+	public void setPriority(String priority) {
+		this.priority = priority;
+	}
+	
+	public void setProject(String project) {
+		this.project = project;
+	}
+	
+	public String getProject() {
+		return project;
+	}
+	
+	public void setStatus(String status) {
+		this.status = status;
+	}
+	
+	public String getStatus() {
+		return status;
+	}
+	
+	public void setTestFolder(String testFolder) {
+		this.testFolder = testFolder;
+	}
+	
+	public String getTestFolder() {
+		return testFolder;
+	}
+	
+	
+
+
+}

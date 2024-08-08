@@ -1,0 +1,77 @@
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+import java.io.IOException;
+
+public class ratc {
+
+    public static void main(String[] args) throws IOException {
+        String testCaseId = "CC2-T56142";
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+
+        // Send the GET request to JIRA using HttpClient
+        HttpClient client = HttpClients.createDefault();
+        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+        request.setHeader("Authorization", "Bearer " + authToken);
+        request.setHeader("Accept", "application/json");
+
+        HttpResponse response = client.execute(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+
+        System.out.println("Pretty Response: " + responseBody);
+
+        // Parse the JIRA response
+        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+
+        // Create the Rally JSON object
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", "17893258189911");
+
+        JsonObject testCase = new JsonObject();
+        testCase.addProperty("Name", jiraJson.get("name").getAsString());
+        testCase.addProperty("Method", "Manual"); // Assuming a default value
+
+        String priority = jiraJson.get("priority").getAsString();
+        if (priority.equalsIgnoreCase("Normal")) {
+            testCase.addProperty("Priority", "Useful");
+        } else {
+            testCase.addProperty("Priority", priority);
+        }
+
+        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
+        testCase.addProperty("Ready", jiraJson.get("status").getAsString().equals("Ready"));
+
+        // Add Tags
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        testCase.add("Tags", tagsArray);
+
+        // Add TestFolder
+        JsonObject testFolder = new JsonObject();
+        testFolder.addProperty("_ref", "/testfolder/790320784037");
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        rallyJson.add("testCase", testCase);
+
+        // You can directly use rallyJson as a JsonObject variable
+        JsonObject rallyJsonObject = rallyJson;
+
+        // Optionally, you can also print the JSON object directly
+        System.out.println("Transformed JSON as JsonObject: " + rallyJsonObject.toString());
+
+        // Now you can use rallyJsonObject in a different class as needed
+    }
+}

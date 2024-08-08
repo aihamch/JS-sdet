@@ -1,0 +1,67 @@
+public class RallyOperation {
+
+    // Initialization of the class member variables.
+    private String rallyBaseURL;
+    private String rallyApiKey;
+    private String rallyProjectKey;
+    private String rallyUser;
+
+    // Logger Initialization for RallyOperation Class
+    private static final Logger logger = LogManager.getLogger();
+
+    // Constructor
+    public RallyOperation() {
+        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_KEY");
+        rallyUser = ConfigLoader.getConfigValue("RALLY_USER");
+    }
+
+    // Method to create a Rally test case
+    public boolean createRallyTestcase(JsonObject jiraTestcaseJson) throws URISyntaxException, IOException {
+
+        RallyRestApi restApi = null;
+        try {
+            // Initialize Rally API
+            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            // Construct Rally test case JSON
+            JsonObject rallyTestcaseJson = new JsonObject();
+            rallyTestcaseJson.addProperty("Name", jiraTestcaseJson.get("fields").getAsJsonObject().get("summary").getAsString());
+            rallyTestcaseJson.addProperty("Project", "/project/" + rallyProjectKey);
+            rallyTestcaseJson.addProperty("Owner", rallyUser);
+
+            // Convert Jira labels to Rally tags
+            JsonArray labelsArray = jiraTestcaseJson.get("fields").getAsJsonObject().get("labels").getAsJsonArray();
+            JsonArray tagsArray = new JsonArray();
+            for (JsonElement labelElement : labelsArray) {
+                String label = labelElement.getAsString();
+                JsonObject tag = Utils.findOrCreateTag(restApi, label);
+                if (tag != null) {
+                    tagsArray.add(tag);
+                }
+            }
+            rallyTestcaseJson.add("Tags", tagsArray);
+
+            // Create the test case in Rally
+            CreateRequest createRequest = new CreateRequest("testcase", rallyTestcaseJson);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                logger.info("Test case created successfully in Rally.");
+                return true;
+            } else {
+                logger.error("Error occurred creating test case in Rally.");
+                for (String error : createResponse.getErrors()) {
+                    logger.error(error);
+                }
+                return false;
+            }
+        } finally {
+            if (restApi != null) {
+                restApi.close();
+            }
+        }
+    }
+}

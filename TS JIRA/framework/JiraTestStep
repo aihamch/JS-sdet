@@ -1,0 +1,42 @@
+package com.optum.coe.automation.rally;
+
+import java.util.List;
+
+public class JiraTestStep {
+    private String input;
+    private String expectedResult;
+    private int stepIndex;
+    private List<JiraAttachment> attachments;
+
+    public String getInput() {
+        return input;
+    }
+
+    public void setInput(String input) {
+        this.input = input;
+    }
+
+    public String getExpectedResult() {
+        return expectedResult;
+    }
+
+    public void setExpectedResult(String expectedResult) {
+        this.expectedResult = expectedResult;
+    }
+
+    public int getStepIndex() {
+        return stepIndex;
+    }
+
+    public void setStepIndex(int stepIndex) {
+        this.stepIndex = stepIndex;
+    }
+
+    public List<JiraAttachment> getAttachments() {
+        return attachments;
+    }
+
+    public void setAttachments(List<JiraAttachment> attachments) {
+        this.attachments = attachments;
+    }
+}

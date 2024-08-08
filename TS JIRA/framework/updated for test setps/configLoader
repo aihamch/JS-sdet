@@ -1,0 +1,21 @@
+package com.optum.coe.automation.rally;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Properties;
+
+public class ConfigLoader {
+    private static Properties properties = new Properties();
+
+    static {
+        try (FileInputStream fis = new FileInputStream("rally_migration_config.properties")) {
+            properties.load(fis);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static String getConfigValue(String key) {
+        return properties.getProperty(key);
+    }
+}

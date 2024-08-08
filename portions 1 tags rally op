@@ -1,0 +1,17 @@
+ // Add tags from Jira labels
+        JsonArray tagsArray = new JsonArray();
+        JsonElement labelsElement = jiraJson.get("labels");
+        if (labelsElement != null && labelsElement.isJsonArray()) {
+            JsonArray labelsArray = labelsElement.getAsJsonArray();
+            try (RallyRestApi restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey)) {
+                for (JsonElement labelElement : labelsArray) {
+                    String label = labelElement.getAsString();
+                    JsonObject tagObject = findOrCreateTag(restApi, label);
+                    if (tagObject != null) {
+                        tagsArray.add(tagObject);
+                    }
+                }
+            } catch (URISyntaxException | IOException e) {
+                logger.error("Error occurred while processing tags", e);
+            }
+        }

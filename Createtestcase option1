@@ -1,0 +1,48 @@
+// Create a new test case
+JsonObject newTestCase = new JsonObject();
+newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+newTestCase.addProperty("Project", projectRef); // Ensure this is correct
+newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+// Add Tags to the test case from the JSON file
+JsonArray newTagsArray = new JsonArray();
+JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+if (tagsArrayFromJson != null) {
+    for (JsonElement tagElement : tagsArrayFromJson) {
+        JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+        String tagRef = tagObjectFromJson.get("_ref").getAsString();
+        if (tagRef != null && !tagRef.isEmpty()) {  // Check if tagRef is not null or empty
+            JsonObject newTagObject = new JsonObject();
+            newTagObject.addProperty("_ref", tagRef);
+            newTagsArray.add(newTagObject);
+        } else {
+            System.out.println("Invalid tag reference found: " + tagRef);
+        }
+    }
+    newTestCase.add("Tags", newTagsArray);
+} else {
+    System.out.println("No tags found in JSON.");
+}
+
+// Add TestFolder to the test case from the JSON file
+String testFolderRef = testFolderData.get("_ref").getAsString();
+if (testFolderRef != null && !testFolderRef.isEmpty()) {  // Check if testFolderRef is not null or empty
+    newTestCase.addProperty("TestFolder", testFolderRef);
+} else {
+    System.out.println("Invalid test folder reference found: " + testFolderRef);
+}
+
+CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+CreateResponse createResponse = restApi.create(createRequest);
+
+if (createResponse.wasSuccessful()) {
+    System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+} else {
+    System.out.println("Error occurred creating test case:");
+    for (String error : createResponse.getErrors()) {
+        System.out.println(error);
+    }
+}

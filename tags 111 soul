@@ -1,0 +1,127 @@
+ // Add Tags from JIRA labels
+        JsonArray tagsArray = new JsonArray();
+        JsonArray labelsArray = jiraJson.getAsJsonArray("labels");
+        if (labelsArray != null) {
+            for (JsonElement labelElement : labelsArray) {
+                JsonObject tagObject = new JsonObject();
+                tagObject.addProperty("Name", labelElement.getAsString());
+                tagsArray.add(tagObject);
+            }
+        }
+        testCase.add("Tags", tagsArray);
+
+        // Get folder hierarchy from JIRA response
+        String folderPath = jiraJson.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+
+        // Create TestFolder based on folder hierarchy
+        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
+        if (testFolder == null) {
+            System.out.println("Failed to create or retrieve TestFolder.");
+            return; // Exit the method or handle accordingly
+        }
+        // Add TestFolder to the test case
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        rallyJson.add("testCase", testCase);
+
+        // Save the transformed JSON to a variable
+        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+        // Print the transformed JSON string
+        System.out.println("Transformed JSON: " + rallyJsonString);
+
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+        // Extract values from JSON:
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+        try {
+            // Create a new test case
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", projectRef);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+            // Add Tags to the test case from the JSON file
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                JsonArray newTagsArray = new JsonArray();
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("Name", tagObjectFromJson.get("Name").getAsString());
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+
+            // Add TestFolder to the test case from the JSON file
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+    }
+
+    private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+        JsonObject lastFolder = null;
+        String lastFolderRef = null;
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            for (int i = 0; i < folderHierarchy.length; i++) {
+                String folderName = folderHierarchy[i];
+                if (folderName == null || folderName.trim().isEmpty()) {
+                    System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                    continue;
+                }
+
+                // If it's the top-level folder, ensure it is created as a parent folder
+                if (i == 0) {
+                    // Check if the folder exists as a parent folder
+                    QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
+                    parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
+                    parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+
+                    QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
+
+                    if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
+                        // Folder exists as a parent folder
+                        lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
+                        lastFolderRef = lastFolder.get("_ref").getAsString();
+                        System.out.println("Parent folder already exists: " + lastFolderRef);
+                    } else {
+                        // Folder does not exist as
+
+
+
+
+
+
+

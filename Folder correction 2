@@ -1,0 +1,103 @@
+Sure, let's continue with the code and ensure proper handling and the creation of subfolders.
+
+```java
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+    }
+
+    private static JsonObject createTestFolder(String folderName, String projectRef) {
+        JsonObject newFolder = new JsonObject();
+        newFolder.addProperty("Name", folderName);
+        newFolder.addProperty("Project", projectRef);
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+            CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+            if (createFolderResponse.wasSuccessful()) {
+                String folderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                System.out.println("Successfully created test folder: " + folderRef);
+                newFolder.addProperty("_ref", folderRef);
+
+                // Create subfolders if needed
+                createSubfolders(restApi, folderRef, projectRef);
+
+                return newFolder;
+            } else {
+                System.out.println("Error occurred creating test folder:");
+                for (String error : createFolderResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void createSubfolders(RallyRestApi restApi, String parentFolderRef, String projectRef) {
+        // Example of creating subfolders under a parent folder
+        String[] subfolderNames = {"Subfolder 1", "Subfolder 2"};
+
+        for (String subfolderName : subfolderNames) {
+            JsonObject newSubfolder = new JsonObject();
+            newSubfolder.addProperty("Name", subfolderName);
+            newSubfolder.addProperty("Project", projectRef);
+            newSubfolder.addProperty("Parent", parentFolderRef);
+
+            try {
+                CreateRequest createSubfolderRequest = new CreateRequest("testfolder", newSubfolder);
+                CreateResponse createSubfolderResponse = restApi.create(createSubfolderRequest);
+
+                if (createSubfolderResponse.wasSuccessful()) {
+                    System.out.println("Successfully created subfolder: " + createSubfolderResponse.getObject().get("_ref").getAsString());
+                } else {
+                    System.out.println("Error occurred creating subfolder:");
+                    for (String error : createSubfolderResponse.getErrors()) {
+                        System.out.println(error);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+### Explanation:
+1. **Folder Creation**: The `createTestFolder` method creates a test folder in Rally.
+   - It initializes the RallyRestApi object, creates the folder using the `CreateRequest`, and handles the response.
+   - If successful, it also calls `createSubfolders` to create subfolders under the newly created folder.
+
+2. **Subfolder Creation**: The `createSubfolders` method creates subfolders under a specified parent folder.
+   - It takes the parent folder reference and project reference as parameters.
+   - It iterates over an array of subfolder names, creating each subfolder under the parent folder.
+
+3. **Error Handling**: Proper error handling is included to print out errors if any occur during the creation process.
+
+Make sure the API key and other sensitive information are handled securely, especially in a production environment. The above example uses hardcoded values for demonstration purposes.

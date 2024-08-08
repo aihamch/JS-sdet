@@ -1,0 +1,221 @@
+To refactor the duplicate code for creating folders in `StepDefinitions`, we'll create a separate method for handling the creation and retrieval of folders in Rally. This will help to keep the code DRY (Don't Repeat Yourself) and make it more maintainable.
+
+Here's how you can refactor the code:
+
+### Extracting Folder Creation Logic
+
+1. **Create a method for handling folder creation and retrieval**.
+2. **Replace the duplicate logic with calls to this new method**.
+
+#### Refactored Code
+
+**StepDefinitions Class:**
+
+```java
+public class StepDefinitions {
+
+    private RallyRestApiUtil rallyUtil;
+    private JIRAUtil jiraUtil;
+    private TestConfig config;
+
+    public StepDefinitions(TestConfig config) throws Exception {
+        this.config = config;
+        this.rallyUtil = new RallyRestApiUtil(config);
+        this.jiraUtil = new JIRAUtil(config.getJiraBaseUri(), config.getJiraAuthToken());
+    }
+
+    public void createTestCase(String name, String method, String priority, String owner, boolean ready, String tagRef, String folderRef) throws Exception {
+        JsonObject testCase = new JsonObject();
+        testCase.addProperty("Name", name);
+        testCase.addProperty("Project", config.getProjectRef());
+        testCase.addProperty("Method", method);
+        testCase.addProperty("Priority", priority);
+        testCase.addProperty("Owner", owner);
+        testCase.addProperty("Ready", ready);
+
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tag = new JsonObject();
+        tag.addProperty("_ref", tagRef);
+        tagsArray.add(tag);
+        testCase.add("Tags", tagsArray);
+
+        if (folderRef != null && !folderRef.isEmpty()) {
+            testCase.addProperty("TestFolder", folderRef);
+        }
+
+        CreateResponse createResponse = rallyUtil.createTestCase(testCase);
+        if (createResponse.wasSuccessful()) {
+            System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+        } else {
+            System.out.println("Error creating test case:");
+            for (String error : createResponse.getErrors()) {
+                System.out.println(error);
+            }
+        }
+    }
+
+    private JsonObject createOrGetTestFolder(String folderName, String parentRef, String projectRef) throws Exception {
+        QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
+        folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()));
+        if (parentRef == null) {
+            folderExistenceRequest.setQueryFilter(folderExistenceRequest.getQueryFilter().and(new QueryFilter("Parent", "=", "null")));
+        } else {
+            folderExistenceRequest.setQueryFilter(folderExistenceRequest.getQueryFilter().and(new QueryFilter("Parent", "=", parentRef)));
+        }
+        folderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+
+        QueryResponse queryResponse = rallyUtil.getRestApi().query(folderExistenceRequest);
+        if (queryResponse.wasSuccessful() && queryResponse.getTotalResultCount() > 0) {
+            return queryResponse.getResults().get(0).getAsJsonObject();
+        } else {
+            JsonObject newFolder = new JsonObject();
+            newFolder.addProperty("Name", folderName.trim());
+            newFolder.addProperty("Project", projectRef);
+            if (parentRef != null) {
+                newFolder.addProperty("Parent", parentRef);
+            }
+
+            CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+            CreateResponse createFolderResponse = rallyUtil.create(createFolderRequest);
+
+            if (createFolderResponse.wasSuccessful()) {
+                newFolder.addProperty("_ref", createFolderResponse.getObject().get("_ref").getAsString());
+                return newFolder;
+            } else {
+                throw new Exception("Error occurred creating folder: " + String.join(", ", createFolderResponse.getErrors()));
+            }
+        }
+    }
+
+    public JsonObject createTestFolder(String[] folderHierarchy, String projectRef) throws Exception {
+        JsonObject lastFolder = null;
+        String lastFolderRef = null;
+
+        for (String folderName : folderHierarchy) {
+            if (folderName == null || folderName.trim().isEmpty()) {
+                System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                continue;
+            }
+
+            lastFolder = createOrGetTestFolder(folderName.trim(), lastFolderRef, projectRef);
+            lastFolderRef = lastFolder.get("_ref").getAsString();
+        }
+
+        return lastFolder;
+    }
+
+    public void migrateTestCaseFromJiraToRally(String jiraTestCaseId) throws Exception {
+        JsonObject jiraTestCase = jiraUtil.getTestCase(jiraTestCaseId);
+
+        // Transform JIRA test case to Rally test case format
+        JsonObject rallyTestCase = new JsonObject();
+        rallyTestCase.addProperty("Project", config.getProjectRef());
+
+        // Add name
+        JsonElement nameElement = jiraTestCase.get("name");
+        if (nameElement != null && !nameElement.isJsonNull()) {
+            rallyTestCase.addProperty("Name", nameElement.getAsString());
+        } else {
+            rallyTestCase.addProperty("Name", "Default Test Case Name"); // default value
+        }
+
+        // Add method
+        rallyTestCase.addProperty("Method", "Manual"); // Assuming a default value
+
+        // Add priority
+        JsonElement priorityElement = jiraTestCase.get("priority");
+        if (priorityElement != null && !priorityElement.isJsonNull()) {
+            String priority = priorityElement.getAsString();
+            if (priority.equalsIgnoreCase("Normal")) {
+                rallyTestCase.addProperty("Priority", "Useful");
+            } else {
+                rallyTestCase.addProperty("Priority", priority);
+            }
+        } else {
+            rallyTestCase.addProperty("Priority", "Default Priority"); // default value
+        }
+
+        // Add owner
+        rallyTestCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
+
+        // Add status
+        JsonElement statusElement = jiraTestCase.get("status");
+        if (statusElement != null && !statusElement.isJsonNull()) {
+            rallyTestCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        } else {
+            rallyTestCase.addProperty("Ready", false); // default value
+        }
+
+        // Add Tags
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        rallyTestCase.add("Tags", tagsArray);
+
+        // Add TestFolder
+        String folderPath = jiraTestCase.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+        JsonObject testFolder = createTestFolder(folderHierarchy, config.getProjectRef());
+        String testFolderRef = testFolder != null ? testFolder.get("_ref").getAsString() : null;
+
+        // Create test case in Rally
+        createTestCase(
+            rallyTestCase.get("Name").getAsString(),
+            rallyTestCase.get("Method").getAsString(),
+            rallyTestCase.get("Priority").getAsString(),
+            rallyTestCase.get("Owner").getAsString(),
+            rallyTestCase.get("Ready").getAsBoolean(),
+            rallyTestCase.get("Tags").getAsJsonArray().get(0).getAsJsonObject().get("_ref").getAsString(),
+            testFolderRef
+        );
+    }
+
+    public void closeConnection() throws Exception {
+        rallyUtil.close();
+    }
+}
+```
+
+**RallyRestApiUtil Class:**
+```java
+public class RallyRestApiUtil {
+    private RallyRestApi restApi;
+    private String projectRef;
+
+    public RallyRestApiUtil(TestConfig config) throws Exception {
+        this.restApi = new RallyRestApi(new URI(config.getRallyUri()), config.getRallyApiKey());
+        this.restApi.setApplicationName("CreateTestCaseApp");
+        this.projectRef = config.getProjectRef();
+    }
+
+    public RallyRestApi getRestApi() {
+        return restApi;
+    }
+
+    public CreateResponse createTestCase(JsonObject testCase) throws Exception {
+        CreateRequest createRequest = new CreateRequest("testcase", testCase);
+        return restApi.create(createRequest);
+    }
+
+    public CreateResponse createTestFolder(JsonObject testFolder) throws Exception {
+        CreateRequest createRequest = new CreateRequest("testfolder", testFolder);
+        return restApi.create(createRequest);
+    }
+
+    public void close() throws Exception {
+        restApi.close();
+    }
+}
+```
+
+### Explanation:
+
+1. **`createOrGetTestFolder` Method**: This method encapsulates the logic for checking the existence of a folder and creating it if it doesn't exist. It accepts the folder name, the parent folder reference, and the project reference as parameters.
+
+2. **Refactored `createTestFolder` Method**: This method now uses `createOrGetTestFolder` to handle the creation and retrieval of each folder in the hierarchy. This removes the duplicated code for creating parent and subfolders.
+
+3. **Usage in `migrateTestCaseFromJiraToRally` Method**: The `migrateTestCaseFromJiraToRally` method remains unchanged in terms of functionality but now benefits from the refactored folder creation logic.
+
+This refactoring improves the readability and maintainability of the code by eliminating duplication and centralizing folder creation logic.

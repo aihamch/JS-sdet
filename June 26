@@ -1,0 +1,19 @@
+{
+  "testCase": {
+    "Name": "Sample Test Case",
+    "Method": "Manual",
+    "Priority": "High",
+    "Objective": "Verify functionality",
+    "Owner": "user@example.com",
+    "Tags": [
+      {
+        "_ref": "/tag/56011614555",
+        "Name": "Billing and Eligibility"
+      }
+    ],
+    "Ready": false
+  },
+  "testFolder": {
+    "_ref": "/testfolder/1234567890"
+  }
+}

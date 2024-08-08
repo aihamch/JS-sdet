@@ -1,0 +1,53 @@
+// Method to get tag reference from Rally
+private static String getTagReference(RallyRestApi restApi, String tagName) throws Exception {
+    QueryRequest tagRequest = new QueryRequest("Tag");
+    tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
+    QueryResponse tagQueryResponse = restApi.query(tagRequest);
+
+    if (tagQueryResponse.wasSuccessful() && tagQueryResponse.getTotalResultCount() > 0) {
+        JsonArray tags = tagQueryResponse.getResults();
+        JsonObject tag = tags.get(0).getAsJsonObject();
+        return tag.get("_ref").getAsString();
+    } else {
+        System.out.println("Tag not found: " + tagName);
+        return null;
+    }
+}import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.FileReader;
+
+public class RetrieveTagsFromJSON {
+    public static void main(String[] args) {
+        // Read JSON file
+        JsonObject jsonData = readJsonFromFile("CC2-T56142.json");
+
+        // Extract values from JSON
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+
+        // Get Tags array from JSON
+        JsonArray tagsArray = testCaseData.getAsJsonArray("Tags");
+
+        // Iterate through tags if present
+        if (tagsArray != null) {
+            for (int i = 0; i < tagsArray.size(); i++) {
+                JsonObject tagObject = tagsArray.get(i).getAsJsonObject();
+                String tagValue = tagObject.get("Name").getAsString();
+                System.out.println("Tag " + (i + 1) + ": " + tagValue);
+            }
+        } else {
+            System.out.println("No Tags found in JSON file.");
+        }
+    }
+
+    // Method to read JSON from a file
+    private static JsonObject readJsonFromFile(String filePath) {
+        try (FileReader reader = new FileReader(filePath)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+}p

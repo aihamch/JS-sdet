@@ -1,0 +1,45 @@
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Base64;
+
+public class JiraTestFolders {
+
+    private static final String JIRA_URL = "https://your-jira-instance.atlassian.net";
+    private static final String API_TOKEN = "your-api-token";
+    private static final String USER_EMAIL = "your-email@example.com";
+
+    public static void main(String[] args) {
+        String projectKey = "YOUR_PROJECT_KEY";
+        try {
+            // Construct the URL
+            String url = JIRA_URL + "/rest/zephyr/latest/testfolder?projectKey=" + projectKey;
+
+            // Create the HttpClient
+            HttpClient client = HttpClient.newHttpClient();
+
+            // Create the request
+            String auth = USER_EMAIL + ":" + API_TOKEN;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Basic " + encodedAuth)
+                    .header("Accept", "application/json")
+                    .build();
+
+            // Send the request
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // Check the response code
+            if (response.statusCode() == 200) {
+                // Print the response (or process it as needed)
+                System.out.println("Response: " + response.body());
+            } else {
+                System.out.println("Failed to retrieve test folders. HTTP code: " + response.statusCode());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

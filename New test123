@@ -1,0 +1,59 @@
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+
+import java.io.FileReader;
+import java.net.URI;
+
+public class RallyCreateTestCase {
+    public static void main(String[] args) throws Exception {
+        // Read JSON file
+        JsonObject jsonData = readJsonFromFile("testcase.json");
+
+        // Extract values from JSON
+        String rallyURL = jsonData.get("rallyURL").getAsString();
+        String apiKey = jsonData.get("apiKey").getAsString();
+        String projectRef = jsonData.get("projectRef").getAsString();
+        JsonObject testCaseData = jsonData.get("testCase").getAsJsonObject();
+
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        try {
+            // Create a new test case
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", projectRef);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Objective", testCaseData.get("Objective").getAsString());
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+    }
+
+    private static JsonObject readJsonFromFile(String filePath) {
+        try (FileReader reader = new FileReader(filePath)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+}

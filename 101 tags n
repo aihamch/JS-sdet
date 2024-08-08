@@ -1,0 +1,19 @@
+// Convert Jira labels to Rally tags if labels are present
+        JsonArray tagsArray = new JsonArray();
+        if (jiraJson.has("labels")) {
+            JsonArray labelsArray = jiraJson.get("labels").getAsJsonArray();
+            RallyRestApi restApi = null;
+            try {
+                restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+                for (JsonElement labelElement : labelsArray) {
+                    String label = labelElement.getAsString();
+                    JsonObject tag = Utils.findOrCreateTag(restApi, label);
+                    if (tag != null) {
+                        tagsArray.add(tag);
+                    }
+                }
+            } catch (URISyntaxException e) {
+                logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
+            }
+            testCase.add("Tags", tagsArray);
+        }

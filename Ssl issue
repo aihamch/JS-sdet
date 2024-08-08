@@ -1,0 +1,72 @@
+Since the issue is occurring on your colleague's laptop and not on yours, it's likely related to differences in the Java environment or configuration between the two machines. Here are steps to diagnose and resolve the issue:
+
+1. **Check Java Version**:
+   - Ensure both laptops are running the same version of Java. Different versions may have different default Truststore configurations.
+   ```sh
+   java -version
+   ```
+
+2. **Compare Truststores**:
+   - Verify if the Java Truststore on your colleague's laptop has the necessary certificates that yours does.
+   - Export the certificates from your Truststore and compare them with those on your colleague's laptop.
+
+3. **Truststore Location**:
+   - Ensure that the Java Truststore path (`$JAVA_HOME/lib/security/cacerts`) is correct and accessible on your colleague's laptop.
+   - Check if the Truststore is customized or the default one is being used.
+
+4. **Network Configuration**:
+   - Verify if there are any differences in network configuration or proxies that might affect SSL/TLS connections on your colleague's laptop.
+
+5. **Install Missing Certificates**:
+   - If necessary, export the Rally server's certificate and import it into your colleague's Truststore.
+   ```sh
+   # Export the certificate
+   openssl s_client -showcerts -connect rally.server.url:443 < /dev/null 2>/dev/null | openssl x509 -outform PEM > rally_cert.pem
+
+   # Import the certificate into the Truststore
+   keytool -import -alias rally -keystore $JAVA_HOME/lib/security/cacerts -file rally_cert.pem
+   ```
+
+6. **Check Environment Variables**:
+   - Ensure that environment variables such as `JAVA_HOME`, `javax.net.ssl.trustStore`, and `javax.net.ssl.trustStorePassword` are set correctly on your colleague's laptop.
+
+7. **SSL Debugging**:
+   - Enable SSL debugging on your colleague's laptop to get more detailed error messages and understand where the SSL handshake is failing.
+   ```sh
+   java -Djavax.net.debug=ssl:handshake:verbose -jar your-application.jar
+   ```
+
+8. **Temporary Workaround**:
+   - As a temporary workaround, you can bypass certificate validation (not recommended for production):
+   ```java
+   import javax.net.ssl.*;
+   import java.security.cert.X509Certificate;
+
+   public class SSLUtil {
+       public static void disableCertificateValidation() {
+           try {
+               TrustManager[] trustAllCerts = new TrustManager[]{
+                   new X509TrustManager() {
+                       public X509Certificate[] getAcceptedIssuers() {
+                           return null;
+                       }
+
+                       public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                       }
+
+                       public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                       }
+                   }
+               };
+
+               SSLContext sc = SSLContext.getInstance("SSL");
+               sc.init(null, trustAllCerts, new java.security.SecureRandom());
+               HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+           } catch (Exception e) {
+               e.printStackTrace();
+           }
+       }
+   }
+   ```
+
+By following these steps, you should be able to identify and resolve the SSL certificate validation issue on your colleague's laptop.

@@ -1,0 +1,96 @@
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.util.QueryFilter;
+
+import java.io.FileReader;
+import java.net.URI;
+
+public class RallyCreateTC {
+    public static void main(String[] args) throws Exception {
+        // Read JSON file
+        JsonObject jsonData = readJsonFromFile("CC2-T56142.json");
+
+        // Replace with your Rally URL, API Key, and Project Reference
+        String rallyURL = "https://rally1.rallydev.com";
+        String apiKey = "_Uwk1XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk"; // replace with your API Key
+        String projectRef = "789325818991"; // replace with your project reference
+
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        // Extract values from JSON
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+
+        // Create a new test case
+        JsonObject newTestCase = new JsonObject();
+        newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+        newTestCase.addProperty("Project", projectRef);
+        newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+        newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+        newTestCase.addProperty("Objective", testCaseData.get("Objective").getAsString());
+        newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+
+        // Handle Tags property as references
+        JsonArray tagRefs = new JsonArray();
+        JsonElement tagsElement = testCaseData.get("Tags");
+        if (tagsElement != null && tagsElement.isJsonArray()) {
+            for (JsonElement tagElement : tagsElement.getAsJsonArray()) {
+                String tagName = tagElement.getAsString();
+                String tagRef = getTagReference(restApi, tagName);
+                if (tagRef != null) {
+                    JsonObject tagObject = new JsonObject();
+                    tagObject.addProperty("_ref", tagRef);
+                    tagRefs.add(tagObject);
+                }
+            }
+        }
+        newTestCase.add("Tags", tagRefs);
+
+        // Create the test case in Rally
+        CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+        CreateResponse createResponse = restApi.create(createRequest);
+
+        // Check if the creation was successful
+        if (createResponse.wasSuccessful()) {
+            System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+        } else {
+            System.out.println("Error occurred creating test case:");
+            for (String error : createResponse.getErrors()) {
+                System.out.println(error);
+            }
+        }
+
+        // Release resources
+        restApi.close();
+    }
+
+    // Method to read JSON from a file
+    private static JsonObject readJsonFromFile(String filePath) {
+        try (FileReader reader = new FileReader(filePath)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    // Method to get tag reference from Rally
+    private static String getTagReference(RallyRestApi restApi, String tagName) throws Exception {
+        QueryFilter filter = new QueryFilter("Name", "=", tagName);
+        JsonObject tagQuery = restApi.get("/tag", filter).getAsJsonObject();
+        JsonArray tags = tagQuery.get("Results").getAsJsonArray();
+        if (!tags.isJsonNull() && tags.size() > 0) {
+            JsonObject tag = tags.get(0).getAsJsonObject();
+            return tag.get("_ref").getAsString();
+        } else {
+            System.out.println("Tag not found: " + tagName);
+            return null;
+        }
+    }
+}

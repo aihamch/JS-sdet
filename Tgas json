@@ -1,0 +1,15 @@
+{
+    "testCase": {
+        "Name": "Verify User Login",
+        "Method": "Manual",
+        "Priority": "High",
+        "Objective": "Ensure user can log in with valid credentials",
+        "Owner": "John Doe",
+        "Tags": [
+            {
+                "Name": "Billing and Eligibility",
+                "_ref": "/tag/56011614555"
+            }
+        ]
+    }
+}

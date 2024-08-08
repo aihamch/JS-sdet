@@ -1,0 +1,133 @@
+To ensure that the test case is created in the last level of the folder hierarchy, even if the folder already exists, you should adjust the logic in the `createTestFolder` method. Here’s how you can modify the method to handle this scenario:
+
+```java
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.util.QueryFilter;
+
+import java.net.URI;
+
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+
+public class NoDuplicate {
+
+    public static void main(String[] args) throws Exception {
+        String testCaseId = "CC2-T6096";
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+        String projectRef = "789325818991";
+
+        // Send the GET request to JIRA using HttpClient
+        // (Code for retrieving JIRA test case JSON skipped for brevity)
+
+        // Parse the JIRA response and create rallyJson and testCase objects
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", projectRef);
+
+        // (Code for creating testCase object skipped for brevity)
+
+        // Get folder hierarchy from JIRA response
+        String folderPath = ""; // Replace with actual folder path from JIRA response
+        String[] folderHierarchy = folderPath.split("/");
+
+        // Create TestFolder based on folder hierarchy
+        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
+
+        // Add TestFolder to the rallyJson
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        // (Code for creating and adding testCase object skipped for brevity)
+
+        // Save the transformed JSON to a variable (skipped for brevity)
+
+        // Initialize Rally API and create test case (skipped for brevity)
+    }
+
+    private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+        JsonObject parentFolder = null;
+        String parentFolderRef = null;
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            for (String folderName : folderHierarchy) {
+                // Validate folder name
+                if (folderName == null || folderName.trim().isEmpty()) {
+                    System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                    continue; // Skip invalid folder names
+                }
+
+                // Query Rally to check if folder already exists
+                QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
+                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()));
+                folderExistenceRequest.setFetch(new String[]{"_ref", "Name", "Parent"}); // Set fields to fetch
+
+                QueryResponse queryResponse = restApi.query(folderExistenceRequest);
+
+                if (queryResponse.wasSuccessful() && queryResponse.getTotalResultCount() > 0) {
+                    // Folder exists, retrieve its _ref
+                    JsonObject existingFolder = queryResponse.getResults().get(0).getAsJsonObject();
+                    parentFolderRef = existingFolder.get("_ref").getAsString();
+                    System.out.println("Folder already exists: " + parentFolderRef);
+                } else {
+                    // Folder does not exist, create new folder
+                    JsonObject newFolder = new JsonObject();
+                    newFolder.addProperty("Name", folderName.trim());
+                    newFolder.addProperty("Project", projectRef);
+
+                    if (parentFolderRef != null) {
+                        newFolder.addProperty("Parent", parentFolderRef);
+                    }
+
+                    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                    if (createFolderResponse.wasSuccessful()) {
+                        parentFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                        newFolder.addProperty("_ref", parentFolderRef);
+                        parentFolder = newFolder;
+                        System.out.println("Successfully created folder: " + parentFolderRef);
+                    } else {
+                        System.out.println("Error occurred creating folder:");
+                        for (String error : createFolderResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Return the last created or retrieved folder
+            return parentFolder;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return null;
+    }
+}
+```
+
+### Explanation:
+- **createTestFolder Method**: 
+  - Iterates through each level of the `folderHierarchy`.
+  - Checks if each folder exists in Rally (`testfolder` object type) using a `QueryRequest`.
+  - If a folder exists, it retrieves its `_ref` for use as the `Parent` attribute in subsequent folder creations.
+  - If a folder does not exist, it creates the folder and sets `Parent` based on the last successfully created folder.
+  - Returns the last created or retrieved folder (`parentFolder`) after the loop completes.
+
+This approach ensures that your test case (`testCase`) is associated with the last level of the folder hierarchy specified in `folderHierarchy`, whether the folders exist or need to be created. Adjust the error handling and additional logic as per your specific requirements and error scenarios.

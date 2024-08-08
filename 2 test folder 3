@@ -1,0 +1,67 @@
+private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+    JsonObject lastFolder = null;
+    String lastFolderRef = null;
+
+    RallyRestApi restApi = null;
+    try {
+        restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        for (String folderName : folderHierarchy) {
+            if (folderName == null || folderName.trim().isEmpty()) {
+                System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                continue;
+            }
+
+            // Check if the folder exists as a parent folder
+            QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
+            parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
+            parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+
+            QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
+
+            if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
+                // Folder exists as a parent folder
+                lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
+                lastFolderRef = lastFolder.get("_ref").getAsString();
+                System.out.println("Parent folder already exists: " + lastFolderRef);
+            } else {
+                // Folder does not exist as a parent folder, create it
+                JsonObject newFolder = new JsonObject();
+                newFolder.addProperty("Name", folderName.trim());
+                newFolder.addProperty("Project", projectRef);
+
+                // No parent is set since it's a top-level folder
+                CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                if (createFolderResponse.wasSuccessful()) {
+                    lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                    newFolder.addProperty("_ref", lastFolderRef);
+                    lastFolder = newFolder;
+                    System.out.println("Successfully created parent folder: " + lastFolderRef);
+                } else {
+                    System.out.println("Error occurred creating parent folder:");
+                    for (String error : createFolderResponse.getErrors()) {
+                        System.out.println(error);
+                    }
+                    break;
+                }
+            }
+        }
+
+        return lastFolder;
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        return null;
+    } finally {
+        if (restApi != null) {
+            try {
+                restApi.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}

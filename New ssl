@@ -1,0 +1,95 @@
+To address the SSL certificate validation issue, follow these steps to diagnose and resolve the problem:
+
+### 1. **Check Java Version**
+Ensure the laptop is running the same version of Java. Different versions may have different default Truststore configurations.
+
+```sh
+java -version
+```
+
+### 2. **Compare Truststores**
+Verify if the Java Truststore has the necessary certificates.
+
+#### Export Certificates
+1. Export the certificates from the Truststore:
+   ```sh
+   keytool -exportcert -alias rally -keystore $JAVA_HOME/lib/security/cacerts -file rally_cert.pem
+   ```
+
+2. Import the certificates into the Truststore:
+   ```sh
+   keytool -import -alias rally -keystore $JAVA_HOME/lib/security/cacerts -file rally_cert.pem
+   ```
+
+### 3. **Check Truststore Location**
+Ensure the Truststore path is correct and accessible.
+
+```sh
+echo $JAVA_HOME/lib/security/cacerts
+```
+
+### 4. **Network Configuration**
+Verify network settings, including proxies, which might affect SSL/TLS connections.
+
+### 5. **Install Missing Certificates**
+If necessary, export and import the Rally server’s certificate to the Truststore.
+
+#### Export Certificate
+1. Export the certificate from Rally server:
+   ```sh
+   openssl s_client -showcerts -connect rally.server.url:443 < /dev/null 2>/dev/null | openssl x509 -outform PEM > rally_cert.pem
+   ```
+
+#### Import Certificate
+2. Import the certificate into the Truststore:
+   ```sh
+   keytool -import -alias rally -keystore $JAVA_HOME/lib/security/cacerts -file rally_cert.pem
+   ```
+
+### 6. **Check Environment Variables**
+Ensure that environment variables such as `JAVA_HOME`, `javax.net.ssl.trustStore`, and `javax.net.ssl.trustStorePassword` are set correctly.
+
+```sh
+echo $JAVA_HOME
+echo $javax.net.ssl.trustStore
+echo $javax.net.ssl.trustStorePassword
+```
+
+### 7. **Enable SSL Debugging**
+Enable SSL debugging to get more detailed error messages and understand where the SSL handshake is failing.
+
+```sh
+java -Djavax.net.debug=ssl:handshake:verbose -jar your-application.jar
+```
+
+### 8. **Temporary Workaround**
+As a temporary workaround (not recommended for production), you can bypass certificate validation:
+
+```java
+import javax.net.ssl.*;
+import java.security.cert.X509Certificate;
+
+public class SSLUtil {
+    public static void disableCertificateValidation() {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                    }
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                    }
+                }
+            };
+
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```

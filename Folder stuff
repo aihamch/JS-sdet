@@ -1,0 +1,212 @@
+To make your program create test folders with subfolders in Rally derived from the JIRA response, you need to enhance the logic to include the creation of folders before creating the test case. This involves:
+
+1. Parsing the folder structure from the JIRA response.
+2. Creating the corresponding folder structure in Rally.
+3. Assigning the created folders to the test case.
+
+Here's a modified version of your code to achieve this:
+
+### Step-by-Step Modification:
+
+1. **Parse Folder Structure from JIRA:**
+   - Extract folder information from the JIRA response. For simplicity, let's assume that the JIRA response includes a field named `folderPath` that contains the folder structure as a string (e.g., "ParentFolder/SubFolder").
+
+2. **Create Folder Structure in Rally:**
+   - Split the `folderPath` into individual folder names and create each folder in Rally. Ensure that each folder is created under its parent folder.
+
+3. **Assign the Test Case to the Created Folder:**
+   - Once the folder structure is created, assign the test case to the deepest subfolder.
+
+Here's how the modified code would look:
+
+```java
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.util.QueryFilter;
+import com.rallydev.rest.util.QueryRequest;
+import com.rallydev.rest.util.QueryResponse;
+import com.rallydev.rest.util.Ref;
+
+import java.net.URI;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+public class CreateTestCase {
+
+    public static void main(String[] args) throws Exception {
+
+        String testCaseId = "CC2-T44983";
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+        String projectRef = "789325818991";
+
+        // Send the GET request to JIRA using HttpClient
+        HttpClient client = HttpClients.createDefault();
+        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+        request.setHeader("Authorization", "Bearer " + authToken);
+        request.setHeader("Accept", "application/json");
+
+        HttpResponse response = client.execute(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+
+        System.out.println("Pretty Response: " + responseBody);
+
+        // Parse the JIRA response
+        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+
+        // Create the Rally JSON object
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", projectRef);
+
+        // Create a new test case
+        JsonObject testCase = new JsonObject();
+        testCase.addProperty("Name", jiraJson.get("name").getAsString());
+        testCase.addProperty("Method", "Manual"); // Assuming a default value
+
+        // Add priority
+        String priority = jiraJson.get("priority").getAsString();
+        if (priority.equalsIgnoreCase("Normal")) {
+            testCase.addProperty("Priority", "Useful");
+        } else {
+            testCase.addProperty("Priority", priority);
+        }
+
+        // Add owner
+        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
+
+        // Add Status
+        testCase.addProperty("Ready", jiraJson.get("status").getAsString().equals("Ready"));  // Assuming a default value
+
+        // Add Tags
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        testCase.add("Tags", tagsArray);
+
+        // Parse folder path from JIRA response
+        String folderPath = jiraJson.get("folderPath").getAsString(); // Assuming JIRA response contains this field
+        String[] folders = folderPath.split("/");
+
+        // Initialize Rally API
+        String rallyURL = "https://rally1.rallydev.com";
+        String apiKey = "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk";  // replace with your API Key : different for different users
+
+        RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        // Create folder structure in Rally
+        String parentRef = projectRef; // Start from the project level
+        String createdFolderRef = null;
+
+        try {
+            for (String folder : folders) {
+                createdFolderRef = createOrGetFolder(restApi, folder, parentRef);
+                parentRef = createdFolderRef;
+            }
+
+            // Add the deepest folder to the test case
+            testCase.addProperty("TestFolder", createdFolderRef);
+
+            // Add the testCase object to the rallyJson
+            rallyJson.add("testCase", testCase);
+
+            // Save the transformed JSON to a variable
+            String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+            // Print the transformed JSON string
+            System.out.println("Transformed JSON: " + rallyJsonString);
+
+            JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+            // Extract values from JSON:
+            JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+
+            // Create a new test case in Rally
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", projectRef);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+            newTestCase.addProperty("TestFolder", createdFolderRef);
+
+            // Add Tags to the test case from the JSON file
+            JsonArray newTagsArray = new JsonArray();
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagRef);
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+    }
+
+    private static String createOrGetFolder(RallyRestApi restApi, String folderName, String parentRef) throws Exception {
+        // Query to see if the folder already exists
+        QueryRequest folderRequest = new QueryRequest("TestFolder");
+        folderRequest.setQueryFilter(new QueryFilter("Name", "=", folderName).and(new QueryFilter("Parent", "=", parentRef)));
+        QueryResponse folderResponse = restApi.query(folderRequest);
+
+        if (folderResponse.getResults().size() > 0) {
+            return folderResponse.getResults().get(0).getAsJsonObject().get("_ref").getAsString();
+        } else {
+            // Create new folder
+            JsonObject newFolder = new JsonObject();
+            newFolder.addProperty("Name", folderName);
+            newFolder.addProperty("Parent", parentRef);
+            CreateRequest createFolderRequest = new CreateRequest("TestFolder", newFolder);
+            CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+            if (createFolderResponse.wasSuccessful()) {
+                return createFolderResponse.getObject().get("_ref").getAsString();
+            } else {
+                throw new Exception("Failed to create folder: " + folderName);
+            }
+        }
+    }
+}
+```
+
+### Explanation:
+
+1. **Parsing Folder Structure from JIRA:**
+   - The `folderPath` is assumed to be part of the JIRA response, containing the path of folders as a string separated by slashes (`/`).
+
+2. **Creating Folder Structure in Rally:**
+   - The `createOrGetFolder` method checks if a folder already exists in Rally. If it does, it returns the folder reference. If not, it creates the folder and returns the reference.
+   - The folder creation is handled in a loop, where each folder in the path is created under its parent folder.
+
+3. **Assigning the Test Case to

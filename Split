@@ -1,0 +1,14 @@
+public class SplitString {
+    public static void main(String[] args) {
+        // Define the string
+        String str = "newTestCase.addProperty\"Notes\", \"AutoBot Automated Review: Reviewed, AutoBot Automated Mismatch: Mismatch-Tamara, AutoBot Mismatch Fix: Fix Completed\"";
+        
+        // Split the string at each comma
+        String[] parts = str.split(",");
+
+        // Use a simple for loop to print each part
+        for (String part : parts) {
+            System.out.println(part.trim());
+        }
+    }
+}

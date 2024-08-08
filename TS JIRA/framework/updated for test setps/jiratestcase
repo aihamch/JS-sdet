@@ -1,0 +1,42 @@
+package com.optum.coe.automation.rally;
+
+import java.util.List;
+
+public class JiraTestCase {
+    private String key;
+    private String summary;
+    private String description;
+    private List<JiraTestStep> steps;
+
+    public String getKey() {
+        return key;
+    }
+
+    public void setKey(String key) {
+        this.key = key;
+    }
+
+    public String getSummary() {
+        return summary;
+    }
+
+    public void setSummary(String summary) {
+        this.summary = summary;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public List<JiraTestStep> getSteps() {
+        return steps;
+    }
+
+    public void setSteps(List<JiraTestStep> steps) {
+        this.steps = steps;
+    }
+}

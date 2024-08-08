@@ -1,0 +1,50 @@
+### Logic of the Code
+
+The main objective of this code is to synchronize folder structures from Jira to Rally. The logic ensures that both parent and subfolders are accurately represented in Rally based on the hierarchy obtained from Jira.
+
+### Detailed Logic
+
+1. **Initialize the Rally API**:
+   - The `RallyRestApi` object is created to interact with the Rally system using an API key.
+
+2. **Iterate through the Folder Hierarchy**:
+   - The code loops through each folder name in the provided hierarchy (`folderHierarchy`). Each folder name is processed to either find or create it in Rally.
+
+3. **Handle Parent Folder**:
+   - For the first folder in the hierarchy (assumed to be the parent folder):
+     - **Check if it Exists as a Parent Folder**:
+       - A query request is created and executed to check if a folder with the same name exists in Rally without any parent (indicating it is a top-level folder).
+       - If such a folder exists, its reference is stored, and it is marked as the last found folder.
+     - **Create a New Parent Folder**:
+       - If the folder does not exist, a new parent folder is created in Rally with the given name. This new folder's reference is stored, and it is marked as the last created folder.
+
+4. **Handle Subfolders**:
+   - For each subsequent folder in the hierarchy (considered as subfolders):
+     - **Check if it Exists as a Subfolder**:
+       - A query request is created and executed to check if a folder with the same name exists in Rally under the last found/created folder.
+       - If such a subfolder exists, its reference is stored, and it is marked as the last found folder.
+     - **Create a New Subfolder**:
+       - If the subfolder does not exist, a new subfolder is created in Rally with the given name and set as a child of the last found/created folder. This new subfolder's reference is stored, and it is marked as the last created folder.
+
+5. **Return the Last Folder**:
+   - After processing all folders in the hierarchy, the last created or found folder is returned.
+
+6. **Handle Errors**:
+   - If any errors occur during the querying or creation processes, appropriate error messages are printed. The `finally` block ensures the Rally API connection is closed to free up resources.
+
+### Simplified Step-by-Step Summary
+
+1. **Setup the Rally API connection**.
+2. **Loop through each folder name** in the hierarchy:
+   - **For the first folder** (assumed to be the parent folder):
+     - Check if it exists as a parent folder in Rally.
+     - If it exists, store its reference.
+     - If it doesn't exist, create it as a parent folder and store its reference.
+   - **For each subsequent folder** (considered subfolders):
+     - Check if it exists as a subfolder under the last found/created folder in Rally.
+     - If it exists, store its reference.
+     - If it doesn't exist, create it as a subfolder under the last found/created folder and store its reference.
+3. **Return the last found/created folder**.
+4. **Handle any errors** and ensure the Rally API connection is closed.
+
+This logic ensures that the folder hierarchy from Jira is accurately mirrored in Rally, maintaining the correct parent-child relationships.

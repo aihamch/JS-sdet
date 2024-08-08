@@ -1,0 +1,175 @@
+import com.google.gson.*;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+import java.net.URI;
+
+public class CreateTestCase {
+
+    public static void main(String[] args) throws Exception {
+        String testCaseId = "CC2-T44983";
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+        String projectRef = "789325818991";
+
+        // Send the GET request to JIRA using HttpClient
+        HttpClient client = HttpClients.createDefault();
+        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+        request.setHeader("Authorization", "Bearer " + authToken);
+        request.setHeader("Accept", "application/json");
+
+        try {
+            HttpResponse response = client.execute(request);
+            String responseBody = EntityUtils.toString(response.getEntity());
+
+            System.out.println("Pretty Response: " + responseBody);
+
+            // Parse the JIRA response
+            JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+
+            // Create the Rally JSON object
+            JsonObject rallyJson = new JsonObject();
+            rallyJson.addProperty("projectRef", projectRef);
+
+            // Create a new test case
+            JsonObject testCase = new JsonObject();
+            testCase.addProperty("Name", jiraJson.get("name").getAsString());
+            testCase.addProperty("Method", "Manual"); // Default value
+
+            // Add priority
+            String priority = jiraJson.get("priority").getAsString();
+            if (priority.equalsIgnoreCase("Normal")) {
+                testCase.addProperty("Priority", "Useful");
+            } else {
+                testCase.addProperty("Priority", priority);
+            }
+
+            // Add owner
+            testCase.addProperty("Owner", "/user/775698509283"); // Default value
+
+            // Add Status
+            testCase.addProperty("Ready", jiraJson.get("status").getAsString().equals("Ready")); // Default value
+
+            // Add Tags
+            JsonArray tagsArray = new JsonArray();
+            JsonObject tagObject = new JsonObject();
+            tagObject.addProperty("_ref", "/tag/56011614555");
+            tagObject.addProperty("Name", "Billing and Eligibility");
+            tagsArray.add(tagObject);
+            testCase.add("Tags", tagsArray);
+
+            // Parse the folder structure
+            String folderPath = jiraJson.get("folder").getAsString();
+            String folderRef = createFoldersInRally(folderPath, projectRef);
+
+            // Add TestFolder
+            testCase.addProperty("TestFolder", folderRef);
+
+            // Add the testCase object to the rallyJson
+            rallyJson.add("testCase", testCase);
+
+            // Save the transformed JSON to a variable
+            String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+            // Print the transformed JSON string
+            System.out.println("Transformed JSON: " + rallyJsonString);
+
+            // Initialize Rally API
+            String rallyURL = "https://rally1.rallydev.com";
+            String apiKey = "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk"; // Replace with your API Key
+            RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            try {
+                // Create a new test case
+                CreateRequest createRequest = new CreateRequest("testcase", testCase);
+                CreateResponse createResponse = restApi.create(createRequest);
+
+                if (createResponse.wasSuccessful()) {
+                    System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+                } else {
+                    System.out.println("Error occurred creating test case:");
+                    for (String error : createResponse.getErrors()) {
+                        System.out.println(error);
+                    }
+                }
+            } finally {
+                // Release resources
+                restApi.close();
+            }
+        } finally {
+            // Release resources
+            client.close();
+        }
+    }
+
+    private static String createFoldersInRally(String folderPath, String projectRef) throws Exception {
+        // Initialize Rally API
+        String rallyURL = "https://rally1.rallydev.com";
+        String apiKey = "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk"; // Replace with your API Key
+        RallyRestApi restApi = new RallyRestApi(new URI(rallyURL), apiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        String[] folders = folderPath.split("/");
+        String parentRef = null;
+
+        try {
+            for (String folderName : folders) {
+                // Check if folder already exists
+                String folderRef = getFolderRef(restApi, folderName, projectRef, parentRef);
+                if (folderRef == null) {
+                    // Create new folder
+                    JsonObject newFolder = new JsonObject();
+                    newFolder.addProperty("Name", folderName);
+                    newFolder.addProperty("Project", projectRef);
+                    if (parentRef != null) {
+                        newFolder.addProperty("Parent", parentRef);
+                    }
+
+                    CreateRequest createFolderRequest = new CreateRequest("TestFolder", newFolder);
+                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                    if (createFolderResponse.wasSuccessful()) {
+                        folderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                        System.out.println("Successfully created folder: " + folderRef);
+                    } else {
+                        System.out.println("Error occurred creating folder:");
+                        for (String error : createFolderResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                        return null;
+                    }
+                }
+                parentRef = folderRef;
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+
+        return parentRef;
+    }
+
+    private static String getFolderRef(RallyRestApi restApi, String folderName, String projectRef, String parentRef) throws Exception {
+        // Create a query request to check if the folder already exists
+        QueryRequest folderRequest = new QueryRequest("TestFolder");
+        folderRequest.setFetch(new String[]{"_ref", "Name", "Parent", "Project"});
+        folderRequest.setQueryFilter("(Name = \"" + folderName + "\")" +
+                                     " AND (Project = \"" + projectRef + "\")" +
+                                     (parentRef != null ? " AND (Parent = \"" + parentRef + "\")" : ""));
+
+        QueryResponse queryResponse = restApi.query(folderRequest);
+        if (queryResponse.getTotalResultCount() > 0) {
+            return queryResponse.getResults().get(0).getAsJsonObject().get("_ref").getAsString();
+        }
+        return null;
+    }
+}

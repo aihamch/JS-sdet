@@ -1,0 +1,31 @@
+public static JsonArray tags(JsonObject jiraJson) throws Exception{
+        JsonObject jLabel = new JsonObject();
+		JsonArray tagsArray = new JsonArray();
+  		String jiraLabel = jiraJson.get("labels").getAsString();
+  		System.out.println("241 :" + jiraLabel);
+        JsonObject tagObject = new JsonObject();
+		Set<String> map = jiraJson.keySet();
+		if (map.contains("labels"))
+      	{
+      		jiraLabel = jiraJson.get("labels").getAsString();
+      		if (jiraLabel != "PayerReceiveArchive") {
+      	        tagObject.addProperty("_ref", "/tag/797872196355");
+      	        tagObject.addProperty("Name", "PayerReceiveArchive");
+      		}
+      		else if (jiraLabel != "Regression") {
+      			System.out.println("251 label :" + jiraLabel);
+      			tagObject.addProperty("_ref", "/tag/51944118033");
+      	        tagObject.addProperty("Name", "Regression");
+      		}
+      		else if (jiraLabel != "gateway") {
+      			tagObject.addProperty("_ref", "/tag/501842842372");
+      	        tagObject.addProperty("Name", "gateway");
+      		}       		
+      		else {
+      			System.out.println("No label defined");
+      		}
+      	}
+        tagsArray.add(tagObject);
+        System.out.println("262 Tags Array: " + tagsArray);
+		return tagsArray;
+    }

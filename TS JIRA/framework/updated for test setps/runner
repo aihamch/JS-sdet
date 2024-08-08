@@ -1,0 +1,49 @@
+package com.optum.coe.automation.rally;
+
+import java.io.File;
+import java.net.URI;
+import java.util.List;
+import com.google.gson.JsonObject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.rallydev.rest.RallyRestApi;
+
+public class RunnerClass {
+    private static final Logger logger = LogManager.getLogger();
+
+    public static void main(String[] args) {
+        JiraOperation jiraOperation = new JiraOperation();
+        RallyOperation rallyOperation = new RallyOperation();
+        List<String> keys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+        for (String key : keys) {
+            JsonObject jiraTestCaseDetails = jiraOperation.getJiraTestCaseDetails(key);
+            if (jiraTestCaseDetails != null) {
+                List<JiraTestStep> testSteps = jiraOperation.getTestSteps(jiraTestCaseDetails);
+                List<File> attachments = jiraOperation.downloadAttachments(key);
+                boolean rallyStatus = rallyOperation.createRallyTestcase(jiraTestCaseDetails, testSteps, attachments);
+                if (rallyStatus) {
+                    logger.info("Rally Testcase Creation Status is true for key: " + key);
+                    jiraOperation.updateTestCaseMigratedStatusInJira(key, true);
+                    try (RallyRestApi restApi = new RallyRestApi(new URI(rallyOperation.getRallyBaseURL()), rallyOperation.getRallyApiKey())) {
+                        logger.info("Starting to upload attachments for key: " + key);
+                        rallyOperation.uploadAttachments(restApi, key, attachments);
+                        logger.info("Uploaded attachments for key: " + key);
+                    } catch (Exception e) {
+                        logger.error("Error occurred during attachment upload for key: " + key, e);
+                    }
+                    logger.info("Starting to cleanup attachments for key: " + key);
+                    for (File attachment : attachments) {
+                        if (attachment.delete()) {
+                            logger.info("Deleted attachment: " + attachment.getName());
+                        } else {
+                            logger.error("Failed to delete attachment: " + attachment.getName());
+                        }
+                    }
+                    logger.info("Cleaned up attachments for key: " + key);
+                } else {
+                    logger.error("Rally Testcase Creation Status is false for key: " + key);
+                }
+            }
+        }
+    }
+}

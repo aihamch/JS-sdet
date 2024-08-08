@@ -1,0 +1,158 @@
+package com.optum.coe.automation.rally;
+
+import com.google.gson.*;
+import com.rallydev.rest.*;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+
+public class RallyOperation {
+
+    private String rallyBaseURL;
+    private String rallyApiKey;
+    private String rallyProjectKey;
+    private String rallyUser;
+
+    private static final Logger logger = LogManager.getLogger();
+
+    public RallyOperation() {
+        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_KEY");
+        rallyUser = ConfigLoader.getConfigValue("RALLY_USER");
+        logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
+        logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL + "\nRally Project Reference " + rallyProjectKey + "\nRally User - " + rallyUser);
+    }
+
+    public boolean createRallyTestcase(JsonObject jiraJson, List<JiraTestStep> testSteps, List<File> attachments) {
+        boolean status = false;
+        JsonObject rallyJson = new JsonObject();
+        JsonObject testCase = new JsonObject();
+        testCase.addProperty("Name", jiraJson.get("name").getAsString());
+        if (jiraJson.has("summary")) {
+            testCase.addProperty("Description", jiraJson.get("summary").getAsString());
+        } else {
+            testCase.addProperty("Description", jiraJson.get("description").getAsString());
+        }
+        testCase.addProperty("Project", rallyProjectKey);
+        testCase.addProperty("Priority", "Normal"); // Default priority, you can map it from Jira to Rally if needed
+        testCase.addProperty("Owner", rallyUser);
+        testCase.addProperty("Method", "Manual");
+
+        try (RallyRestApi restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey)) {
+            CreateRequest createRequest = new CreateRequest("testcase", testCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+            if (createResponse.wasSuccessful()) {
+                String testCaseRef = createResponse.getObject().get("_ref").getAsString();
+                for (JiraTestStep testStep : testSteps) {
+                    JsonObject rallyStep = new JsonObject();
+                    rallyStep.addProperty("TestCase", testCaseRef);
+                    rallyStep.addProperty("Input", testStep.getInput());
+                    rallyStep.addProperty("ExpectedResult", testStep.getExpectedResult());
+                    CreateRequest stepCreateRequest = new CreateRequest("testcasestep", rallyStep);
+                    CreateResponse stepCreateResponse = restApi.create(stepCreateRequest);
+                    if (stepCreateResponse.wasSuccessful()) {
+                        String stepRef = stepCreateResponse.getObject().get("_ref").getAsString();
+                        uploadStepAttachments(restApi, stepRef, testStep.getAttachments());
+                    }
+                }
+                uploadAttachments(restApi, testCaseRef, attachments);
+                status = true;
+                logger.info("Successfully created test case and the OID for created testcase: " + testCaseRef);
+            } else {
+                logger.error("Error occurred creating test case");
+                for (String error : createResponse.getErrors()) {
+                    logger.error(error);
+                }
+            }
+        } catch (URISyntaxException | IOException e) {
+            logger.error("Error occurred while creating test case in Rally", e);
+        }
+        return status;
+    }
+
+    public void uploadAttachments(RallyRestApi restApi, String testCaseRef, List<File> attachments) throws IOException {
+        for (File attachment : attachments) {
+            JsonObject attachmentContent = new JsonObject();
+            attachmentContent.addProperty("Content", Utils.encodeFileToBase64(attachment));
+            CreateRequest attachmentContentCreateRequest = new CreateRequest("attachmentcontent", attachmentContent);
+            CreateResponse attachmentContentResponse = restApi.create(attachmentContentCreateRequest);
+            if (attachmentContentResponse.wasSuccessful()) {
+                String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+                JsonObject newAttachment = new JsonObject();
+                newAttachment.addProperty("Artifact", testCaseRef);
+                newAttachment.addProperty("Content", attachmentContentRef);
+                newAttachment.addProperty("Name", attachment.getName());
+                newAttachment.addProperty("Description", "Attachment from Jira");
+                newAttachment.addProperty("ContentType", "text/plain"); // You can change this based on the file type
+                newAttachment.addProperty("Size", attachment.length());
+                CreateRequest attachmentCreateRequest = new CreateRequest("attachment", newAttachment);
+                CreateResponse attachmentCreateResponse = restApi.create(attachmentCreateRequest);
+                if (attachmentCreateResponse.wasSuccessful()) {
+                    logger.info("Successfully uploaded attachment: " + attachment.getName());
+                } else {
+                    logger.error("Error occurred uploading attachment: " + attachment.getName());
+                    for (String error : attachmentCreateResponse.getErrors()) {
+                        logger.error(error);
+                    }
+                }
+            } else {
+                logger.error("Error occurred creating attachment content for: " + attachment.getName());
+                for (String error : attachmentContentResponse.getErrors()) {
+                    logger.error(error);
+                }
+            }
+        }
+    }
+
+    public void uploadStepAttachments(RallyRestApi restApi, String testStepRef, List<JiraAttachment> attachments) throws IOException {
+        for (JiraAttachment attachment : attachments) {
+            JsonObject attachmentContent = new JsonObject();
+            File attachmentFile = new File(attachment.getFilePath()); // Use the file path from JiraAttachment
+            attachmentContent.addProperty("Content", Utils.encodeFileToBase64(attachmentFile));
+            CreateRequest attachmentContentCreateRequest = new CreateRequest("attachmentcontent", attachmentContent);
+            CreateResponse attachmentContentResponse = restApi.create(attachmentContentCreateRequest);
+            if (attachmentContentResponse.wasSuccessful()) {
+                String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+                JsonObject newAttachment = new JsonObject();
+                newAttachment.addProperty("Artifact", testStepRef);
+                newAttachment.addProperty("Content", attachmentContentRef);
+                newAttachment.addProperty("Name", attachment.getFileName());
+                newAttachment.addProperty("Description", "Attachment from Jira Step");
+                newAttachment.addProperty("ContentType", attachment.getContentType());
+                newAttachment.addProperty("Size", attachment.getFileSize());
+                CreateRequest attachmentCreateRequest = new CreateRequest("attachment", newAttachment);
+                CreateResponse attachmentCreateResponse = restApi.create(attachmentCreateRequest);
+                if (attachmentCreateResponse.wasSuccessful()) {
+                    logger.info("Successfully uploaded step attachment: " + attachment.getFileName());
+                } else {
+                    logger.error("Error occurred uploading step attachment: " + attachment.getFileName());
+                    for (String error : attachmentCreateResponse.getErrors()) {
+                        logger.error(error);
+                    }
+                }
+            } else {
+                logger.error("Error occurred creating step attachment content for: " + attachment.getFileName());
+                for (String error : attachmentContentResponse.getErrors()) {
+                    logger.error(error);
+                }
+            }
+        }
+    }
+
+    public String getRallyBaseURL() {
+        return rallyBaseURL;
+    }
+
+    public String getRallyApiKey() {
+        return rallyApiKey;
+    }
+}
