@@ -1,147 +1,83 @@
 package com.optum.coe.automation.rally;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import org.apache.http.HttpEntity;
-import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class JiraOperation {
     private static final Logger logger = LogManager.getLogger();
-    private final String jiraBaseURL;
-    private final String jiraApiKey;
-    private final String jiraProjectKey;
-    private final String attachmentDownloadLocation;
+    private String jiraBaseURL;
+    private String jiraApiKey;
+    private String jiraProjectKey;
+    private String attachmentDownloadLocation;
 
     public JiraOperation() {
-        jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
-        jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_KEY");
-        jiraProjectKey = ConfigLoader.getConfigValue("JIRA_PROJECT_KEY");
-        attachmentDownloadLocation = ConfigLoader.getConfigValue("ATTACHMENT_DOWNLOAD_LOCATION");
-        logger.info("Jira values for the project key " + jiraProjectKey + " are assigned from rally_migration_config.properties file");
-        logger.info("Jira Project Key: " + jiraProjectKey + ", Max Chunk value: " + ConfigLoader.getConfigValue("MAX_CHUNK_VALUE")
-                + ", Test Attachment Download location: " + attachmentDownloadLocation);
+        this.jiraBaseURL = ConfigLoader.getConfigValue("jiraBaseURL");
+        this.jiraApiKey = ConfigLoader.getConfigValue("jiraApiKey");
+        this.jiraProjectKey = ConfigLoader.getConfigValue("jiraProjectKey");
+        this.attachmentDownloadLocation = ConfigLoader.getConfigValue("attachmentDownloadLocation");
     }
 
     public List<String> getJiraNonMigratedTestcaseKeys() {
-        List<String> keys = new ArrayList<>();
-        String queryUrl = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults="
-                + ConfigLoader.getConfigValue("MAX_CHUNK_VALUE")
-                + "&query=projectKey+%3D+" + jiraProjectKey
-                + "+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false";
-        HttpEntity entity = Utils.getJiraResponse(queryUrl, jiraApiKey);
+        String jiraUrl = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=3&query=projectKey+%3D+" + jiraProjectKey + "+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false";
+        HttpEntity response = Utils.getJiraResponse(jiraUrl, jiraApiKey);
         try {
-            String jsonResponse = EntityUtils.toString(entity);
-            JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
-            JsonArray results = jsonObject.getAsJsonArray("results");
-            if (results != null) {
-                for (JsonElement result : results) {
-                    keys.add(result.getAsJsonObject().get("key").getAsString());
-                }
-            } else {
-                logger.error("No results found for the query: " + queryUrl);
+            JsonObject jsonResponse = JsonParser.parseString(Files.readString(response.getContent().toPath())).getAsJsonObject();
+            JsonArray results = jsonResponse.getAsJsonArray("results");
+            List<String> keys = new ArrayList<>();
+            for (JsonElement result : results) {
+                keys.add(result.getAsJsonObject().get("key").getAsString());
             }
+            return keys;
         } catch (IOException e) {
-            logger.error("Error occurred while retrieving Jira test case keys", e);
+            logger.error("Failed to retrieve Jira testcase keys", e);
+            return null;
         }
-        return keys;
     }
 
-    public JsonObject getJiraTestCaseDetails(String key) {
-        String queryUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
-        HttpEntity entity = Utils.getJiraResponse(queryUrl, jiraApiKey);
+    public JiraTestCase getJiraTestCaseDetails(String key) {
+        String jiraUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
+        HttpEntity response = Utils.getJiraResponse(jiraUrl, jiraApiKey);
         try {
-            String jsonResponse = EntityUtils.toString(entity);
-            return JsonParser.parseString(jsonResponse).getAsJsonObject();
+            JsonObject jsonResponse = JsonParser.parseString(Files.readString(response.getContent().toPath())).getAsJsonObject();
+            return new JiraTestCase(jsonResponse);
         } catch (IOException e) {
             logger.error("Failed to retrieve JIRA testcase details for the key " + key, e);
+            return null;
         }
-        return null;
     }
 
-    public List<JiraTestStep> getTestSteps(JsonObject jiraTestCaseDetails) {
-        List<JiraTestStep> testSteps = new ArrayList<>();
-        JsonObject testScript = jiraTestCaseDetails.getAsJsonObject("testScript");
-        if (testScript != null && testScript.has("steps")) {
-            JsonArray stepsArray = testScript.getAsJsonArray("steps");
-            for (JsonElement stepElement : stepsArray) {
-                JsonObject stepObject = stepElement.getAsJsonObject();
-                JiraTestStep step = new JiraTestStep();
-                step.setStepIndex(stepObject.get("index").getAsInt());
-                step.setInput(stepObject.get("description").getAsString());
-                step.setExpectedResult(stepObject.get("expectedResult").getAsString());
-                if (stepObject.has("attachments")) {
-                    JsonArray attachmentsArray = stepObject.getAsJsonArray("attachments");
-                    List<JiraAttachment> attachments = new ArrayList<>();
-                    for (JsonElement attachmentElement : attachmentsArray) {
-                        JsonObject attachmentObject = attachmentElement.getAsJsonObject();
-                        JiraAttachment attachment = new JiraAttachment();
-                        attachment.setFileName(attachmentObject.get("fileName").getAsString());
-                        attachment.setFilePath(downloadAttachment(attachmentObject.get("content").getAsString(), attachment.getFileName()));
-                        attachment.setContentType(attachmentObject.get("contentType").getAsString());
-                        attachment.setFileSize(attachmentObject.get("fileSize").getAsInt());
-                        attachments.add(attachment);
-                    }
-                    step.setAttachments(attachments);
-                }
-                testSteps.add(step);
-            }
-        }
-        return testSteps;
-    }
-
-    public List<File> downloadAttachments(String key) {
-        List<File> attachments = new ArrayList<>();
-        String queryUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + key + "/attachments";
-        HttpEntity entity = Utils.getJiraResponse(queryUrl, jiraApiKey);
+    public List<JiraAttachment> getJiraAttachments(String issueKey) {
+        String jiraUrl = jiraBaseURL + "/rest/api/2/issue/" + issueKey + "?fields=attachment";
+        HttpEntity response = Utils.getJiraResponse(jiraUrl, jiraApiKey);
+        List<JiraAttachment> attachments = new ArrayList<>();
         try {
-            String jsonResponse = EntityUtils.toString(entity);
-            JsonArray attachmentsArray = JsonParser.parseString(jsonResponse).getAsJsonArray();
-            for (JsonElement attachmentElement : attachmentsArray) {
+            JsonObject jsonResponse = JsonParser.parseString(Files.readString(response.getContent().toPath())).getAsJsonObject();
+            JsonArray attachmentArray = jsonResponse.getAsJsonObject("fields").getAsJsonArray("attachment");
+            for (JsonElement attachmentElement : attachmentArray) {
                 JsonObject attachmentObject = attachmentElement.getAsJsonObject();
                 String attachmentUrl = jiraBaseURL + "/secure/attachment/" + attachmentObject.get("id").getAsString() + "/" + attachmentObject.get("fileName").getAsString();
                 File downloadedFile = downloadFile(attachmentUrl, attachmentObject.get("fileName").getAsString());
-                attachments.add(downloadedFile);
+                attachments.add(new JiraAttachment(attachmentObject, downloadedFile.getAbsolutePath()));
             }
         } catch (IOException e) {
-            logger.error("Error occurred while downloading attachments for key " + key, e);
+            logger.error("Failed to retrieve attachments for Jira issue " + issueKey, e);
         }
         return attachments;
     }
 
-    private File downloadFile(String url, String fileName) {
-        File downloadedFile = new File(attachmentDownloadLocation + File.separator + fileName);
-        try (FileOutputStream fos = new FileOutputStream(downloadedFile)) {
-            HttpEntity entity = Utils.getJiraResponse(url, jiraApiKey);
-            entity.writeTo(fos);
-        } catch (IOException e) {
-            logger.error("Error occurred while downloading file " + fileName, e);
-        }
-        return downloadedFile;
-    }
-
-    public String downloadAttachment(String contentUrl, String fileName) {
-        String filePath = attachmentDownloadLocation + File.separator + fileName;
-        try (FileOutputStream fos = new FileOutputStream(filePath)) {
-            HttpEntity entity = Utils.getJiraResponse(contentUrl, jiraApiKey);
-            entity.writeTo(fos);
-        } catch (IOException e) {
-            logger.error("Error occurred while downloading attachment " + fileName, e);
-        }
-        return filePath;
-    }
-
-    public void updateTestCaseMigratedStatusInJira(String key, boolean status) {
-        // Implement the logic to update the test case status in JIRA
-        // This is a placeholder for the actual implementation
+    private File downloadFile(String fileUrl, String fileName) {
+        // Logic to download file and return the file object
+        return null; // Implement the logic to download the file
     }
 }
