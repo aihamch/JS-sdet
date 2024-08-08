@@ -1,607 +1,376 @@
-Let's integrate the logic from the provided files into the existing structure, keeping the existing code and comments intact.
-
-### `JiraOperation.java`
-
-We'll include methods for fetching test steps and attachments.
-
-```java
-package com.optum.coe.automation.rally;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import org.apache.http.HttpEntity;
-import org.apache.http.ParseException;
-import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
-public class JiraOperation {
-
-	private String jiraBaseURL;
-	private String jiraApiKey;
-	private String jiraProjectKey;
-	private String max_chunk;
-	private String tcFileAttachmentDownloadLocation;
-	private String tsFileAttachmentDownloadLocation;
-	private static final Logger logger = LogManager.getLogger();
-
-	public JiraOperation() {
-		jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
-		jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
-		jiraProjectKey = ConfigLoader.getConfigValue("JIRA_PROJECT_KEY");
-		max_chunk = ConfigLoader.getConfigValue("MAX_VALUE_CHUNK");
-		tcFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_CASE_FILE_ATTACHMENT_LOCATION");
-		tsFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
-		logger.info("Jira values for the project key " + jiraProjectKey + " are assigned from rally_migration_config.properties file");
-		logger.log(Level.getLevel("VERBOSE"),
-				"Below the values assigned from rally_migration_config.properties file. \nJira Base URL - "
-						+ jiraBaseURL + "\nJira Project Key " + jiraProjectKey + "\nMax Chunk value - " + max_chunk
-						+ "\nTest Case File Attachment Download location - " + tcFileAttachmentDownloadLocation
-						+ "\nTest Step File Attachment location - " + tsFileAttachmentDownloadLocation);
-	}
-
-	public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
-		ArrayList<String> testCaseKeys = new ArrayList<String>();
-		String encodedKey = null;
-		try {
-			encodedKey = URLEncoder.encode(
-					"projectKey = " + jiraProjectKey
-							+ " AND \"Migrate Test to Rally\" = true AND \"TestCase Migrated\" = false",
-					StandardCharsets.UTF_8.toString());
-		} catch (UnsupportedEncodingException e) {
-			logger.error("Error while encoding a part of URL ", e);
-		}
-
-		String url = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=" + max_chunk + "&query="
-				+ encodedKey;
-		logger.info("String URL to get non migrated testcase keys from Jira " + url);
-
-		HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-		if (response != null) {
-			String result = null;
-			try {
-				result = EntityUtils.toString(response);
-			} catch (ParseException | IOException e) {
-				logger.error("Error while parsing the Json response ", e);
-			}
-			JSONArray jsonArray = new JSONArray(result);
-			for (int i = 0; i < jsonArray.length(); i++) {
-				JSONObject jsonObject = jsonArray.getJSONObject(i);
-				String key = jsonObject.getString("key");
-				logger.info("Key retrieved: " + jsonObject.getString("key"));
-				testCaseKeys.add(key);
-			}
-		} else {
-			logger.error("Response is NULL from while retrieving non migrated keys from JIRA. Returning NULL");
-		}
-		return testCaseKeys;
-	}
-
-	public JsonObject getJiraTestCaseDetails(String key) {
-		JsonObject jiraJson = null;
-		String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
-		HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-		if (response != null) {
-			try {
-				String responseBody = EntityUtils.toString(response);
-				logger.info("Testcase details for the key" + key + ": " + responseBody);
-				jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
-			} catch (ParseException | IOException e) {
-				logger.error("Failed to retrieve JIRA testcase details for the key " + key, e);
-			}
-		} else {
-			logger.error("Failed to get jira testcase details for the key " + key + "; Returning null");
-		}
-		return jiraJson;
-	}
-
-	public List<String> jiraAttachmentsDownload(String testcaseKey, String testType, String attachmentType) {
-		List<String> fileAttachmentDownloadPaths = null;
-		String testAttachmentUrl = null;
-		if (testType.equals("testcase")) {
-			testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey + "/attachments";
-			logger.info("URL String for testcase attachments: " + testAttachmentUrl);
-		} else if (testType.equals("teststep") && attachmentType.equals("file")) {
-			testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey;
-			logger.info("URL String for teststep attachments: " + testAttachmentUrl);
-		} else if (testType.equals("teststep") && attachmentType.equals("embedded")) {
-			testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey;
-			logger.info("URL String for teststep attachments: " + testAttachmentUrl);
-		} else {
-			logger.error("Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
-			return null;
-		}
-
-		HttpEntity response = Utils.getJiraResponse(testAttachmentUrl, jiraApiKey);
-		if (response != null) {
-			String result = null;
-			try {
-				result = EntityUtils.toString(response);
-				if (result.trim().isEmpty() || result.equals("{}") || result.equals("[]")) {
-					logger.info("No Attachment URL found for the testcase key " + testcaseKey);
-				} else {
-					logger.info("Attachment URL is found for the testcase key " + testcaseKey + "; JSON body: " + result);
-					if (testType.equals("testcase")) {
-						Map<String, String> testMap = Utils.parseJsonGetAttachmentUrlAndName(result);
-						fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromJiraTestCase(testMap,
-								tcFileAttachmentDownloadLocation, jiraApiKey, testcaseKey);
-					} else if (testType.equals("teststep") && attachmentType.equals("file")) {
-						fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromTestStep(result, jiraApiKey,
-								tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL);
-					} else if (testType.equals("teststep") && attachmentType.equals("embedded")) {
-						List<String> descriptionAttachmentDownloadPaths, testDataAttachmentDownloadPaths, expectedResultAttachmentDownloadPaths;
-						descriptionAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-								tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "description");
-						testDataAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-								tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "testData");
-						expectedResultAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-								tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "expectedResult");
-						descriptionAttachmentDownloadPaths.addAll(testDataAttachmentDownloadPaths);
-						descriptionAttachmentDownloadPaths.addAll(expectedResultAttachmentDownloadPaths);
-						fileAttachmentDownloadPaths = descriptionAttachmentDownloadPaths;
-					} else {
-						logger.error("Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
-						return null;
-					}
-				}
-			} catch (ParseException | IOException e) {
-				logger.error("Error while parsing the Json response ", e);
-			}
-		} else {
-			logger.error("Response is NULL while retrieving non migrated keys from JIRA. Returning NULL");
-		}
-		return fileAttachmentDownloadPaths;
-	}
-
-	// Method to fetch test steps from JIRA for a given test case ID
-	public List<JiraTestStep> getTestSteps(String testCaseId) {
-		List<JiraTestStep> testSteps = new ArrayList<>();
-		CloseableHttpClient httpClient = HttpClients.createDefault();
-
-		try {
-			String url = jiraBaseURL + "/rest/api/2/issue/" + testCaseId + "/teststeps";
-			HttpGet request = new HttpGet(url);
-			request.addHeader("Authorization", "Basic " + jiraApiKey);
-
-			HttpResponse response = httpClient.execute(request);
-			String jsonResponse = EntityUtils.toString(response.getEntity());
-
-			JSONObject jsonObject = new JSONObject(jsonResponse);
-			JSONArray stepsArray = jsonObject.getJSONArray("testSteps");
-
-			for (int i = 0; i < stepsArray.length(); i++) {
-				JSONObject stepJson = stepsArray.getJSONObject(i);
-				JiraTestStep step = new JiraTestStep();
-				step.setId(stepJson.getInt("id"));
-				step.setDescription(stepJson.getString("description"));
-				step.setExpectedResult(stepJson.getString("expectedResult"));
-				step.setIndex(stepJson.getInt("index"));
-				step.setTestData(stepJson.getString("testData
-
-"));
-				testSteps.add(step);
-			}
-
-			logger.info("Fetched " + testSteps.size() + " test steps for test case ID: " + testCaseId);
-
-		} catch (Exception e) {
-			logger.error("Error fetching test steps for test case ID: " + testCaseId, e);
-		} finally {
-			try {
-				httpClient.close();
-			} catch (Exception e) {
-				logger.error("Error closing HttpClient", e);
-			}
-		}
-
-		return testSteps;
-	}
-}
-```
-
-### `RallyOperation.java`
-
-Include methods to handle test steps and attachments.
-
-```java
-package com.optum.coe.automation.rally;
-
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-
-public class RallyOperation {
-
-	private String rallyBaseURL;
-	private String rallyApiKey;
-	private String rallyProjectKey;
-	private String rallyUser;
-	private static final Logger logger = LogManager.getLogger();
-
-	public RallyOperation() {
-		rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-		rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-		rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
-		rallyUser = ConfigLoader.getConfigValue("RALLY_USER_REF");
-		logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
-		logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL + "\nRally Project Reference " + rallyProjectKey);
-	}
-
-	public String createRallyTestcase(JsonObject jiraJson) throws IOException {
-		String rallyTestCaseOID = null;
-		JsonObject rallyJson = new JsonObject();
-		rallyJson.addProperty("projectRef", rallyProjectKey);
-		JsonObject testCase = new JsonObject();
-		JsonElement nameElement = jiraJson.get("name");
-		if (nameElement != null && !nameElement.isJsonNull()) {
-			testCase.addProperty("Name", nameElement.getAsString());
-		} else {
-			testCase.addProperty("Name", "Default Test Case Name - No TestCase name found in Jira");
-		}
-		testCase.addProperty("Method", "Manual");
-		JsonElement priorityElement = jiraJson.get("priority");
-		if (priorityElement != null && !priorityElement.isJsonNull()) {
-			String priority = priorityElement.getAsString();
-			if (priority.equalsIgnoreCase("Normal")) {
-				testCase.addProperty("Priority", "Useful");
-			} else {
-				testCase.addProperty("Priority", priority);
-			}
-		} else {
-			testCase.addProperty("Priority", "Default Priority");
-		}
-		testCase.addProperty("Owner", "/user/" + rallyUser);
-		JsonElement statusElement = jiraJson.get("status");
-		if (statusElement != null && !statusElement.isJsonNull()) {
-			testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
-		} else {
-			testCase.addProperty("Ready", false);
-		}
-		JsonArray tagsArray = new JsonArray();
-		if (jiraJson.has("labels")) {
-			JsonArray labelsArray = jiraJson.get("labels").getAsJsonArray();
-			RallyRestApi restApi = null;
-			try {
-				restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-				for (JsonElement labelElement : labelsArray) {
-					String label = labelElement.getAsString();
-					JsonObject tag = Utils.findOrCreateTag(restApi, label);
-					if (tag != null) {
-						tagsArray.add(tag);
-					}
-				}
-			} catch (URISyntaxException e) {
-				logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
-			}
-			testCase.add("Tags", tagsArray);
-		}
-		String folderPath = jiraJson.get("folder").getAsString();
-		String[] folderHierarchy = folderPath.split("/");
-		JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey, rallyBaseURL, rallyApiKey);
-		if (testFolder == null) {
-			logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
-			return rallyTestCaseOID;
-		} else logger.info("Folder " + folderPath + " is  created successfully in Rally");
-
-		rallyJson.add("TestFolder", testFolder);
-		rallyJson.add("testCase", testCase);
-		String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
-
-		RallyRestApi restApi = null;
-		try {
-			restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-		} catch (URISyntaxException e) {
-			logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
-		}
-		restApi.setApplicationName("CreateTestCaseApp");
-
-		JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
-		JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
-		JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
-
-		try {
-			JsonObject newTestCase = new JsonObject();
-			newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
-			newTestCase.addProperty("Project", rallyProjectKey);
-			newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
-			newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
-			newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
-			newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
-
-			JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
-			if (tagsArrayFromJson != null) {
-				JsonArray newTagsArray = new JsonArray();
-				for (JsonElement tagElement : tagsArrayFromJson) {
-					JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
-					String tagRef = tagObjectFromJson.get("_ref").getAsString();
-					JsonObject newTagObject = new JsonObject();
-					newTagObject.addProperty("_ref", tagRef);
-					newTagsArray.add(newTagObject);
-				}
-				newTestCase.add("Tags", newTagsArray);
-			}
-			String testFolderRef = testFolderData.get("_ref").getAsString();
-			newTestCase.addProperty("TestFolder", testFolderRef);
-
-			CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
-			CreateResponse createResponse = null;
-			try {
-				createResponse = restApi.create(createRequest);
-			} catch (IOException e) {
-				logger.error("IO exception during create request.", e);
-			}
-			if (createResponse.wasSuccessful()) {
-				rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
-				logger.info("Successfully created test case and the OID for created testcase: " + createResponse.getObject().get("_ref").getAsString());
-			} else {
-				logger.error("Error occurred creating test case");
-				for (String error : createResponse.getErrors()) {
-					logger.error(error);
-				}
-			}
-		} finally {
-			try {
-				restApi.close();
-				logger.info("Closed rest api resource in finally block");
-			} catch (IOException e) {
-				logger.error("Error occurred while closing rest api resource at finally block", e);
-			}
-		}
-		return rallyTestCaseOID;
-	}
-
-	public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
-		List<String> testcaseAttachmentOIDs = new ArrayList<String>();
-		RallyRestApi rallyApi = null;
-		try {
-			rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-		} catch (URISyntaxException e) {
-			logger.error("Rally Base URL has some syntax error.", e);
-		}
-		try {
-			for (String filePath : filePaths) {
-				try {
-					testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
-					logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
-				} catch (IOException e) {
-					testcaseAttachmentOIDs.clear();
-					logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
-					return testcaseAttachmentOIDs;
-				}
-			}
-		} finally {
-			try {
-				rallyApi.close();
-			} catch (IOException e) {
-				logger.error("Ready API resource is not closed due to IO exception.", e);
-
-
-			}
-		}
-		return testcaseAttachmentOIDs;
-	}
-
-	public String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
-		byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
-		String encodedContent = Base64.getEncoder().encodeToString(fileContent);
-
-		String ContentType = null;
-		String attachmentType = filePath.substring(filePath.lastIndexOf('.') + 1).toLowerCase();
-
-		switch (attachmentType) {
-			case "png":
-				ContentType = "image/png";
-				break;
-			case "txt":
-				ContentType = "text/plain";
-				break;
-			case "jpeg":
-			case "jpg":
-				ContentType = "image/jpeg";
-				break;
-			case "xml":
-				ContentType = "application/xml";
-				break;
-			case "gif":
-				ContentType = "image/gif";
-				break;
-			case "doc":
-				ContentType = "application/msword";
-				break;
-			case "docx":
-				ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-				break;
-			case "xls":
-				ContentType = "application/vnd.ms-excel";
-				break;
-			case "xlsx":
-				ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-				break;
-			case "zip":
-				ContentType = "application/zip";
-				break;
-			default:
-				ContentType = "application/octet-stream";
-				break;
-		}
-
-		JsonObject attachmentContent = new JsonObject();
-		attachmentContent.addProperty("Content", encodedContent);
-		CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
-		CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
-		if (!attachmentContentResponse.wasSuccessful()) {
-			logger.error("Error creating AttachmentContent for file " + filePath + ": " + attachmentContentResponse.getErrors());
-			return null;
-		}
-		String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
-
-		JsonObject attachment = new JsonObject();
-		attachment.addProperty("Artifact", "/testcase/" + testCaseId);
-		attachment.addProperty("Content", attachmentContentRef);
-		attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
-		attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
-		attachment.addProperty("ContentType", ContentType);
-		attachment.addProperty("Size", fileContent.length);
-		CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-		CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
-		if (attachmentResponse.wasSuccessful()) {
-			logger.info("Attachment created successfully for file " + filePath + ": " + attachmentResponse.getObject().get("_ref").getAsString());
-			return attachmentResponse.getObject().get("_ref").getAsString();
-		} else {
-			logger.error("Error creating Attachment for file " + filePath + ": " + attachmentResponse.getErrors());
-			return null;
-		}
-	}
-
-	// Method to migrate test steps from JIRA to Rally
-	public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi) {
-		Collections.reverse(jiraTestSteps);
-
-		for (JiraTestStep step : jiraTestSteps) {
-			try {
-				JsonObject newTestStep = new JsonObject();
-				newTestStep.addProperty("TestCase", rallyTestCaseRef);
-				newTestStep.addProperty("StepIndex", step.getIndex());
-				newTestStep.addProperty("Input", step.getDescription());
-				newTestStep.addProperty("ExpectedResult", step.getExpectedResult());
-				newTestStep.addProperty("TestData", step.getTestData());
-
-				CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
-				CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-				if (createResponse.wasSuccessful()) {
-					logger.info("Successfully created test step: " + step.getDescription());
-				} else {
-					logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + createResponse.getErrors());
-				}
-			} catch (Exception e) {
-				logger.error("Exception while creating test step: " + step.getDescription(), e);
-			}
-		}
-	}
-}
-```
-
-### `RunnerClass.java`
-
-Update the `RunnerClass` to use the methods from the refactored `JiraOperation` and `RallyOperation` classes.
-
-```java
-package com.optum.coe.automation.rally;
-
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-public class RunnerClass {
-	private static final Logger logger = LogManager.getLogger();
-
-	public static void main(String[] args) {
-		try {
-			Gson gson = new Gson();
-			JiraTestCase jiraTestCase = new JiraTestCase();
-			JiraOperation jiraOperation = new JiraOperation();
-			ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-
-			String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-			String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-			RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
-
-			for (String testcaseKey : testcaseKeys) {
-				boolean rallyTestcaseCreationStatus = false;
-				boolean rallyOverallTestStepAttachmentsStatus = false;
-				jiraTestCase.setKey(testcaseKey);
-				logger.info("Processing " + jiraTestCase.getKey());
-				JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-				RallyOperation rallyOperation = new RallyOperation();
-				String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
-
-				if (rallyTestcaseOID != null) {
-					rallyTestcaseCreationStatus = true;
-				} else {
-					logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
-					break;
-				}
-
-				List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-				List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-				List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
-
-				if (fileAttachmentDownloadPathsTestcaseLevel != null) {
-					logger.info("Attachment paths are found in the list.");
-					List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-					Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-
-					if (!testcaseAttachmentOIDs.isEmpty()) {
-						rallyOverallTestStepAttachmentsStatus = true;
-					} else {
-						logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
-						return;
-					}
-				} else {
-					logger.info("No Attachment path found for Testcase level.");
-				}
-
-				JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-				List<JiraTestStep> testSteps = new ArrayList<>();
-
-				for (JsonElement element : stepsArray) {
-					JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
-					testSteps.add(step);
-				}
-
-				rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi);
-
-				if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-					System.out.println("Rally Testcase Creation Status is true");
-				} else {
-					logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
-				}
-			}
-		} catch (Exception e) {
-			logger.error("Error occurred during the migration process", e);
-		}
-	}
-}
-```
-
-### Summary
-
-1. **`JiraOperation.java`**: Refactored to include methods for fetching test steps and attachments.
-2. **`RallyOperation.java`**: Refactored to include methods for creating test steps and handling attachments.
-3. **`RunnerClass.java`**: Uses methods from `JiraOperation` and `RallyOperation` to manage the migration process, keeping existing structure and comments intact.
-
-Please integrate these changes and replace any placeholders with actual data from your environment. If further adjustments or specific implementations are needed, let me know!
+2024-08-08 17:16:16.393 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-08 17:16:16.395 [main] VERBOSE com.optum.coe.automation.rally.JiraOperation - Below the values assigned from rally_migration_config.properties file. 
+Jira Base URL - https://jira.healthcareit.net
+Jira Project Key CC2
+Max Chunk value - 3
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-08 17:16:16.395 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=3&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-08 17:16:17.316 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=3&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-08 17:16:17.321 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-08 17:16:17.321 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T6
+2024-08-08 17:16:17.321 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T9
+2024-08-08 17:16:17.324 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-08 17:16:17.576 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:16:17.576 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Testcase details for the keyCC2-T5: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
+2024-08-08 17:16:17.582 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-08 17:16:17.582 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-08 17:16:17.987 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-08 17:16:18.342 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+2024-08-08 17:16:18.481 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083883
+2024-08-08 17:16:18.662 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901
+2024-08-08 17:16:18.822 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431
+2024-08-08 17:16:18.826 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For is  created successfully in Rally
+2024-08-08 17:16:19.501 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test case and the OID for created testcase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900640245
+2024-08-08 17:16:19.502 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Closed rest api resource in finally block
+2024-08-08 17:16:19.502 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for testcase attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5/attachments
+2024-08-08 17:16:19.740 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5/attachments
+2024-08-08 17:16:19.741 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T5; JSON body: [{"id":159795,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159795","filename":"1-Subs response.PNG","filesize":104467},{"id":159794,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159794","filename":"3-Dependet form in blank.PNG","filesize":65259},{"id":159793,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159793","filename":"2-Authorizations Referral Submission form_Requesting and Service Provider.PNG","filesize":74654},{"id":159791,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159791","filename":"2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG","filesize":74294},{"id":159792,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159792","filename":"2-Authorizations Referral Submission form_General Information.PNG","filesize":81068}]
+2024-08-08 17:16:19.922 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159791
+2024-08-08 17:16:19.986 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG
+2024-08-08 17:16:20.211 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159792
+2024-08-08 17:16:20.217 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_General Information.PNG
+2024-08-08 17:16:20.419 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159793
+2024-08-08 17:16:20.423 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Requesting and Service Provider.PNG
+2024-08-08 17:16:20.725 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159794
+2024-08-08 17:16:20.729 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3-Dependet form in blank.PNG
+2024-08-08 17:16:20.899 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159795
+2024-08-08 17:16:20.907 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1-Subs response.PNG
+2024-08-08 17:16:20.907 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:16:21.076 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:16:21.077 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T5; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
+2024-08-08 17:16:21.347 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499989
+2024-08-08 17:16:21.355 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:Jira_Rally_JSON_Map_CC2_Project.xlsx
+2024-08-08 17:16:21.533 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499988
+2024-08-08 17:16:21.574 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:JSON_Rally_BackUp_PostMan.txt
+2024-08-08 17:16:21.764 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499987
+2024-08-08 17:16:21.767 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:TestStepAttachment_2.PNG
+2024-08-08 17:16:21.959 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499986
+2024-08-08 17:16:21.964 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:Gherkins_CC2-9249.docx
+2024-08-08 17:16:21.964 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:16:22.126 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:16:22.128 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T5; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","createdBy":"JIRAUSER74201","latestVersion":true,"testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
+2024-08-08 17:16:22.299 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500125
+2024-08-08 17:16:22.302 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:4_1__EmbbededFile_description.png
+2024-08-08 17:16:22.430 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500134
+2024-08-08 17:16:22.433 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_1__EmbbededFile_description.png
+2024-08-08 17:16:22.576 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500131
+2024-08-08 17:16:22.581 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_1__EmbbededFile_testData.png
+2024-08-08 17:16:22.803 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500132
+2024-08-08 17:16:22.807 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_2__EmbbededFile_testData.png
+2024-08-08 17:16:23.117 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500128
+2024-08-08 17:16:23.122 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_1__EmbbededFile_testData.png
+2024-08-08 17:16:23.277 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500127
+2024-08-08 17:16:23.282 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_2__EmbbededFile_testData.png
+2024-08-08 17:16:23.405 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500118
+2024-08-08 17:16:23.409 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2_1__EmbbededFile_testData.png
+2024-08-08 17:16:23.517 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500120
+2024-08-08 17:16:23.521 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2_2__EmbbededFile_testData.png
+2024-08-08 17:16:23.683 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500121
+2024-08-08 17:16:23.685 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_1__EmbbededFile_expectedResult.png
+2024-08-08 17:16:23.776 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500119
+2024-08-08 17:16:23.778 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_2__EmbbededFile_expectedResult.png
+2024-08-08 17:16:23.894 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500129
+2024-08-08 17:16:23.901 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_1__EmbbededFile_expectedResult.png
+2024-08-08 17:16:23.993 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500130
+2024-08-08 17:16:24.007 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_2__EmbbededFile_expectedResult.png
+2024-08-08 17:16:24.007 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Attachment paths are found in the list.
+2024-08-08 17:16:25.556 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900656713
+2024-08-08 17:16:25.556 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900640245 in Rally successfully
+2024-08-08 17:16:26.801 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_General Information.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900656785
+2024-08-08 17:16:26.801 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_General Information.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900640245 in Rally successfully
+2024-08-08 17:16:28.002 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900656803
+2024-08-08 17:16:28.002 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900640245 in Rally successfully
+2024-08-08 17:16:29.135 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/3-Dependet form in blank.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900656829
+2024-08-08 17:16:29.136 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/3-Dependet form in blank.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900640245 in Rally successfully
+2024-08-08 17:16:30.365 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/1-Subs response.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900656843
+2024-08-08 17:16:30.366 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/1-Subs response.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900640245 in Rally successfully
+2024-08-08 17:16:30.367 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG is deleted for next attachment download run.
+2024-08-08 17:16:30.367 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_General Information.PNG is deleted for next attachment download run.
+2024-08-08 17:16:30.368 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG is deleted for next attachment download run.
+2024-08-08 17:16:30.368 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/3-Dependet form in blank.PNG is deleted for next attachment download run.
+2024-08-08 17:16:30.369 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/1-Subs response.PNG is deleted for next attachment download run.
+2024-08-08 17:16:30.714 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step: enter required data for Subscriber request<br />then SUBMIT. Error: [Ljava.lang.String;@3c9c6245
+2024-08-08 17:16:30.944 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src="../rest/tests/1.0/attachment/image/500134" style="width:300px" class="fr-fic fr-fil fr-dib" />
+2024-08-08 17:16:31.150 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Validate "Patient Information" column has the same data as "Subscriber Information" column.<br />Validate: Relationship field should have "Self" value
+2024-08-08 17:16:31.371 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Select "Authorization/Referral Submission" from dropdown in the Demographic Information, then click "USE MEMBER FOR" button<br /><img src="../rest/tests/1.0/attachment/image/500125" style="width:300px" class="fr-fic fr-fil fr-dib" /><br /><img style="width:300px" class="fr-fic fr-fil fr-dib" /><br />
+2024-08-08 17:16:31.372 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T6
+2024-08-08 17:16:31.595 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:16:31.595 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Testcase details for the keyCC2-T6: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":6,"updatedOn":"2024-08-02T05:42:02.284Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:06:12.628Z","component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343054,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data displayed in \"Authorization/Referral Submission\" screen is correct and Validate Dependent data is being displayed in \"Dependent Information\" section","index":3,"description":"Select \"Authorization Referral Submission\" from dropdown in Demographic Information section and click \"USER MEMBER FOR\" button","id":3802856},{"expectedResult":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","index":2,"description":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","id":3802855},{"testData":"-Click \"Find Provider\" button and select any<br />-Enter Payer Name as \"QA Testing\"<br />-Enter Member ID: QA5010-CC-MABCBS-DEP","index":1,"description":"Enter all required data and Submit request","id":3802854},{"expectedResult":"access succesfully","index":0,"description":"Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request","id":3802853}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin2 - Eligibility inquiry response contains Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T6","status":"Approved"}
+2024-08-08 17:16:31.595 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-08 17:16:31.595 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-08 17:16:31.595 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-08 17:16:31.994 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+2024-08-08 17:16:32.108 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083883
+2024-08-08 17:16:32.218 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901
+2024-08-08 17:16:32.333 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431
+2024-08-08 17:16:32.334 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For is  created successfully in Rally
+2024-08-08 17:16:32.931 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test case and the OID for created testcase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900467725
+2024-08-08 17:16:32.932 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Closed rest api resource in finally block
+2024-08-08 17:16:32.932 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for testcase attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6/attachments
+2024-08-08 17:16:33.030 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6/attachments
+2024-08-08 17:16:33.030 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T6; JSON body: [{"id":159798,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159798","filename":"1-Demographic Information.PNG","filesize":109698},{"id":159796,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159796","filename":"2-Authorizations Referral Submission form_Request provider and Service order section.PNG","filesize":73693},{"id":159799,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159799","filename":"2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG","filesize":65673},{"id":159797,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159797","filename":"2-Authorizations Referral Submission form_General Information section.PNG","filesize":83277}]
+2024-08-08 17:16:33.103 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159796
+2024-08-08 17:16:33.126 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Request provider and Service order section.PNG
+2024-08-08 17:16:33.239 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159797
+2024-08-08 17:16:33.261 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_General Information section.PNG
+2024-08-08 17:16:33.338 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159798
+2024-08-08 17:16:33.351 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1-Demographic Information.PNG
+2024-08-08 17:16:33.478 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159799
+2024-08-08 17:16:33.482 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG
+2024-08-08 17:16:33.483 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:16:33.695 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:16:33.705 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T6; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":6,"updatedOn":"2024-08-02T05:42:02.284Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:06:12.628Z","component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343054,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data displayed in \"Authorization/Referral Submission\" screen is correct and Validate Dependent data is being displayed in \"Dependent Information\" section","index":3,"description":"Select \"Authorization Referral Submission\" from dropdown in Demographic Information section and click \"USER MEMBER FOR\" button","id":3802856},{"expectedResult":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","index":2,"description":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","id":3802855},{"testData":"-Click \"Find Provider\" button and select any<br />-Enter Payer Name as \"QA Testing\"<br />-Enter Member ID: QA5010-CC-MABCBS-DEP","index":1,"description":"Enter all required data and Submit request","id":3802854},{"expectedResult":"access succesfully","index":0,"description":"Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request","id":3802853}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin2 - Eligibility inquiry response contains Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T6","status":"Approved"}
+2024-08-08 17:16:33.706 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:16:33.821 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:16:33.822 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T6; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":6,"updatedOn":"2024-08-02T05:42:02.284Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:06:12.628Z","component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343054,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data displayed in \"Authorization/Referral Submission\" screen is correct and Validate Dependent data is being displayed in \"Dependent Information\" section","index":3,"description":"Select \"Authorization Referral Submission\" from dropdown in Demographic Information section and click \"USER MEMBER FOR\" button","id":3802856},{"expectedResult":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","index":2,"description":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","id":3802855},{"testData":"-Click \"Find Provider\" button and select any<br />-Enter Payer Name as \"QA Testing\"<br />-Enter Member ID: QA5010-CC-MABCBS-DEP","index":1,"description":"Enter all required data and Submit request","id":3802854},{"expectedResult":"access succesfully","index":0,"description":"Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request","id":3802853}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin2 - Eligibility inquiry response contains Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T6","status":"Approved"}
+2024-08-08 17:16:33.823 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Attachment paths are found in the list.
+2024-08-08 17:16:35.231 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Request provider and Service order section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900189773
+2024-08-08 17:16:35.231 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Request provider and Service order section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900467725 in Rally successfully
+2024-08-08 17:16:36.404 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_General Information section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900189787
+2024-08-08 17:16:36.405 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_General Information section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900467725 in Rally successfully
+2024-08-08 17:16:37.485 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/1-Demographic Information.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900189813
+2024-08-08 17:16:37.485 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/1-Demographic Information.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900467725 in Rally successfully
+2024-08-08 17:16:38.482 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900189827
+2024-08-08 17:16:38.483 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900467725 in Rally successfully
+2024-08-08 17:16:38.485 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Request provider and Service order section.PNG is deleted for next attachment download run.
+2024-08-08 17:16:38.486 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_General Information section.PNG is deleted for next attachment download run.
+2024-08-08 17:16:38.487 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/1-Demographic Information.PNG is deleted for next attachment download run.
+2024-08-08 17:16:38.487 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG is deleted for next attachment download run.
+2024-08-08 17:16:38.663 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step: Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request. Error: [Ljava.lang.String;@4bf80c29
+2024-08-08 17:16:38.889 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Enter all required data and Submit request
+2024-08-08 17:16:39.095 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: -Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information
+2024-08-08 17:16:39.308 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Select "Authorization Referral Submission" from dropdown in Demographic Information section and click "USER MEMBER FOR" button
+2024-08-08 17:16:39.310 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T9
+2024-08-08 17:16:39.443 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:16:39.443 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Testcase details for the keyCC2-T9: {"owner":"JIRAUSER24435","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automated Test":"Not Automatable","Automation Status":"Not Automatable","Migrate Test to Rally":true},"keyNumber":9,"updatedOn":"2024-08-02T05:42:09.123Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:20:52.973Z","component":"User Management","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details","latestVersion":true,"createdBy":"JIRAUSER24435","testScript":{"id":343059,"type":"STEP_BY_STEP","steps":[{"testData":"user id: wags2007","expectedResult":"Then update this user to get them out of a mixed scope status and their role should be updated.","index":0,"description":"Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected","id":3802880}]},"issueLinks":["CC2-9705"],"lastTestResultStatus":"Fail","name":"Gherkin 1 - Internal user to try and update a mixed scope user to have a scope so they were no longer mixed scope","parameters":{"variables":[],"entries":[]},"key":"CC2-T9","status":"Approved"}
+2024-08-08 17:16:39.443 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-08 17:16:39.443 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-08 17:16:39.444 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-08 17:16:39.712 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+2024-08-08 17:16:39.837 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798413984377
+2024-08-08 17:16:39.963 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798434710077
+2024-08-08 17:16:40.100 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798434710091
+2024-08-08 17:16:40.102 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details is  created successfully in Rally
+2024-08-08 17:16:40.665 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test case and the OID for created testcase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900618565
+2024-08-08 17:16:40.666 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Closed rest api resource in finally block
+2024-08-08 17:16:40.666 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for testcase attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9/attachments
+2024-08-08 17:16:40.782 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9/attachments
+2024-08-08 17:16:40.782 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T9; JSON body: [{"id":162325,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/162325","filename":"CC2-9705wags2007Roles3.GIF","filesize":296827},{"id":162324,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/162324","filename":"CC2-9705wags2007Roles2.GIF","filesize":395362},{"id":162323,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/162323","filename":"CC2-9705wags2007Roles.GIF","filesize":465325}]
+2024-08-08 17:16:40.904 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/162325
+2024-08-08 17:16:40.964 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:CC2-9705wags2007Roles3.GIF
+2024-08-08 17:16:41.095 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/162324
+2024-08-08 17:16:41.130 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:CC2-9705wags2007Roles2.GIF
+2024-08-08 17:16:41.261 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/162323
+2024-08-08 17:16:41.306 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:CC2-9705wags2007Roles.GIF
+2024-08-08 17:16:41.306 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:16:41.417 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:16:41.418 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T9; JSON body: {"owner":"JIRAUSER24435","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automated Test":"Not Automatable","Automation Status":"Not Automatable","Migrate Test to Rally":true},"keyNumber":9,"updatedOn":"2024-08-02T05:42:09.123Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:20:52.973Z","component":"User Management","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details","latestVersion":true,"createdBy":"JIRAUSER24435","testScript":{"id":343059,"type":"STEP_BY_STEP","steps":[{"testData":"user id: wags2007","expectedResult":"Then update this user to get them out of a mixed scope status and their role should be updated.","index":0,"description":"Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected","id":3802880}]},"issueLinks":["CC2-9705"],"lastTestResultStatus":"Fail","name":"Gherkin 1 - Internal user to try and update a mixed scope user to have a scope so they were no longer mixed scope","parameters":{"variables":[],"entries":[]},"key":"CC2-T9","status":"Approved"}
+2024-08-08 17:16:41.418 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:16:41.531 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:16:41.531 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T9; JSON body: {"owner":"JIRAUSER24435","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automated Test":"Not Automatable","Automation Status":"Not Automatable","Migrate Test to Rally":true},"keyNumber":9,"updatedOn":"2024-08-02T05:42:09.123Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:20:52.973Z","component":"User Management","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details","latestVersion":true,"createdBy":"JIRAUSER24435","testScript":{"id":343059,"type":"STEP_BY_STEP","steps":[{"testData":"user id: wags2007","expectedResult":"Then update this user to get them out of a mixed scope status and their role should be updated.","index":0,"description":"Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected","id":3802880}]},"issueLinks":["CC2-9705"],"lastTestResultStatus":"Fail","name":"Gherkin 1 - Internal user to try and update a mixed scope user to have a scope so they were no longer mixed scope","parameters":{"variables":[],"entries":[]},"key":"CC2-T9","status":"Approved"}
+2024-08-08 17:16:41.533 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Attachment paths are found in the list.
+2024-08-08 17:16:43.757 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/CC2-9705wags2007Roles3.GIF: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900168197
+2024-08-08 17:16:43.757 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/CC2-9705wags2007Roles3.GIF is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900618565 in Rally successfully
+2024-08-08 17:16:45.681 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/CC2-9705wags2007Roles2.GIF: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900168211
+2024-08-08 17:16:45.682 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/CC2-9705wags2007Roles2.GIF is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900618565 in Rally successfully
+2024-08-08 17:16:47.491 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/CC2-9705wags2007Roles.GIF: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900168237
+2024-08-08 17:16:47.491 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/CC2-9705wags2007Roles.GIF is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900618565 in Rally successfully
+2024-08-08 17:16:47.492 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/CC2-9705wags2007Roles3.GIF is deleted for next attachment download run.
+2024-08-08 17:16:47.493 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/CC2-9705wags2007Roles2.GIF is deleted for next attachment download run.
+2024-08-08 17:16:47.493 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/CC2-9705wags2007Roles.GIF is deleted for next attachment download run.
+2024-08-08 17:16:47.739 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected
+2024-08-08 17:17:28.232 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-08 17:17:28.234 [main] VERBOSE com.optum.coe.automation.rally.JiraOperation - Below the values assigned from rally_migration_config.properties file. 
+Jira Base URL - https://jira.healthcareit.net
+Jira Project Key CC2
+Max Chunk value - 3
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-08 17:17:28.235 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=3&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-08 17:17:29.153 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=3&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-08 17:17:29.158 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-08 17:17:29.158 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T6
+2024-08-08 17:17:29.158 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T9
+2024-08-08 17:17:29.162 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-08 17:17:29.296 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:17:29.297 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Testcase details for the keyCC2-T5: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","createdBy":"JIRAUSER74201","latestVersion":true,"testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
+2024-08-08 17:17:29.307 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-08 17:17:29.307 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-08 17:17:29.647 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-08 17:17:30.069 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+2024-08-08 17:17:30.219 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083883
+2024-08-08 17:17:30.332 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901
+2024-08-08 17:17:30.446 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431
+2024-08-08 17:17:30.448 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For is  created successfully in Rally
+2024-08-08 17:17:31.096 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test case and the OID for created testcase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900696813
+2024-08-08 17:17:31.097 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Closed rest api resource in finally block
+2024-08-08 17:17:31.098 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for testcase attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5/attachments
+2024-08-08 17:17:31.255 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5/attachments
+2024-08-08 17:17:31.256 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T5; JSON body: [{"id":159795,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159795","filename":"1-Subs response.PNG","filesize":104467},{"id":159794,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159794","filename":"3-Dependet form in blank.PNG","filesize":65259},{"id":159793,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159793","filename":"2-Authorizations Referral Submission form_Requesting and Service Provider.PNG","filesize":74654},{"id":159791,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159791","filename":"2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG","filesize":74294},{"id":159792,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159792","filename":"2-Authorizations Referral Submission form_General Information.PNG","filesize":81068}]
+2024-08-08 17:17:31.360 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159791
+2024-08-08 17:17:31.380 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG
+2024-08-08 17:17:31.525 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159792
+2024-08-08 17:17:31.534 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_General Information.PNG
+2024-08-08 17:17:31.723 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159793
+2024-08-08 17:17:31.730 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Requesting and Service Provider.PNG
+2024-08-08 17:17:31.853 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159794
+2024-08-08 17:17:31.864 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3-Dependet form in blank.PNG
+2024-08-08 17:17:31.946 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159795
+2024-08-08 17:17:31.955 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1-Subs response.PNG
+2024-08-08 17:17:31.955 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:17:32.046 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:17:32.047 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T5; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","createdBy":"JIRAUSER74201","latestVersion":true,"testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
+2024-08-08 17:17:32.215 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499989
+2024-08-08 17:17:32.221 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:Jira_Rally_JSON_Map_CC2_Project.xlsx
+2024-08-08 17:17:32.398 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499988
+2024-08-08 17:17:32.402 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:JSON_Rally_BackUp_PostMan.txt
+2024-08-08 17:17:32.490 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499987
+2024-08-08 17:17:32.493 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:TestStepAttachment_2.PNG
+2024-08-08 17:17:32.572 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/499986
+2024-08-08 17:17:32.576 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:Gherkins_CC2-9249.docx
+2024-08-08 17:17:32.576 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:17:32.792 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
+2024-08-08 17:17:32.792 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T5; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
+2024-08-08 17:17:32.902 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500125
+2024-08-08 17:17:32.903 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:4_1__EmbbededFile_description.png
+2024-08-08 17:17:33.022 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500134
+2024-08-08 17:17:33.025 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_1__EmbbededFile_description.png
+2024-08-08 17:17:33.120 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500131
+2024-08-08 17:17:33.130 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_1__EmbbededFile_testData.png
+2024-08-08 17:17:33.207 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500132
+2024-08-08 17:17:33.212 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_2__EmbbededFile_testData.png
+2024-08-08 17:17:33.289 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500128
+2024-08-08 17:17:33.293 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_1__EmbbededFile_testData.png
+2024-08-08 17:17:33.382 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500127
+2024-08-08 17:17:33.386 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_2__EmbbededFile_testData.png
+2024-08-08 17:17:33.460 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500118
+2024-08-08 17:17:33.461 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2_1__EmbbededFile_testData.png
+2024-08-08 17:17:33.552 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500120
+2024-08-08 17:17:33.558 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2_2__EmbbededFile_testData.png
+2024-08-08 17:17:33.776 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500121
+2024-08-08 17:17:33.779 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_1__EmbbededFile_expectedResult.png
+2024-08-08 17:17:33.854 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500119
+2024-08-08 17:17:33.856 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3_2__EmbbededFile_expectedResult.png
+2024-08-08 17:17:33.930 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500129
+2024-08-08 17:17:33.933 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_1__EmbbededFile_expectedResult.png
+2024-08-08 17:17:34.043 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500130
+2024-08-08 17:17:34.047 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1_2__EmbbededFile_expectedResult.png
+2024-08-08 17:17:34.047 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Attachment paths are found in the list.
+2024-08-08 17:17:35.508 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900736033
+2024-08-08 17:17:35.508 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900696813 in Rally successfully
+2024-08-08 17:17:36.701 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_General Information.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900736047
+2024-08-08 17:17:36.701 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_General Information.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900696813 in Rally successfully
+2024-08-08 17:17:38.136 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900736087
+2024-08-08 17:17:38.136 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900696813 in Rally successfully
+2024-08-08 17:17:39.191 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/3-Dependet form in blank.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900736101
+2024-08-08 17:17:39.191 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/3-Dependet form in blank.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900696813 in Rally successfully
+2024-08-08 17:17:40.515 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/1-Subs response.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900736145
+2024-08-08 17:17:40.515 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/1-Subs response.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900696813 in Rally successfully
+2024-08-08 17:17:40.516 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG is deleted for next attachment download run.
+2024-08-08 17:17:40.517 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_General Information.PNG is deleted for next attachment download run.
+2024-08-08 17:17:40.517 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG is deleted for next attachment download run.
+2024-08-08 17:17:40.518 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/3-Dependet form in blank.PNG is deleted for next attachment download run.
+2024-08-08 17:17:40.518 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/1-Subs response.PNG is deleted for next attachment download run.
+2024-08-08 17:17:41.061 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step: enter required data for Subscriber request<br />then SUBMIT. Error: [Ljava.lang.String;@3c9c6245
+2024-08-08 17:17:41.316 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src="../rest/tests/1.0/attachment/image/500134" style="width:300px" class="fr-fic fr-fil fr-dib" />
+2024-08-08 17:17:41.528 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Validate "Patient Information" column has the same data as "Subscriber Information" column.<br />Validate: Relationship field should have "Self" value
+2024-08-08 17:17:41.737 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Select "Authorization/Referral Submission" from dropdown in the Demographic Information, then click "USE MEMBER FOR" button<br /><img src="../rest/tests/1.0/attachment/image/500125" style="width:300px" class="fr-fic fr-fil fr-dib" /><br /><img style="width:300px" class="fr-fic fr-fil fr-dib" /><br />
+2024-08-08 17:17:41.738 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T6
+2024-08-08 17:17:41.879 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:17:41.880 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Testcase details for the keyCC2-T6: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":6,"updatedOn":"2024-08-02T05:42:02.284Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:06:12.628Z","component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343054,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data displayed in \"Authorization/Referral Submission\" screen is correct and Validate Dependent data is being displayed in \"Dependent Information\" section","index":3,"description":"Select \"Authorization Referral Submission\" from dropdown in Demographic Information section and click \"USER MEMBER FOR\" button","id":3802856},{"expectedResult":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","index":2,"description":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","id":3802855},{"testData":"-Click \"Find Provider\" button and select any<br />-Enter Payer Name as \"QA Testing\"<br />-Enter Member ID: QA5010-CC-MABCBS-DEP","index":1,"description":"Enter all required data and Submit request","id":3802854},{"expectedResult":"access succesfully","index":0,"description":"Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request","id":3802853}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin2 - Eligibility inquiry response contains Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T6","status":"Approved"}
+2024-08-08 17:17:41.880 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-08 17:17:41.880 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-08 17:17:41.881 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-08 17:17:42.133 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+2024-08-08 17:17:42.257 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083883
+2024-08-08 17:17:42.673 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901
+2024-08-08 17:17:42.796 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431
+2024-08-08 17:17:42.798 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For is  created successfully in Rally
+2024-08-08 17:17:43.397 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test case and the OID for created testcase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900620555
+2024-08-08 17:17:43.399 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Closed rest api resource in finally block
+2024-08-08 17:17:43.399 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for testcase attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6/attachments
+2024-08-08 17:17:43.493 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6/attachments
+2024-08-08 17:17:43.493 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T6; JSON body: [{"id":159798,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159798","filename":"1-Demographic Information.PNG","filesize":109698},{"id":159796,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159796","filename":"2-Authorizations Referral Submission form_Request provider and Service order section.PNG","filesize":73693},{"id":159799,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159799","filename":"2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG","filesize":65673},{"id":159797,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159797","filename":"2-Authorizations Referral Submission form_General Information section.PNG","filesize":83277}]
+2024-08-08 17:17:43.590 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159796
+2024-08-08 17:17:43.610 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Request provider and Service order section.PNG
+2024-08-08 17:17:43.766 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159797
+2024-08-08 17:17:43.781 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_General Information section.PNG
+2024-08-08 17:17:43.857 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159798
+2024-08-08 17:17:43.862 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1-Demographic Information.PNG
+2024-08-08 17:17:44.104 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159799
+2024-08-08 17:17:44.111 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG
+2024-08-08 17:17:44.111 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:17:44.240 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:17:44.242 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T6; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":6,"updatedOn":"2024-08-02T05:42:02.284Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:06:12.628Z","component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343054,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data displayed in \"Authorization/Referral Submission\" screen is correct and Validate Dependent data is being displayed in \"Dependent Information\" section","index":3,"description":"Select \"Authorization Referral Submission\" from dropdown in Demographic Information section and click \"USER MEMBER FOR\" button","id":3802856},{"expectedResult":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","index":2,"description":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","id":3802855},{"testData":"-Click \"Find Provider\" button and select any<br />-Enter Payer Name as \"QA Testing\"<br />-Enter Member ID: QA5010-CC-MABCBS-DEP","index":1,"description":"Enter all required data and Submit request","id":3802854},{"expectedResult":"access succesfully","index":0,"description":"Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request","id":3802853}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin2 - Eligibility inquiry response contains Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T6","status":"Approved"}
+2024-08-08 17:17:44.243 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:17:44.354 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T6
+2024-08-08 17:17:44.355 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T6; JSON body: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":6,"updatedOn":"2024-08-02T05:42:02.284Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:06:12.628Z","component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343054,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data displayed in \"Authorization/Referral Submission\" screen is correct and Validate Dependent data is being displayed in \"Dependent Information\" section","index":3,"description":"Select \"Authorization Referral Submission\" from dropdown in Demographic Information section and click \"USER MEMBER FOR\" button","id":3802856},{"expectedResult":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","index":2,"description":"-Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information","id":3802855},{"testData":"-Click \"Find Provider\" button and select any<br />-Enter Payer Name as \"QA Testing\"<br />-Enter Member ID: QA5010-CC-MABCBS-DEP","index":1,"description":"Enter all required data and Submit request","id":3802854},{"expectedResult":"access succesfully","index":0,"description":"Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request","id":3802853}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin2 - Eligibility inquiry response contains Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T6","status":"Approved"}
+2024-08-08 17:17:44.358 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Attachment paths are found in the list.
+2024-08-08 17:17:45.881 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Request provider and Service order section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900564175
+2024-08-08 17:17:45.881 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Request provider and Service order section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900620555 in Rally successfully
+2024-08-08 17:17:47.119 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_General Information section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900564201
+2024-08-08 17:17:47.119 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_General Information section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900620555 in Rally successfully
+2024-08-08 17:17:48.403 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/1-Demographic Information.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900564227
+2024-08-08 17:17:48.405 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/1-Demographic Information.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900620555 in Rally successfully
+2024-08-08 17:17:49.488 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900564247
+2024-08-08 17:17:49.488 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900620555 in Rally successfully
+2024-08-08 17:17:49.490 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Request provider and Service order section.PNG is deleted for next attachment download run.
+2024-08-08 17:17:49.491 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_General Information section.PNG is deleted for next attachment download run.
+2024-08-08 17:17:49.492 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/1-Demographic Information.PNG is deleted for next attachment download run.
+2024-08-08 17:17:49.493 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Subscriber and Dependent Inf section.PNG is deleted for next attachment download run.
+2024-08-08 17:17:49.665 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step: Log in to Cctr as an Internal user, then go to Verification -&gt;New Eligibility Request. Error: [Ljava.lang.String;@4bf80c29
+2024-08-08 17:17:49.884 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Enter all required data and Submit request
+2024-08-08 17:17:50.079 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: -Validate Response information is being displayed<br />-Validate Patient Information is different to Subscriber Information
+2024-08-08 17:17:50.299 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Select "Authorization Referral Submission" from dropdown in Demographic Information section and click "USER MEMBER FOR" button
+2024-08-08 17:17:50.300 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T9
+2024-08-08 17:17:50.447 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:17:50.448 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Testcase details for the keyCC2-T9: {"owner":"JIRAUSER24435","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automated Test":"Not Automatable","Automation Status":"Not Automatable","Migrate Test to Rally":true},"keyNumber":9,"updatedOn":"2024-08-02T05:42:09.123Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:20:52.973Z","component":"User Management","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details","latestVersion":true,"createdBy":"JIRAUSER24435","testScript":{"id":343059,"type":"STEP_BY_STEP","steps":[{"testData":"user id: wags2007","expectedResult":"Then update this user to get them out of a mixed scope status and their role should be updated.","index":0,"description":"Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected","id":3802880}]},"issueLinks":["CC2-9705"],"lastTestResultStatus":"Fail","name":"Gherkin 1 - Internal user to try and update a mixed scope user to have a scope so they were no longer mixed scope","parameters":{"variables":[],"entries":[]},"key":"CC2-T9","status":"Approved"}
+2024-08-08 17:17:50.448 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-08 17:17:50.448 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-08 17:17:50.448 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-08 17:17:50.730 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+2024-08-08 17:17:50.855 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798413984377
+2024-08-08 17:17:50.977 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798434710077
+2024-08-08 17:17:51.094 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798434710091
+2024-08-08 17:17:51.095 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details is  created successfully in Rally
+2024-08-08 17:17:51.556 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test case and the OID for created testcase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900169077
+2024-08-08 17:17:51.556 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Closed rest api resource in finally block
+2024-08-08 17:17:51.556 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for testcase attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9/attachments
+2024-08-08 17:17:51.806 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9/attachments
+2024-08-08 17:17:51.806 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T9; JSON body: [{"id":162325,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/162325","filename":"CC2-9705wags2007Roles3.GIF","filesize":296827},{"id":162324,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/162324","filename":"CC2-9705wags2007Roles2.GIF","filesize":395362},{"id":162323,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/162323","filename":"CC2-9705wags2007Roles.GIF","filesize":465325}]
+2024-08-08 17:17:51.897 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/162325
+2024-08-08 17:17:51.955 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:CC2-9705wags2007Roles3.GIF
+2024-08-08 17:17:52.052 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/162324
+2024-08-08 17:17:52.078 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:CC2-9705wags2007Roles2.GIF
+2024-08-08 17:17:52.171 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/162323
+2024-08-08 17:17:52.208 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:CC2-9705wags2007Roles.GIF
+2024-08-08 17:17:52.208 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:17:52.328 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:17:52.328 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T9; JSON body: {"owner":"JIRAUSER24435","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automated Test":"Not Automatable","Automation Status":"Not Automatable","Migrate Test to Rally":true},"keyNumber":9,"updatedOn":"2024-08-02T05:42:09.123Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:20:52.973Z","component":"User Management","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details","latestVersion":true,"createdBy":"JIRAUSER24435","testScript":{"id":343059,"type":"STEP_BY_STEP","steps":[{"testData":"user id: wags2007","expectedResult":"Then update this user to get them out of a mixed scope status and their role should be updated.","index":0,"description":"Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected","id":3802880}]},"issueLinks":["CC2-9705"],"lastTestResultStatus":"Fail","name":"Gherkin 1 - Internal user to try and update a mixed scope user to have a scope so they were no longer mixed scope","parameters":{"variables":[],"entries":[]},"key":"CC2-T9","status":"Approved"}
+2024-08-08 17:17:52.328 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for teststep attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:17:52.422 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T9
+2024-08-08 17:17:52.422 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T9; JSON body: {"owner":"JIRAUSER24435","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automated Test":"Not Automatable","Automation Status":"Not Automatable","Migrate Test to Rally":true},"keyNumber":9,"updatedOn":"2024-08-02T05:42:09.123Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T19:20:52.973Z","component":"User Management","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.7/ConnectCenter - FY22 iteration 22/CC2-9705 User Management - Mixed Scope Users are not able to update the user details","latestVersion":true,"createdBy":"JIRAUSER24435","testScript":{"id":343059,"type":"STEP_BY_STEP","steps":[{"testData":"user id: wags2007","expectedResult":"Then update this user to get them out of a mixed scope status and their role should be updated.","index":0,"description":"Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected","id":3802880}]},"issueLinks":["CC2-9705"],"lastTestResultStatus":"Fail","name":"Gherkin 1 - Internal user to try and update a mixed scope user to have a scope so they were no longer mixed scope","parameters":{"variables":[],"entries":[]},"key":"CC2-T9","status":"Approved"}
+2024-08-08 17:17:52.425 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Attachment paths are found in the list.
+2024-08-08 17:17:54.413 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/CC2-9705wags2007Roles3.GIF: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900621011
+2024-08-08 17:17:54.413 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/CC2-9705wags2007Roles3.GIF is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900169077 in Rally successfully
+2024-08-08 17:17:56.176 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/CC2-9705wags2007Roles2.GIF: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900621025
+2024-08-08 17:17:56.177 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/CC2-9705wags2007Roles2.GIF is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900169077 in Rally successfully
+2024-08-08 17:17:57.847 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments/CC2-9705wags2007Roles.GIF: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/798900621041
+2024-08-08 17:17:57.848 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/CC2-9705wags2007Roles.GIF is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798900169077 in Rally successfully
+2024-08-08 17:17:57.849 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/CC2-9705wags2007Roles3.GIF is deleted for next attachment download run.
+2024-08-08 17:17:57.850 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/CC2-9705wags2007Roles2.GIF is deleted for next attachment download run.
+2024-08-08 17:17:57.850 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/CC2-9705wags2007Roles.GIF is deleted for next attachment download run.
+2024-08-08 17:17:58.188 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Given an Internal Eligibility User logs into ConnectCenter selects Admin -&gt; User Management -&gt; Selects a Mixed Scope User ID from the results -&gt; Selects the Access Features Tab<br />When an Access Level is selected and the Update User button is selected
