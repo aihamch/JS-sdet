@@ -1,91 +1,117 @@
-Here is the complete implementation for the `JiraOperation` class, including the `getJiraTestCaseDetails` method which returns an `org.json.JSONObject`.
-
-### `JiraOperation.java`
-```java
 package com.optum.coe.automation.rally;
 
-import org.json.JSONObject;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
-public class JiraOperation {
+public class RunnerClass {
 
+    // Logger Initialization for Runner Class
     private static final Logger logger = LogManager.getLogger();
-    private String jiraBaseUrl;
-    private String apiToken;
 
-    public JiraOperation() {
-        // Load configuration or set defaults
-        this.jiraBaseUrl = "https://your-jira-base-url"; // Replace with your Jira base URL
-        this.apiToken = "your-api-token"; // Replace with your Jira API token
-    }
+    // Main method
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
 
-    // Method to get Jira TestCase details and return as org.json.JSONObject
-    public JSONObject getJiraTestCaseDetails(String testCaseKey) {
-        String jsonResponse = getJiraResponse(testCaseKey);
-        JSONObject jiraTestcaseJson = new JSONObject(jsonResponse);
-        return jiraTestcaseJson;
-    }
+        /*
+         * Main method calls below functionalities from com.optum.coe.automation.rally
+         * package 1. Get Jira non migrated testcase keys 2. Get Jira Testcase details
+         * for the given testcase key. It is an iterative process 3. Create the testcase
+         * in Rally using the Jira testcase details 4. Validate if the testcase is
+         * created successfully ; Future implementation is required. US7440061
+         */
 
-    // Helper method to perform HTTP GET request to Jira and return the response as a string
-    private String getJiraResponse(String testCaseKey) {
-        String urlString = jiraBaseUrl + "/rest/atm/1.0/testcase/" + testCaseKey;
-        HttpURLConnection connection = null;
-        StringBuilder response = new StringBuilder();
-
-        try {
-            URL url = new URL(urlString);
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("Authorization", "Bearer " + apiToken);
-            connection.setRequestProperty("Content-Type", "application/json");
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                String inputLine;
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
-                in.close();
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+        for (int i = 0; i < testcaseKeys.size(); i++) {			
+            boolean rallyTestcaseCreationStatus = false;
+            boolean rallyOverallTestStepAttachmentsStatus = false;
+            jiraTestCase.setKey(testcaseKeys.get(i));
+            logger.info("Processing " + jiraTestCase.getKey());
+            JSONObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            RallyOperation rallyOperation = new RallyOperation();
+            
+            // Declaration of rallyTestcaseOID
+            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+            
+            // Validation for Testcase creation
+            if (rallyTestcaseOID != null ) {
+                rallyTestcaseCreationStatus = true;
             } else {
-                logger.error("GET request to Jira failed with response code: " + responseCode);
+                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                break;	
             }
-        } catch (Exception e) {
-            logger.error("Exception occurred while making GET request to Jira: ", e);
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
+
+            // Download attachments
+            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+
+            // Upload test case attachments to Rally
+            if (fileAttachmentDownloadPathsTestcaseLevel != null) {
+                logger.info("Attachment paths are found in the list.");
+                List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                // Validation for Testcase file attachments 
+                if (!testcaseAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;	
+                } else {
+                    logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                    + " is not created in rally");
+                    return;
+                }
+
+            } else {
+                logger.info("No Attachment path found for Testcase level.");
+            }
+
+            // Process test steps
+            JSONArray testSteps = jiraTestcaseJson.getJSONObject("testScript").getJSONArray("steps");
+            for (int j = 0; j < testSteps.length(); j++) {
+                JSONObject testStep = testSteps.getJSONObject(j);
+                String rallyTestStepOID = rallyOperation.createRallyTestStep(rallyTestcaseOID, testStep);
+                
+                // Upload test step file attachments to Rally
+                if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                    List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestStep(rallyTestStepOID, fileAttachmentDownloadPathsTestStepLevel);
+                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+                    // Validation for TestStep file attachments
+                    if (!testStepAttachmentOIDs.isEmpty()) {
+                        rallyOverallTestStepAttachmentsStatus = true;	
+                    } else {
+                        logger.error("The Jira teststep attachments are not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                        + " is not created in rally");
+                        return;
+                    }
+                }
+
+                // Upload embedded test step attachments to Rally
+                if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                    List<String> embeddedTestStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestStep(rallyTestStepOID, embeddedAttachmentDownloadPathsTestStepLevel);
+                    Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
+                    // Validation for TestStep embedded attachments
+                    if (!embeddedTestStepAttachmentOIDs.isEmpty()) {
+                        rallyOverallTestStepAttachmentsStatus = true;	
+                    } else {
+                        logger.error("The Jira embedded teststep attachments are not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                        + " is not created in rally");
+                        return;
+                    }
+                }
+            }
+
+            // Over all validation for Jira Testcase migration to Rally. US7440061: Create implementation for ValidateRallyTestcaseContent
+            if (rallyTestcaseCreationStatus == true && rallyOverallTestStepAttachmentsStatus == true ) {
+                /*
+                 * Needs to be added calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
+                 */
             }
         }
-        return response.toString();
     }
 }
-```
-
-### Explanation:
-
-1. **Configuration**:
-   - The `JiraOperation` constructor sets the `jiraBaseUrl` and `apiToken`. Replace the placeholder values with your actual Jira base URL and API token.
-
-2. **getJiraTestCaseDetails Method**:
-   - This method constructs the API URL using the Jira base URL and the test case key.
-   - It performs an HTTP GET request to retrieve the test case details from Jira.
-   - It reads the response and converts it to a JSON string.
-   - Finally, it converts the JSON string to an `org.json.JSONObject` and returns it.
-
-3. **getJiraResponse Method**:
-   - This is a helper method to perform the HTTP GET request and return the response as a string.
-   - It sets the necessary headers, including the authorization token.
-   - It handles the response and reads the content into a `StringBuilder`.
-   - If the request fails, it logs an error message with the response code.
-
-### Usage:
-
-With this updated `JiraOperation` class, the `getJiraTestCaseDetails` method will return an `org.json.JSONObject`, which can be used in your `RunnerClass.java` as demonstrated previously.
-
-Make sure to replace the placeholder values for `jiraBaseUrl` and `apiToken` with your actual Jira configuration details.
