@@ -1,3 +1,10 @@
+It looks like the `attachFilestoRallyTestcase` method in the `RallyOperation` class expects a `List<String>` of file paths, but we are trying to call it with a single `String` for each file path. We need to update the logic to ensure we are passing the correct arguments.
+
+Let's correct the code to pass the correct arguments.
+
+### `RunnerClass.java`
+**Updated Main Method with Correct Argument Passing:**
+```java
 package com.optum.coe.automation.rally;
 
 import java.io.IOException;
@@ -72,17 +79,33 @@ public class RunnerClass {
 
             // Upload test step attachments to Rally
             if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                for (String filePath : fileAttachmentDownloadPathsTestStepLevel) {
-                    rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, filePath);
-                }
+                List<String> stepAttachmentPaths = new ArrayList<>();
+                stepAttachmentPaths.addAll(fileAttachmentDownloadPathsTestStepLevel);
+                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, stepAttachmentPaths);
                 Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+                // Validation for Testcase file attachments
+                if (!testStepAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;	
+                } else {
+                    logger.error("The Jira teststep attachments are not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                    + " is not created in rally");
+                    return;
+                }
             }
 
             if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                for (String filePath : embeddedAttachmentDownloadPathsTestStepLevel) {
-                    rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, filePath);
-                }
+                List<String> stepEmbeddedAttachmentPaths = new ArrayList<>();
+                stepEmbeddedAttachmentPaths.addAll(embeddedAttachmentDownloadPathsTestStepLevel);
+                List<String> embeddedTestStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, stepEmbeddedAttachmentPaths);
                 Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
+                // Validation for Testcase embedded attachments
+                if (!embeddedTestStepAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;	
+                } else {
+                    logger.error("The Jira embedded teststep attachments are not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                    + " is not created in rally");
+                    return;
+                }
             }
 
             // Over all validation for Jira Testcase migration to Rally. US7440061: Create implementation for ValidateRallyTestcaseContent
@@ -94,3 +117,41 @@ public class RunnerClass {
         }
     }
 }
+```
+
+### `RallyOperation.java`
+**Method Definition for `attachFilestoRallyTestcase`:**
+```java
+public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
+    List<String> testcaseAttachmentOIDs = new ArrayList<String>();
+    RallyRestApi rallyApi = null;
+    try {
+        rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+    } catch (URISyntaxException e) {
+        logger.error("Rally Base URL has some syntax error.",e );
+    }
+    try {
+        for (String filePath : filePaths) {
+            try {
+                testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
+                logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
+            } catch (IOException e) {
+                testcaseAttachmentOIDs.clear();
+                logger.error("File " + filePath + " is not attached to Rally due to IO exception.",e );
+                return testcaseAttachmentOIDs;
+            }
+        }
+    } finally {
+        try {
+            rallyApi.close();
+        } catch (IOException e) {
+            logger.error("Ready API resource is not closed due to IO exception.",e );
+        }
+    }
+    return testcaseAttachmentOIDs;
+}
+```
+
+*Location: This method should be already present in the `RallyOperation.java` class.*
+
+These corrections ensure that the correct arguments are passed when calling the `attachFilestoRallyTestcase` method.
