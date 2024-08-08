@@ -79,6 +79,34 @@ public class Utils {
 		}
 
 	}
+    public static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) throws IOException {
+        // Check if the tag already exists
+        QueryRequest tagRequest = new QueryRequest("Tag");
+        tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
+        QueryResponse tagResponse = restApi.query(tagRequest);
+
+        if (tagResponse.getResults().size() > 0) {
+            return tagResponse.getResults().get(0).getAsJsonObject();
+        }
+
+        // If the tag doesn't exist, create it
+        JsonObject newTag = new JsonObject();
+        newTag.addProperty("Name", tagName);
+
+        CreateRequest createTagRequest = new CreateRequest("Tag", newTag);
+        CreateResponse createTagResponse = restApi.create(createTagRequest);
+
+        if (createTagResponse.wasSuccessful()) {
+            return createTagResponse.getObject();
+        } else {
+            System.out.println("Error occurred creating tag:");
+            for (String error : createTagResponse.getErrors()) {
+                System.out.println(error);
+            }
+            return null;
+        }
+    }
+	
 
 	/*
 	 * Check if the Jira folder structure is available in Rally a. If folder
