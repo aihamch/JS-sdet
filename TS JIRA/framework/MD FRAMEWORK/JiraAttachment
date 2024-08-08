@@ -1,0 +1,23 @@
+package com.optum.coe.automation.rally;
+
+//import org.apache.logging.log4j.LogManager;
+//import org.apache.logging.log4j.Logger;
+
+public class JiraAttachment {
+	
+	// Logger Initialization for JiraAttachment Class
+	//private static final Logger logger = LogManager.getLogger();
+	
+	private String fileName;
+	
+	
+	public void setFileName(String fileName) {
+		this.fileName = fileName;
+	}
+	
+	public String getFileName() {
+		return fileName;
+	}
+	
+	
+}
