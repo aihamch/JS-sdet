@@ -7,7 +7,7 @@ public class JiraAttachment {
 	
 	// Logger Initialization for JiraAttachment Class
 	//private static final Logger logger = LogManager.getLogger();
-	
+	private String url;
 	private String fileName;
 	
 	
@@ -17,6 +17,11 @@ public class JiraAttachment {
 	
 	public String getFileName() {
 		return fileName;
+	}
+	
+	
+	public String getUrl() {
+		return url;
 	}
 	
 	
