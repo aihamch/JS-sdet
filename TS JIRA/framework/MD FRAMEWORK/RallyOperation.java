@@ -198,14 +198,25 @@ public class RallyOperation {
         return testcaseAttachmentOIDs;
     }
 
+    // Method to upload files to Rally Test Case and return the Attachment OIDs
+    public List<String> uploadAttachmentsToTestCase(RallyRestApi rallyRestApi, String rallyTestCaseRef, List<String> filePaths) throws IOException {
+        List<String> attachmentOIDs = new ArrayList<>();
+        for (String filePath : filePaths) {
+            String attachmentOID = attachFileToRallyTestCase(rallyRestApi, rallyTestCaseRef, filePath);
+            if (attachmentOID != null) {
+                attachmentOIDs.add(attachmentOID);
+            }
+        }
+        return attachmentOIDs;
+    }
+
+    // Method to get the reference of a test step in Rally
     private String getTestStepRef(RallyRestApi rallyApi, String rallyTestCaseOID, int stepIndex) throws IOException {
-        // Create a query request for the "testcasestep" endpoint
         QueryRequest request = new QueryRequest("testcasestep");
         request.setQueryFilter(new QueryFilter("TestCase.ObjectID", "=", rallyTestCaseOID)
                 .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
         request.setFetch(new Fetch("ObjectID"));
 
-        // Execute the query and get the results
         QueryResponse response = rallyApi.query(request);
 
         if (response.wasSuccessful() && response.getTotalResultCount() > 0) {
@@ -217,10 +228,12 @@ public class RallyOperation {
         }
     }
 
+    // Method to attach a file to a Rally test step
     private void attachFileToRallyTestStep(RallyRestApi rallyApi, String testStepRef, String filePath) throws IOException {
         attachFile(rallyApi, testStepRef, filePath, "testcasestep");
     }
 
+    // Generic method to attach a file to a Rally object (e.g., testcase, testcasestep)
     private String attachFile(RallyRestApi rallyApi, String rallyObjectRef, String filePath, String attachmentType) throws IOException {
         File file = new File(filePath);
         if (!file.exists()) {
@@ -257,19 +270,31 @@ public class RallyOperation {
         }
     }
 
+    // Method to attach files to Rally Test Step
     public void attachFilesToTestStep(String rallyTestCaseOID, int stepIndex, List<String> filePaths) {
         RallyRestApi rallyApi = null;
         try {
             rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
             String testStepRef = getTestStepRef(rallyApi, rallyTestCaseOID, stepIndex);
-            for (String filePath : filePaths) {
-                try {
-                    attachFileToRallyTestStep(rallyApi, testStepRef, filePath);
-                    logger.info("File " + filePath + " is attached to the test step index " + stepIndex + " in Rally successfully");
-                } catch (IOException e) {
-                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
+            
+            // First upload attachments to the test case
+            List<String> attachmentOIDs = uploadAttachmentsToTestCase(rallyApi, rallyTestCaseOID, filePaths);
+
+            // Attach those uploaded attachments to the test step
+            for (String attachmentOID : attachmentOIDs) {
+                JsonObject newAttachment = new JsonObject();
+                newAttachment.addProperty("Artifact", testStepRef);
+                newAttachment.addProperty("Content", attachmentOID);
+                newAttachment.addProperty("TestStepIndex", stepIndex);
+
+                CreateRequest createRequest = new CreateRequest("Attachment", newAttachment);
+                CreateResponse createResponse = rallyApi.create(createRequest);
+
+                if (!createResponse.wasSuccessful()) {
+                    logger.error("Failed to link attachment to test step: " + createResponse.getErrors());
                 }
             }
+
         } catch (Exception e) {
             logger.error("Error while attaching files to Rally TestStep", e);
         } finally {
@@ -355,6 +380,7 @@ public class RallyOperation {
         return rallyAttachmentRefs;
     }
 
+    // Method to migrate test steps from JIRA to Rally
     public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi) {
         Collections.reverse(jiraTestSteps);
 
