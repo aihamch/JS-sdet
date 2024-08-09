@@ -1,205 +1,397 @@
-Jira Base URL - https://jira.healthcareit.net
-Jira Project Key CC2
-Max Chunk value - 1
-Test Case File Attachment Download location - C:attachments
-Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
-2024-08-09 13:23:26.250 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
-2024-08-09 13:23:27.295 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
-2024-08-09 13:23:27.301 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
-2024-08-09 13:23:27.304 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
-2024-08-09 13:23:27.521 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
-2024-08-09 13:23:27.522 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Testcase details for the keyCC2-T5: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
-2024-08-09 13:23:27.527 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
-2024-08-09 13:23:27.527 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
-Rally Base URL - https://rally1.rallydev.com
-Rally Project Reference 789325818991
-2024-08-09 13:23:27.902 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
-2024-08-09 13:23:28.291 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
-2024-08-09 13:23:28.402 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083883
-2024-08-09 13:23:28.513 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901
-2024-08-09 13:23:28.627 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431
-2024-08-09 13:23:28.629 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For is created successfully in Rally
-2024-08-09 13:23:29.375 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test case and the OID for created testcase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798974728777
-2024-08-09 13:23:29.376 [main] INFO  com.optum.coe.automation.rally.JiraOperation - URL String for testcase attachments: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5/attachments
-2024-08-09 13:23:29.518 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5/attachments
-2024-08-09 13:23:29.518 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Attachment URL is found for the testcase key CC2-T5; JSON body: [{"id":159795,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159795","filename":"1-Subs response.PNG","filesize":104467},{"id":159794,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159794","filename":"3-Dependet form in blank.PNG","filesize":65259},{"id":159793,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159793","filename":"2-Authorizations Referral Submission form_Requesting and Service Provider.PNG","filesize":74654},{"id":159791,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159791","filename":"2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG","filesize":74294},{"id":159792,"url":"https://jira.healthcareit.net/rest/tests/1.0/attachment/159792","filename":"2-Authorizations Referral Submission form_General Information.PNG","filesize":81068}]
-2024-08-09 13:23:29.634 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159791
-2024-08-09 13:23:29.654 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG
-2024-08-09 13:23:29.741 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159792
-2024-08-09 13:23:29.765 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_General Information.PNG
-2024-08-09 13:23:29.906 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159793
-2024-08-09 13:23:29.931 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:2-Authorizations Referral Submission form_Requesting and Service Provider.PNG
-2024-08-09 13:23:30.146 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159794
-2024-08-09 13:23:30.157 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:3-Dependet form in blank.PNG
-2024-08-09 13:23:30.246 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/tests/1.0/attachment/159795
-2024-08-09 13:23:30.269 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to tcAttachmentDownloadLocation. File Name:1-Subs response.PNG
-2024-08-09 13:23:30.269 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Attachment paths are found in the list.
-2024-08-09 13:23:30.846 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to upload attachment: C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG
-2024-08-09 13:23:30.846 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "iVBOCCGEEEIIIcGlhv4/R61yH8RjGSkAAAAASUVORK5CYII="
-2024-08-09 13:23:30.848 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798974728777 in Rally successfully
-2024-08-09 13:23:31.064 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to upload attachment: C:attachments/2-Authorizations Referral Submission form_General Information.PNG
-2024-08-09 13:23:31.065 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "iVBORw0KGgoAAAANSUhEUgAAB"
-2024-08-09 13:23:31.066 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_General Information.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798974728777 in Rally successfully
-2024-08-09 13:23:31.285 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to upload attachment: C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG
-2024-08-09 13:23:31.286 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "iVBO"
-2024-08-09 13:23:31.288 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798974728777 in Rally successfully
-2024-08-09 13:23:31.492 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to upload attachment: C:attachments/3-Dependet form in blank.PNG
-2024-08-09 13:23:31.492 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "i68Lz1KBRPTV++bp3796Dk/5fGq6QqSfC"
-2024-08-09 13:23:31.492 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/3-Dependet form in blank.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798974728777 in Rally successfully
-2024-08-09 13:23:31.912 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to upload attachment: C:attachments/1-Subs response.PNG
-2024-08-09 13:23:31.913 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "wK+H+Be3YcicF4YwAAAABJRU5ErkJggg=="
-2024-08-09 13:23:31.913 [main] INFO  com.optum.coe.automation.rally.RallyOperation - File C:attachments/1-Subs response.PNG is attached for the testcase OID https://rally1.rallydev.com/slm/webservice/v2.0/testcase/798974728777 in Rally successfully
-2024-08-09 13:23:31.914 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Subscriverand Dependen section.PNG is deleted for next attachment download run.
-2024-08-09 13:23:31.915 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_General Information.PNG is deleted for next attachment download run.
-2024-08-09 13:23:31.915 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/2-Authorizations Referral Submission form_Requesting and Service Provider.PNG is deleted for next attachment download run.
-2024-08-09 13:23:31.916 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/3-Dependet form in blank.PNG is deleted for next attachment download run.
-2024-08-09 13:23:31.916 [main] INFO  com.optum.coe.automation.rally.Utils - The file C:attachments/1-Subs response.PNG is deleted for next attachment download run.
-2024-08-09 13:23:31.932 [main] WARN  com.optum.coe.automation.rally.JiraOperation - No attachments found for the test step.
-2024-08-09 13:23:32.258 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: enter required data for Subscriber request<br />then SUBMIT
-2024-08-09 13:23:32.258 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: 647cf2fe-3fca-4734-bec3-20a959a23322
-2024-08-09 13:23:32.258 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: bb8d3405-5eb1-4fce-a27c-22cba75dccb4
-2024-08-09 13:23:32.481 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src="../rest/tests/1.0/attachment/image/500134" style="width:300px" class="fr-fic fr-fil fr-dib" />
-2024-08-09 13:23:32.481 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: f03dbd34-98dc-4107-9163-a351e33a2f4b
-2024-08-09 13:23:32.481 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: 5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c
-2024-08-09 13:23:32.687 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Validate "Patient Information" column has the same data as "Subscriber Information" column.<br />Validate: Relationship field should have "Self" value
-2024-08-09 13:23:32.687 [main] WARN  com.optum.coe.automation.rally.JiraOperation - No attachments found for the test step.
-2024-08-09 13:23:32.886 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step: Select "Authorization/Referral Submission" from dropdown in the Demographic Information, then click "USE MEMBER FOR" button<br /><img src="../rest/tests/1.0/attachment/image/500125" style="width:300px" class="fr-fic fr-fil fr-dib" /><br /><img style="width:300px" class="fr-fic fr-fil fr-dib" /><br />
-2024-08-09 13:23:32.886 [main] WARN  com.optum.coe.automation.rally.JiraOperation - No attachments found for the test step.
-2024-08-09 13:23:32.886 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500118
-2024-08-09 13:23:32.887 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500118 to: null/downloaded_1723224212887_500118
-2024-08-09 13:23:32.887 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500118
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500118
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.891 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500120
-2024-08-09 13:23:32.891 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500120 to: null/downloaded_1723224212891_500120
-2024-08-09 13:23:32.891 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500120
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500120
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.893 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: 647cf2fe-3fca-4734-bec3-20a959a23322
-2024-08-09 13:23:32.893 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: bb8d3405-5eb1-4fce-a27c-22cba75dccb4
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500134
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500134 to: null/downloaded_1723224212893_500134
-2024-08-09 13:23:32.893 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500134
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500134
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500128
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500128 to: null/downloaded_1723224212893_500128
-2024-08-09 13:23:32.893 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500128
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500128
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500127
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500127 to: null/downloaded_1723224212893_500127
-2024-08-09 13:23:32.893 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500127
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500127
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500129
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500129 to: null/downloaded_1723224212893_500129
-2024-08-09 13:23:32.893 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500129
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500129
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500130
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500130 to: null/downloaded_1723224212893_500130
-2024-08-09 13:23:32.893 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500130
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500130
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.893 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: f03dbd34-98dc-4107-9163-a351e33a2f4b
-2024-08-09 13:23:32.893 [main] WARN  com.optum.coe.automation.rally.JiraOperation - Download URL is null or empty for attachment: 5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500131
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500131 to: null/downloaded_1723224212893_500131
-2024-08-09 13:23:32.893 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500131
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500131
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.893 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500132
-2024-08-09 13:23:32.894 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500132 to: null/downloaded_1723224212894_500132
-2024-08-09 13:23:32.894 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500132
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500132
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.894 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500121
-2024-08-09 13:23:32.894 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500121 to: null/downloaded_1723224212894_500121
-2024-08-09 13:23:32.894 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500121
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500121
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.894 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500119
-2024-08-09 13:23:32.894 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500119 to: null/downloaded_1723224212894_500119
-2024-08-09 13:23:32.894 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500119
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500119
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.894 [main] WARN  com.optum.coe.automation.rally.JiraOperation - No attachments found for the test step.
-2024-08-09 13:23:32.894 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download image from URL: ../rest/tests/1.0/attachment/image/500125
-2024-08-09 13:23:32.894 [main] DEBUG com.optum.coe.automation.rally.JiraOperation - Attempting to download file from URL: ../rest/tests/1.0/attachment/image/500125 to: null/downloaded_1723224212894_500125
-2024-08-09 13:23:32.894 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Failed to download embedded image from URL: ../rest/tests/1.0/attachment/image/500125
-java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500125
-	at java.base/java.net.URL.<init>(URL.java:674) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:569) ~[?:?]
-	at java.base/java.net.URL.<init>(URL.java:516) ~[?:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadFileFromURL(JiraOperation.java:172) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadImage(JiraOperation.java:296) ~[classes/:?]
-	at com.optum.coe.automation.rally.JiraOperation.downloadEmbeddedImages(JiraOperation.java:278) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:74) [classes/:?]
-2024-08-09 13:23:32.894 [main] ERROR com.optum.coe.automation.rally.RunnerClass - The Jira testcase is not created in rally. Jira Testcase key CC2-T5 is not created in rally
+package com.optum.coe.automation.rally;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.util.Fetch;
+import com.rallydev.rest.util.QueryFilter;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.QueryResponse;
+
+public class RallyOperation {
+
+    private String rallyBaseURL;
+    private String rallyApiKey;
+    private String rallyProjectKey;
+    private String rallyUser;
+    private static final Logger logger = LogManager.getLogger();
+
+    public RallyOperation() {
+        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
+        rallyUser = ConfigLoader.getConfigValue("RALLY_USER_REF");
+        logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
+        logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL + "\nRally Project Reference " + rallyProjectKey);
+    }
+
+    public String createRallyTestcase(JsonObject jiraJson) throws IOException {
+        String rallyTestCaseOID = null;
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", rallyProjectKey);
+
+        JsonObject testCase = new JsonObject();
+
+        // Safely retrieve the name element, with a fallback default name
+        String name = Utils.getJsonString(jiraJson, "name");
+        if (name.isEmpty()) {
+            name = "Default Test Case Name - No TestCase name found in Jira";
+        }
+        testCase.addProperty("Name", name);
+
+        testCase.addProperty("Method", "Manual");
+
+        // Safely retrieve the priority element, with a fallback default priority
+        String priority = Utils.getJsonString(jiraJson, "priority");
+        if (priority.equalsIgnoreCase("Normal")) {
+            priority = "Useful";
+        } else if (priority.isEmpty()) {
+            priority = "Default Priority";
+        }
+        testCase.addProperty("Priority", priority);
+
+        testCase.addProperty("Owner", "/user/" + rallyUser);
+
+        // Safely retrieve the status element, with a fallback ready status
+        String status = Utils.getJsonString(jiraJson, "status");
+        testCase.addProperty("Ready", status.equals("Ready"));
+
+        // Handle labels/tags
+        JsonArray tagsArray = new JsonArray();
+        if (jiraJson.has("labels")) {
+            JsonArray labelsArray = jiraJson.getAsJsonArray("labels");
+            RallyRestApi restApi = null;
+            try {
+                restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+                for (JsonElement labelElement : labelsArray) {
+                    String label = labelElement.getAsString();
+                    JsonObject tag = Utils.findOrCreateTag(restApi, label);
+                    if (tag != null) {
+                        tagsArray.add(tag);
+                    }
+                }
+            } catch (URISyntaxException e) {
+                logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
+            } finally {
+                if (restApi != null) {
+                    restApi.close();
+                }
+            }
+            testCase.add("Tags", tagsArray);
+        }
+
+        // Handle folder creation
+        String folderPath = Utils.getJsonString(jiraJson, "folder");
+        if (!folderPath.isEmpty()) {
+            String[] folderHierarchy = folderPath.split("/");
+            JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey, rallyBaseURL, rallyApiKey);
+            if (testFolder == null) {
+                logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
+                return rallyTestCaseOID;
+            } else {
+                rallyJson.add("TestFolder", testFolder);
+                logger.info("Folder " + folderPath + " is created successfully in Rally");
+            }
+        }
+
+        rallyJson.add("testCase", testCase);
+        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+            JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+            JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", rallyProjectKey);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+            if (testCaseData.has("Tags")) {
+                newTestCase.add("Tags", testCaseData.getAsJsonArray("Tags"));
+            }
+
+            if (testFolderData != null) {
+                String testFolderRef = testFolderData.get("_ref").getAsString();
+                newTestCase.addProperty("TestFolder", testFolderRef);
+            }
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
+                logger.info("Successfully created test case and the OID for created testcase: " + rallyTestCaseOID);
+            } else {
+                logger.error("Error occurred creating test case");
+                for (String error : createResponse.getErrors()) {
+                    logger.error(error);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Exception while creating Rally test case", e);
+        } finally {
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                } catch (IOException e) {
+                    logger.error("Error occurred while closing RallyRestApi", e);
+                }
+            }
+        }
+
+        return rallyTestCaseOID;
+    }
+
+    public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
+        List<String> testcaseAttachmentOIDs = new ArrayList<>();
+        RallyRestApi rallyApi = null;
+        try {
+            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            for (String filePath : filePaths) {
+                try {
+                    testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
+                    logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
+                } catch (IOException e) {
+                    testcaseAttachmentOIDs.clear();
+                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
+                    return testcaseAttachmentOIDs;
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error while attaching files to Rally TestCase", e);
+        } finally {
+            try {
+                if (rallyApi != null) {
+                    rallyApi.close();
+                }
+            } catch (IOException e) {
+                logger.error("Rally API resource is not closed due to IO exception.", e);
+            }
+        }
+        return testcaseAttachmentOIDs;
+    }
+
+    private String getTestStepRef(RallyRestApi rallyApi, String rallyTestCaseOID, int stepIndex) throws IOException {
+        // Create a query request for the "testcasestep" endpoint
+        QueryRequest request = new QueryRequest("testcasestep");
+        request.setQueryFilter(new QueryFilter("TestCase.ObjectID", "=", rallyTestCaseOID)
+                .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
+        request.setFetch(new Fetch("ObjectID"));
+
+        // Execute the query and get the results
+        QueryResponse response = rallyApi.query(request);
+
+        if (response.wasSuccessful() && response.getTotalResultCount() > 0) {
+            JsonObject queryResult = response.getResults().get(0).getAsJsonObject();
+            return queryResult.get("_ref").getAsString();
+        } else {
+            logger.error("Test step not found for TestCase OID: " + rallyTestCaseOID + " and StepIndex: " + stepIndex);
+            throw new IOException("Test step not found");
+        }
+    }
+
+    private void attachFileToRallyTestStep(RallyRestApi rallyApi, String testStepRef, String filePath) throws IOException {
+        attachFile(rallyApi, testStepRef, filePath, "testcasestep");
+    }
+
+    private String attachFile(RallyRestApi rallyApi, String rallyObjectRef, String filePath, String attachmentType) throws IOException {
+        File file = new File(filePath);
+        String base64EncodedContent = Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath()));
+
+        JsonObject attachmentContent = new JsonObject();
+        attachmentContent.addProperty("Content", base64EncodedContent);
+        CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
+        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+        String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+
+        JsonObject attachment = new JsonObject();
+        attachment.addProperty("Artifact", rallyObjectRef);
+        attachment.addProperty("Content", attachmentContentRef);
+        attachment.addProperty("Name", file.getName());
+        attachment.addProperty("ContentType", Files.probeContentType(file.toPath()));
+        attachment.addProperty("Size", file.length());
+
+        CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+        CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+        return attachmentResponse.getObject().get("_ref").getAsString();
+    }
+
+    // attachFilesToTestStep
+    public void attachFilesToTestStep(String rallyTestCaseOID, int stepIndex, List<String> filePaths) {
+        RallyRestApi rallyApi = null;
+        try {
+            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            String testStepRef = getTestStepRef(rallyApi, rallyTestCaseOID, stepIndex);
+            for (String filePath : filePaths) {
+                try {
+                    attachFileToRallyTestStep(rallyApi, testStepRef, filePath);
+                    logger.info("File " + filePath + " is attached to the test step index " + stepIndex + " in Rally successfully");
+                } catch (IOException e) {
+                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error while attaching files to Rally TestStep", e);
+        } finally {
+            try {
+                if (rallyApi != null) {
+                    rallyApi.close();
+                }
+            } catch (IOException e) {
+                logger.error("Rally API resource is not closed due to IO exception.", e);
+            }
+        }
+    }
+
+    // Method to attach files to Rally Test Case
+    public String attachFileToRallyTestCase(RallyRestApi rallyRestApi, String rallyTestCaseRef, String filePath) throws IOException {
+        String attachmentOID = null;
+        File file = new File(filePath);
+        if (!file.exists()) {
+            logger.error("File not found: " + filePath);
+            return null;
+        }
+
+        long fileSize = file.length();
+        if (fileSize > 5 * 1024 * 1024) {
+            logger.error("File too large to upload: " + filePath);
+            return null;
+        }
+
+        byte[] fileContent = Files.readAllBytes(file.toPath());
+        String base64Content = Base64.getEncoder().encodeToString(fileContent);
+
+        JsonObject attachmentContent = new JsonObject();
+        attachmentContent.addProperty("TestCase", rallyTestCaseRef);
+        attachmentContent.addProperty("Name", file.getName());
+        attachmentContent.addProperty("Description", "Attachment for Test Case");
+        attachmentContent.addProperty("Content", base64Content);
+
+        CreateRequest createRequest = new CreateRequest("Attachment", attachmentContent);
+        CreateResponse createResponse = rallyRestApi.create(createRequest);
+
+        if (createResponse.wasSuccessful()) {
+            attachmentOID = createResponse.getObject().get("_ref").getAsString();
+            logger.info("Successfully uploaded attachment: " + filePath);
+        } else {
+            logger.error("Failed to upload attachment: " + filePath);
+            for (String error : createResponse.getErrors()) {
+                logger.error(error);
+            }
+        }
+
+        return attachmentOID;
+    }
+
+    public List<String> uploadAttachmentsToRally(List<String> attachmentPaths, RallyRestApi rallyRestApi, String rallyTestCaseRef) {
+        List<String> rallyAttachmentRefs = new ArrayList<>();
+
+        for (String filePath : attachmentPaths) {
+            try {
+                String attachmentRef = attachFileToRallyTestCase(rallyRestApi, rallyTestCaseRef, filePath);
+                rallyAttachmentRefs.add(attachmentRef);
+                logger.info("File " + filePath + " uploaded successfully to Rally.");
+            } catch (IOException e) {
+                logger.error("Failed to upload attachment: " + filePath, e);
+            }
+        }
+
+        return rallyAttachmentRefs;
+    }
+
+    // Method to migrate test steps from JIRA to Rally
+    public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi) {
+        Collections.reverse(jiraTestSteps);
+
+        for (JiraTestStep step : jiraTestSteps) {
+            try {
+                JsonObject newTestStep = new JsonObject();
+                newTestStep.addProperty("TestCase", rallyTestCaseRef);
+                newTestStep.addProperty("StepIndex", step.getIndex());
+                newTestStep.addProperty("Input", step.getDescription());
+                newTestStep.addProperty("ExpectedResult", step.getExpectedResult());
+                newTestStep.addProperty("TestData", step.getTestData());
+
+                // Handle attachments
+                List<String> attachmentPaths = JiraOperation.downloadStepAttachments(step); // assuming jiraOperation is an instance of JiraOperation class
+                List<String> rallyAttachmentRefs = uploadAttachmentsToRally(attachmentPaths, rallyRestApi, rallyTestCaseRef);
+
+                if (!rallyAttachmentRefs.isEmpty()) {
+                    JsonArray attachmentsArray = new JsonArray();
+                    for (String attachmentRef : rallyAttachmentRefs) {
+                        JsonObject attachmentObj = new JsonObject();
+                        attachmentObj.addProperty("_ref", attachmentRef);
+                        attachmentsArray.add(attachmentObj);
+                    }
+                    newTestStep.add("Attachments", attachmentsArray);
+                }
+
+                CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
+                CreateResponse createResponse = rallyRestApi.create(createRequest);
+
+                if (createResponse.wasSuccessful()) {
+                    logger.info("Successfully created test step: " + step.getDescription());
+                } else {
+                    logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + createResponse.getErrors());
+                }
+            } catch (Exception e) {
+                logger.error("Exception while creating test step: " + step.getDescription(), e);
+            }
+        }
+    }
+
+    // New Method to download and attach embedded images from JIRA
+    public void handleEmbeddedImages(JiraTestStep step, String rallyTestCaseRef, int stepIndex) {
+        List<String> embeddedImageUrls = step.getEmbeddedImageUrls();
+        RallyRestApi rallyApi = null;
+        try {
+            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            String testStepRef = getTestStepRef(rallyApi, rallyTestCaseRef, stepIndex);
+
+            for (String imageUrl : embeddedImageUrls) {
+                String filePath = Utils.downloadFileFromUrl(imageUrl, "C:attachments");  // Assuming the download location is the same
+                attachFileToRallyTestStep(rallyApi, testStepRef, filePath);
+                logger.info("Embedded image " + imageUrl + " attached to the test step index " + stepIndex + " in Rally successfully");
+            }
+        } catch (Exception e) {
+            logger.error("Error while attaching embedded images to Rally TestStep", e);
+        } finally {
+            try {
+                if (rallyApi != null) {
+                    rallyApi.close();
+                }
+            } catch (IOException e) {
+                logger.error("Rally API resource is not closed due to IO exception.", e);
+            }
+        }
+    }
+}
