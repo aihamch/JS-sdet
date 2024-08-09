@@ -1,18 +1,298 @@
-private String getTestStepRef(RallyRestApi rallyApi, String rallyTestCaseOID, int stepIndex) throws IOException {
-    // Create a query request for the "testcasestep" endpoint
-    QueryRequest request = new QueryRequest("testcasestep");
-    request.setQueryFilter(new QueryFilter("TestCase.ObjectID", "=", rallyTestCaseOID)
-            .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
-    request.setFetch(new Fetch("ObjectID"));
+Based on the provided code snippets, configuration files, and error logs, I'll guide you through the necessary updates to fix the issues and ensure the correct migration of attachments and embedded images from Jira to Rally.
 
-    // Execute the query and get the results
-    QueryResponse response = rallyApi.query(request);
-    
-    if (response.wasSuccessful() && response.getTotalResultCount() > 0) {
-        JsonObject queryResult = response.getResults().get(0).getAsJsonObject();
-        return queryResult.get("_ref").getAsString();
-    } else {
-        logger.error("Test step not found for TestCase OID: " + rallyTestCaseOID + " and StepIndex: " + stepIndex);
-        throw new IOException("Test step not found");
+### 1. **JiraOperation.java** - Update for Downloading Step Attachments and Embedded Images
+
+We'll modify the `downloadStepAttachments` and `downloadEmbeddedImages` methods to handle the URLs and paths correctly:
+
+```java
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.commons.io.IOUtils;
+import org.apache.log4j.Logger;
+
+public class JiraOperation {
+    private static final Logger logger = Logger.getLogger(JiraOperation.class);
+
+    private String tsFileAttachmentDownloadLocation = "C:/Users/aalchala/Documents/Thina/RallyMigration/attachments/TestStep_Attachments";
+    private String tsEmbeddedAttachmentDownloadLocation = "C:/Users/aalchala/Documents/Thina/RallyMigration/attachments/TestStep_Embedded_Attachments";
+
+    public List<String> downloadStepAttachments(JiraTestStep step) {
+        List<String> attachmentPaths = new ArrayList<>();
+        List<JiraAttachment> attachments = step.getAttachments();
+
+        if (attachments != null) {
+            for (JiraAttachment attachment : attachments) {
+                try {
+                    String downloadUrl = attachment.getUrl();
+                    String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
+                    downloadFileFromURL(downloadUrl, localPath);
+                    attachmentPaths.add(localPath);
+                } catch (IOException e) {
+                    logger.error("Failed to download attachment: " + attachment.getFileName(), e);
+                }
+            }
+        }
+
+        return attachmentPaths;
+    }
+
+    public List<String> downloadEmbeddedImages(JiraTestStep step) {
+        List<String> embeddedImagePaths = new ArrayList<>();
+        List<String> imageUrls = step.getEmbeddedImageUrls();
+
+        if (imageUrls != null) {
+            for (String imageUrl : imageUrls) {
+                try {
+                    String imagePath = downloadImage(imageUrl);
+                    embeddedImagePaths.add(imagePath);
+                } catch (IOException e) {
+                    logger.error("Failed to download embedded image from URL: " + imageUrl, e);
+                }
+            }
+        }
+
+        return embeddedImagePaths;
+    }
+
+    private void downloadFileFromURL(String fileURL, String destinationFile) throws IOException {
+        URL url = new URL(fileURL);
+        try (FileOutputStream fos = new FileOutputStream(destinationFile)) {
+            IOUtils.copy(url.openStream(), fos);
+        }
+    }
+
+    private String downloadImage(String imageUrl) throws IOException {
+        String fileName = "downloaded_" + System.currentTimeMillis() + "_" + imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
+        String localPath = tsEmbeddedAttachmentDownloadLocation + "/" + fileName;
+        downloadFileFromURL(imageUrl, localPath);
+        return localPath;
     }
 }
+```
+
+### 2. **RallyOperation.java** - Handling Attachment Uploads
+
+Next, we will refine the methods that handle file uploads to Rally. Here’s an update to the relevant methods:
+
+```java
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.util.Fetch;
+import com.rallydev.rest.util.QueryFilter;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import org.apache.log4j.Logger;
+
+public class RallyOperation {
+
+    private static final Logger logger = Logger.getLogger(RallyOperation.class);
+    private String rallyBaseURL;
+    private String rallyApiKey;
+
+    public RallyOperation(String rallyBaseURL, String rallyApiKey) {
+        this.rallyBaseURL = rallyBaseURL;
+        this.rallyApiKey = rallyApiKey;
+    }
+
+    public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
+        List<String> testcaseAttachmentOIDs = new ArrayList<>();
+        RallyRestApi rallyApi = null;
+        try {
+            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            for (String filePath : filePaths) {
+                try {
+                    String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
+                    if (attachmentOID != null) {
+                        testcaseAttachmentOIDs.add(attachmentOID);
+                    }
+                } catch (IOException e) {
+                    logger.error("Failed to upload attachment: " + filePath, e);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error while attaching files to Rally TestCase", e);
+        } finally {
+            try {
+                if (rallyApi != null) rallyApi.close();
+            } catch (IOException e) {
+                logger.error("Rally API resource is not closed due to IO exception.", e);
+            }
+        }
+        return testcaseAttachmentOIDs;
+    }
+
+    public void attachFilesToTestStep(String rallyTestCaseOID, int stepIndex, List<String> filePaths) {
+        RallyRestApi rallyApi = null;
+        try {
+            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+            String testStepRef = getTestStepRef(rallyApi, rallyTestCaseOID, stepIndex);
+            for (String filePath : filePaths) {
+                try {
+                    attachFileToRallyTestStep(rallyApi, testStepRef, filePath);
+                } catch (IOException e) {
+                    logger.error("Failed to upload attachment to test step: " + filePath, e);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error while attaching files to Rally TestStep", e);
+        } finally {
+            try {
+                if (rallyApi != null) rallyApi.close();
+            } catch (IOException e) {
+                logger.error("Rally API resource is not closed due to IO exception.", e);
+            }
+        }
+    }
+
+    private String getTestStepRef(RallyRestApi rallyApi, String rallyTestCaseOID, int stepIndex) throws IOException {
+        QueryFilter filter = new QueryFilter("TestCase.ObjectID", "=", rallyTestCaseOID)
+                .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex)));
+        Fetch fetch = new Fetch("ObjectID");
+        JsonObject queryResponse = rallyApi.query("testcasestep", filter, fetch).getResults().get(0).getAsJsonObject();
+        return queryResponse.get("_ref").getAsString();
+    }
+
+    private String attachFileToRallyTestCase(RallyRestApi rallyApi, String rallyTestCaseOID, String filePath) throws IOException {
+        return attachFile(rallyApi, rallyTestCaseOID, filePath, "testcase");
+    }
+
+    private void attachFileToRallyTestStep(RallyRestApi rallyApi, String testStepRef, String filePath) throws IOException {
+        attachFile(rallyApi, testStepRef, filePath, "testcasestep");
+    }
+
+    private String attachFile(RallyRestApi rallyApi, String rallyObjectRef, String filePath, String attachmentType) throws IOException {
+        File file = new File(filePath);
+        String base64EncodedContent = Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath()));
+
+        JsonObject attachmentContent = new JsonObject();
+        attachmentContent.addProperty("Content", base64EncodedContent);
+        CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
+        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+        String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+
+        JsonObject attachment = new JsonObject();
+        attachment.addProperty("Artifact", rallyObjectRef);
+        attachment.addProperty("Content", attachmentContentRef);
+        attachment.addProperty("Name", file.getName());
+        attachment.addProperty("ContentType", Files.probeContentType(file.toPath()));
+        attachment.addProperty("Size", file.length());
+
+        CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+        CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+        return attachmentResponse.getObject().get("_ref").getAsString();
+    }
+}
+```
+
+### 3. **RunnerClass.java** - Ensure Correct Invocation
+
+In `RunnerClass.java`, ensure that the new methods are correctly invoked as per your framework's flow:
+
+```java
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+
+public class RunnerClass {
+    private static final Logger logger = LogManager.getLogger();
+
+    public static void main(String[] args) {
+        try {
+            Gson gson = new Gson();
+            JiraTestCase jiraTestCase = new JiraTestCase();
+            JiraOperation jiraOperation = new JiraOperation();
+            ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+
+            String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+            String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+            RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
+
+            for (String testcaseKey : testcaseKeys) {
+                boolean rallyTestcaseCreationStatus = false;
+                boolean rallyOverallTest
+
+StepAttachmentsStatus = false;
+                jiraTestCase.setKey(testcaseKey);
+                logger.info("Processing " + jiraTestCase.getKey());
+                JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+                RallyOperation rallyOperation = new RallyOperation(rallyUrl, rallyApiKey);
+                String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+
+                if (rallyTestcaseOID != null) {
+                    rallyTestcaseCreationStatus = true;
+                } else {
+                    logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                    break;
+                }
+
+                List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+                if (fileAttachmentDownloadPathsTestcaseLevel != null) {
+                    List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                    if (testcaseAttachmentOIDs.isEmpty()) {
+                        logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+                        return;
+                    }
+                } else {
+                    logger.info("No Attachment path found for Testcase level.");
+                }
+
+                JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+                List<JiraTestStep> testSteps = new ArrayList<>();
+
+                for (JsonElement element : stepsArray) {
+                    JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+                    testSteps.add(step);
+                }
+
+                rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi);
+
+                for (JiraTestStep step : testSteps) {
+                    List<String> stepAttachmentPaths = jiraOperation.downloadStepAttachments(step);
+                    List<String> embeddedImages = jiraOperation.downloadEmbeddedImages(step);
+                    stepAttachmentPaths.addAll(embeddedImages);
+
+                    if (!stepAttachmentPaths.isEmpty()) {
+                        rallyOperation.attachFilesToTestStep(rallyTestcaseOID, step.getIndex(), stepAttachmentPaths);
+                        Utils.deleteAttachmentFileFromLocal(stepAttachmentPaths);
+                    }
+                }
+
+                if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                    System.out.println("Rally Testcase Creation Status is true");
+                } else {
+                    logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error occurred during the migration process", e);
+        }
+    }
+}
+```
+
+### Summary of Updates
+- **JiraOperation.java:** Implemented `downloadStepAttachments` and `downloadEmbeddedImages`.
+- **RallyOperation.java:** Implemented `attachFilestoRallyTestcase`, `attachFilesToTestStep`, and methods to handle Rally API calls.
+- **RunnerClass.java:** Updated to correctly use these methods during the migration process.
+
+These changes should address the issues seen in your logs and improve the attachment and image handling between Jira and Rally.
