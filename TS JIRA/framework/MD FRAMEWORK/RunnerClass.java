@@ -50,7 +50,7 @@ public class RunnerClass {
                     Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
 
                     if (testcaseAttachmentOIDs.isEmpty()) {
-                        logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+                        logger.error("The Jira testcase is not created in Rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in Rally.");
                         return;
                     }
                 } else {
@@ -70,20 +70,21 @@ public class RunnerClass {
 
                 // Download and upload attachments for each test step
                 for (JiraTestStep step : testSteps) {
-                    List<String> stepAttachmentPaths = jiraOperation.downloadStepAttachments(step);
+                    List<String> stepAttachmentPaths = JiraOperation.downloadStepAttachments(step);
                     List<String> embeddedImages = jiraOperation.downloadEmbeddedImages(step);
                     stepAttachmentPaths.addAll(embeddedImages);
 
                     if (!stepAttachmentPaths.isEmpty()) {
+                        // Correct method usage for attaching files to Rally Test Step
                         rallyOperation.attachFilesToTestStep(rallyTestcaseOID, step.getIndex(), stepAttachmentPaths);
                         Utils.deleteAttachmentFileFromLocal(stepAttachmentPaths);
                     }
                 }
 
                 if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                    System.out.println("Rally Testcase Creation Status is true");
+                    logger.info("Rally Testcase Creation Status is true");
                 } else {
-                    logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+                    logger.error("The Jira testcase is not created in Rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in Rally.");
                 }
             }
         } catch (Exception e) {
