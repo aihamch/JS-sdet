@@ -1,45 +1,12 @@
-public String createRallyTestcase(JsonObject testCaseJson) {
-    String rallyTestCaseOID = null;
-    RallyRestApi restApi = null;
-
-    try {
-        // Open Rally API connection and set the application name
-        restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-        restApi.setApplicationName("RallyMigrationApp");
-
-        // Example: Converting the Owner field to Rally's expected format (assuming the field exists)
-        if (testCaseJson.has("Owner")) {
-            String owner = testCaseJson.get("Owner").getAsString();
-            // Convert owner to Rally reference URL, or use some mapping if applicable
-            // Example: testCaseJson.addProperty("Owner", "/user/12345678"); // Replace with actual reference
-        }
-
-        // Create a request to create a new test case in Rally
-        CreateRequest createRequest = new CreateRequest("testcase", testCaseJson);
-        CreateResponse createResponse = restApi.create(createRequest);
-
-        // Check if the Rally testcase creation is successful and return the created Test case OID
-        if (createResponse.wasSuccessful()) {
-            rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
-            logger.info("Successfully created test case and the OID for created testcase: " + rallyTestCaseOID);
-        } else {
-            logger.error("Error occurred creating test case in Rally.");
-            for (String error : createResponse.getErrors()) {
-                logger.error(error);
-            }
-        }
-
-    } catch (Exception e) {
-        logger.error("Exception occurred while creating test case in Rally: ", e);
-    } finally {
-        if (restApi != null) {
-            try {
-                restApi.close();
-            } catch (IOException e) {
-                logger.error("Exception occurred while closing Rally REST API: ", e);
-            }
-        }
-    }
-
-    return rallyTestCaseOID;
-}
+Jira Project Key CC2
+Max Chunk value - 1
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-09 19:33:52.154 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:33:53.121 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:33:53.127 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-09 19:33:53.130 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-09 19:33:53.369 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key _UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk are assigned from rally_migration_config.properties file
+2024-08-09 19:33:53.785 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error occurred creating test case in Rally.
+2024-08-09 19:33:53.785 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "JIRAUSER74201"
+2024-08-09 19:33:53.787 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
