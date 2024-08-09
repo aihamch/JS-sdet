@@ -1,71 +1,61 @@
-Here is the full `JiraAttachment.java` class, which represents an attachment associated with a Jira test case or test step:
+public List<JiraTestStep> getTestStepsForTestCase(String testCaseKey) {
+    List<JiraTestStep> testSteps = new ArrayList<>();
 
-```java
-package com.optum.coe.automation.rally;
+    try {
+        // Construct the URL to retrieve the test case details, including test steps
+        String urlString = jiraBaseURL + "/rest/atm/1.0/testcase/" + testCaseKey;
+        HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Authorization", "Bearer " + jiraApiKey);
+        connection.setRequestProperty("Content-Type", "application/json");
 
-public class JiraAttachment {
-    
-    private String id;
-    private String filename;
-    private String url;
+        int responseCode = connection.getResponseCode();
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                response.append(inputLine);
+            }
+            in.close();
 
-    public JiraAttachment(String id, String filename, String url) {
-        this.id = id;
-        this.filename = filename;
-        this.url = url;
+            JSONObject jiraTestCase = new JSONObject(response.toString());
+            JSONArray stepsArray = jiraTestCase.getJSONObject("testScript").getJSONArray("steps");
+
+            for (int i = 0; i < stepsArray.length(); i++) {
+                JSONObject stepObject = stepsArray.getJSONObject(i);
+
+                JiraTestStep testStep = new JiraTestStep();
+                testStep.setId(stepObject.getInt("id"));
+                testStep.setDescription(stepObject.getString("description"));
+                testStep.setExpectedResult(stepObject.getString("expectedResult"));
+                testStep.setIndex(stepObject.getInt("index"));
+                testStep.setTestData(stepObject.optString("testData", ""));
+
+                // Retrieve attachments if available
+                if (stepObject.has("attachments")) {
+                    JSONArray attachmentsArray = stepObject.getJSONArray("attachments");
+                    List<JiraAttachment> attachments = new ArrayList<>();
+                    for (int j = 0; j < attachmentsArray.length(); j++) {
+                        JSONObject attachmentObject = attachmentsArray.getJSONObject(j);
+                        JiraAttachment attachment = new JiraAttachment(
+                            attachmentObject.getString("id"),
+                            attachmentObject.getString("name"),
+                            jiraBaseURL + "/rest/atm/1.0/attachment/" + attachmentObject.getInt("id")
+                        );
+                        attachments.add(attachment);
+                    }
+                    testStep.setAttachments(attachments);
+                }
+
+                testSteps.add(testStep);
+            }
+        } else {
+            logger.error("GET request to Jira failed with response code: " + responseCode);
+        }
+    } catch (Exception e) {
+        logger.error("Exception occurred while retrieving test steps for Jira test case: " + testCaseKey, e);
     }
 
-    // Getter and Setter for id
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    // Getter and Setter for filename
-    public String getFilename() {
-        return filename;
-    }
-
-    public void setFilename(String filename) {
-        this.filename = filename;
-    }
-
-    // Getter and Setter for url
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    @Override
-    public String toString() {
-        return "JiraAttachment [id=" + id + ", filename=" + filename + ", url=" + url + "]";
-    }
+    return testSteps;
 }
-```
-
-### **Explanation:**
-
-1. **Fields:**
-   - `id`: Represents the unique identifier of the attachment in Jira.
-   - `filename`: The name of the file associated with the attachment.
-   - `url`: The URL from which the attachment can be downloaded.
-
-2. **Constructors:**
-   - A constructor that takes `id`, `filename`, and `url` as parameters to create a new `JiraAttachment` object.
-
-3. **Getters and Setters:**
-   - Methods to retrieve and set the `id`, `filename`, and `url` fields.
-
-4. **`toString` Method:**
-   - Provides a string representation of the `JiraAttachment` object, which can be useful for logging or debugging.
-
-### **Usage:**
-- The `JiraAttachment` class is typically used within the `JiraOperation` class or related classes to handle and manage attachments associated with Jira test cases or test steps.
-
-This class should be integrated into your existing codebase where attachments from Jira are being handled. If you have further customization or additional features in mind, feel free to ask!
