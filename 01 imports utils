@@ -1,22 +1,12 @@
-The logs indicate a few issues that need to be addressed:
+The recurring issue is primarily related to null pointers, indicating that some data (like URLs or attachment lists) is not being correctly initialized or checked before use. Let’s address these specific issues more directly, ensuring that the code handles potential null values correctly.
 
-1. **Attachment Upload Failures**: The logs show errors such as `Cannot parse object reference` when trying to upload attachments. This suggests that there might be an issue with the way attachments are being handled or the content being uploaded.
-
-2. **Null URLs for Attachments**: Warnings such as `Download URL is null for attachment` indicate that some attachments do not have valid URLs. This could be due to incomplete data from the JIRA API or an issue in parsing the response.
-
-3. **No Attachments Found**: There are warnings indicating that no attachments were found for certain test steps, which could be an issue with how the code is checking for and retrieving attachments.
-
-### Solutions:
-
-- **Check for Valid URLs Before Attempting to Download**: Ensure that URLs are valid and not null before attempting to download attachments.
-
-- **Verify Attachment Content Before Uploading**: Before uploading the attachment to Rally, ensure that the content is valid and not corrupted or in an unexpected format.
-
-- **Handle Empty or Null Attachments Gracefully**: If attachments are missing or null, the code should log this as a warning (which it already does) but continue processing without failing.
-
-I'll provide an updated `JiraOperation.java` and `RallyOperation.java` that addresses these issues.
+### Key areas to address:
+1. **Attachment Lists**: Ensure that the attachment lists (`step.getAttachments()` and `step.getEmbeddedImageUrls()`) are not null before attempting to iterate over them.
+2. **Download URLs**: Ensure that URLs are valid before attempting to download content from them.
 
 ### Updated `JiraOperation.java`
+
+Here's an updated version of the `JiraOperation.java` file, with added null checks and better error handling:
 
 ```java
 import java.io.File;
@@ -40,25 +30,27 @@ public class JiraOperation {
     // Method to download attachments from JIRA test steps
     public List<String> downloadStepAttachments(JiraTestStep step) {
         List<String> attachmentPaths = new ArrayList<>();
+        
+        if (step == null || step.getAttachments() == null) {
+            logger.warn("No attachments found or step is null.");
+            return attachmentPaths; // Returning an empty list
+        }
+
         List<JiraAttachment> attachments = step.getAttachments();
 
-        if (attachments != null) {
-            for (JiraAttachment attachment : attachments) {
-                try {
-                    String downloadUrl = attachment.getUrl();
-                    if (downloadUrl != null && !downloadUrl.isEmpty()) {
-                        String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
-                        downloadFileFromURL(downloadUrl, localPath);
-                        attachmentPaths.add(localPath);
-                    } else {
-                        logger.warn("Download URL is null or empty for attachment: " + attachment.getFileName());
-                    }
-                } catch (IOException e) {
-                    logger.error("Failed to download attachment: " + attachment.getFileName(), e);
+        for (JiraAttachment attachment : attachments) {
+            try {
+                String downloadUrl = attachment.getUrl();
+                if (downloadUrl != null && !downloadUrl.isEmpty()) {
+                    String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
+                    downloadFileFromURL(downloadUrl, localPath);
+                    attachmentPaths.add(localPath);
+                } else {
+                    logger.warn("Download URL is null or empty for attachment: " + attachment.getFileName());
                 }
+            } catch (IOException e) {
+                logger.error("Failed to download attachment: " + attachment.getFileName(), e);
             }
-        } else {
-            logger.warn("No attachments found for the test step.");
         }
 
         return attachmentPaths;
@@ -67,23 +59,25 @@ public class JiraOperation {
     // Method to download embedded images from JIRA test steps
     public List<String> downloadEmbeddedImages(JiraTestStep step) {
         List<String> embeddedImagePaths = new ArrayList<>();
+
+        if (step == null || step.getEmbeddedImageUrls() == null) {
+            logger.warn("No embedded images found or step is null.");
+            return embeddedImagePaths; // Returning an empty list
+        }
+
         List<String> imageUrls = step.getEmbeddedImageUrls();
 
-        if (imageUrls != null) {
-            for (String imageUrl : imageUrls) {
-                try {
-                    if (imageUrl != null && !imageUrl.isEmpty()) {
-                        String imagePath = downloadImage(imageUrl);
-                        embeddedImagePaths.add(imagePath);
-                    } else {
-                        logger.warn("Image URL is null or empty.");
-                    }
-                } catch (IOException e) {
-                    logger.error("Failed to download embedded image from URL: " + imageUrl, e);
+        for (String imageUrl : imageUrls) {
+            try {
+                if (imageUrl != null && !imageUrl.isEmpty()) {
+                    String imagePath = downloadImage(imageUrl);
+                    embeddedImagePaths.add(imagePath);
+                } else {
+                    logger.warn("Image URL is null or empty.");
                 }
+            } catch (IOException e) {
+                logger.error("Failed to download embedded image from URL: " + imageUrl, e);
             }
-        } else {
-            logger.warn("No embedded images found for the test step.");
         }
 
         return embeddedImagePaths;
@@ -112,6 +106,8 @@ public class JiraOperation {
 ```
 
 ### Updated `RallyOperation.java`
+
+Now, let's update `RallyOperation.java` to handle potential issues with null values or incorrect references:
 
 ```java
 import com.google.gson.JsonObject;
@@ -148,8 +144,13 @@ public class RallyOperation {
             for (String filePath : filePaths) {
                 try {
                     if (filePath != null && !filePath.isEmpty()) {
-                        testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
-                        logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
+                        String attachmentRef = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
+                        if (attachmentRef != null) {
+                            testcaseAttachmentOIDs.add(attachmentRef);
+                            logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
+                        } else {
+                            logger.error("Failed to attach file: " + filePath);
+                        }
                     } else {
                         logger.warn("File path is null or empty.");
                     }
@@ -173,13 +174,56 @@ public class RallyOperation {
         return testcaseAttachmentOIDs;
     }
 
-    // Other methods like attachFilesToTestStep() would follow a similar pattern
-    // with null checks and logging improvements.
+    // Helper method to attach a file to a Rally TestCase
+    private String attachFileToRallyTestCase(RallyRestApi rallyApi, String rallyTestCaseOID, String filePath) throws IOException {
+        return attachFile(rallyApi, rallyTestCaseOID, filePath, "testcase");
+    }
+
+    // Helper method to attach a file to Rally objects like TestCase or TestStep
+    private String attachFile(RallyRestApi rallyApi, String rallyObjectRef, String filePath, String attachmentType) throws IOException {
+        File file = new File(filePath);
+        if (!file.exists()) {
+            logger.error("File does not exist: " + filePath);
+            return null;
+        }
+
+        String base64EncodedContent = Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath()));
+
+        JsonObject attachmentContent = new JsonObject();
+        attachmentContent.addProperty("Content", base64EncodedContent);
+        CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
+        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+
+        if (attachmentContentResponse.wasSuccessful()) {
+            String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+
+            JsonObject attachment = new JsonObject();
+            attachment.addProperty("Artifact", rallyObjectRef);
+            attachment.addProperty("Content", attachmentContentRef);
+            attachment.addProperty("Name", file.getName());
+            attachment.addProperty("ContentType", Files.probeContentType(file.toPath()));
+            attachment.addProperty("Size", file.length());
+
+            CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+            CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+
+            if (attachmentResponse.wasSuccessful()) {
+                return attachmentResponse.getObject().get("_ref").getAsString();
+            } else {
+                logger.error("Failed to create attachment in Rally. Errors: " + attachmentResponse.getErrors());
+                return null;
+            }
+        } else {
+            logger.error("Failed to create attachment content in Rally. Errors: " + attachmentContentResponse.getErrors());
+            return null;
+        }
+    }
 }
 ```
 
-### Summary of Changes:
-- **Null Checks**: Ensured that URLs, file paths, and other potentially null inputs are checked before use.
-- **Logging**: Enhanced logging to provide better insights into what is happening, especially in cases where something goes wrong.
+### Summary of Updates:
+- **Null Checks**: Added checks to ensure that the step, attachments, and URLs are not null before processing.
+- **Enhanced Logging**: Improved logging to help diagnose where the failure occurs.
+- **Graceful Failures**: The code now gracefully handles potential failures in downloading and attaching files.
 
-These changes should help prevent the issues seen in the logs by ensuring that invalid data is handled more gracefully, and more informative logs are produced. Please replace your existing `JiraOperation.java` and `RallyOperation.java` files with these versions, and let me know if the issues persist or if further adjustments are needed.
+Please replace your existing `JiraOperation.java` and `RallyOperation.java` with these versions, run your migration again, and let me know the results.
