@@ -28,7 +28,7 @@ public class RunnerClass {
 
             for (String testcaseKey : testcaseKeys) {
                 boolean rallyTestcaseCreationStatus = false;
-                boolean rallyOverallTestStepAttachmentsStatus = false;
+                boolean rallyOverallTestStepAttachmentsStatus = true;
                 jiraTestCase.setKey(testcaseKey);
                 logger.info("Processing " + jiraTestCase.getKey());
                 JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
@@ -44,7 +44,7 @@ public class RunnerClass {
 
                 // Download attachments at the testcase level
                 List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-                if (fileAttachmentDownloadPathsTestcaseLevel != null) {
+                if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
                     logger.info("Attachment paths are found in the list.");
                     List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
                     Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
@@ -75,8 +75,13 @@ public class RunnerClass {
                     stepAttachmentPaths.addAll(embeddedImages);
 
                     if (!stepAttachmentPaths.isEmpty()) {
-                        // Correct method usage for attaching files to Rally Test Step
-                        rallyOperation.attachFilesToTestStep(rallyTestcaseOID, step.getIndex(), stepAttachmentPaths);
+                        try {
+                            // Correct method usage for attaching files to Rally Test Step
+                            rallyOperation.attachFilesToTestStep(rallyTestcaseOID, step.getIndex(), stepAttachmentPaths);
+                        } catch (Exception e) {
+                            rallyOverallTestStepAttachmentsStatus = false;
+                            logger.error("Failed to attach files to test step for Jira TestCase: " + jiraTestCase.getKey() + ", Step Index: " + step.getIndex(), e);
+                        }
                         Utils.deleteAttachmentFileFromLocal(stepAttachmentPaths);
                     }
                 }
