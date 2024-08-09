@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -26,7 +27,6 @@ import com.rallydev.rest.response.CreateResponse;
 import com.rallydev.rest.response.QueryResponse;
 import com.rallydev.rest.util.Fetch;
 import com.rallydev.rest.util.QueryFilter;
-
 
 public class RallyOperation {
 
@@ -169,96 +169,183 @@ public class RallyOperation {
 
 	    return rallyTestCaseOID;
 	}
-
-	 public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
-	        List<String> testcaseAttachmentOIDs = new ArrayList<>();
-	        RallyRestApi rallyApi = null;
-	        try {
-	            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-	            for (String filePath : filePaths) {
-	                try {
-	                    testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
-	                    logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
-	                } catch (IOException e) {
-	                    testcaseAttachmentOIDs.clear();
-	                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
-	                    return testcaseAttachmentOIDs;
-	                }
-	            }
-	        } catch (Exception e) {
-	            logger.error("Error while attaching files to Rally TestCase", e);
-	        } finally {
-	            try {
-	                if (rallyApi != null) {
-	                    rallyApi.close();
-	                }
-	            } catch (IOException e) {
-	                logger.error("Rally API resource is not closed due to IO exception.", e);
-	            }
-	        }
-	        return testcaseAttachmentOIDs;
-	    }
 	
-	 private String getTestStepRef(RallyRestApi rallyApi, String rallyTestCaseOID, int stepIndex) throws IOException {
-		    // Create a query request for the "testcasestep" endpoint
-		    QueryRequest request = new QueryRequest("testcasestep");
-		    request.setQueryFilter(new QueryFilter("TestCase.ObjectID", "=", rallyTestCaseOID)
-		            .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
-		    request.setFetch(new Fetch("ObjectID"));
+	
+	
+	
+	
+	
+	  public String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
+	        // Step 1: Read the file and encode it in Base64
+	        byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
+	        String encodedContent = Base64.getEncoder().encodeToString(fileContent);
 
-		    // Execute the query and get the results
-		    QueryResponse response = rallyApi.query(request);
-		    
-		    if (response.wasSuccessful() && response.getTotalResultCount() > 0) {
-		        JsonObject queryResult = response.getResults().get(0).getAsJsonObject();
-		        return queryResult.get("_ref").getAsString();
-		    } else {
-		        logger.error("Test step not found for TestCase OID: " + rallyTestCaseOID + " and StepIndex: " + stepIndex);
-		        throw new IOException("Test step not found");
-		    }
-		}
-	  
+	        String ContentType = null;
+	        String attachmentType = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
 
-	    private void attachFileToRallyTestStep(RallyRestApi rallyApi, String testStepRef, String filePath) throws IOException {
-	        attachFile(rallyApi, testStepRef, filePath, "testcasestep");
-	    }
-	    private String attachFile(RallyRestApi rallyApi, String rallyObjectRef, String filePath, String attachmentType) throws IOException {
-	        File file = new File(filePath);
-	        String base64EncodedContent = Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath()));
+	        if (attachmentType.equals("png")) {
+	            ContentType = "image/png";
+	        } else if (attachmentType.equals("txt")) {
+	            ContentType = "text/plain";
+	        } else if (attachmentType.equals("jpeg") || attachmentType.equals("jpg")) {
+	            ContentType = "image/jpeg";
+	        } else if (attachmentType.equals("xml")) {
+	            ContentType = "application/xml";
+	        } else if (attachmentType.equals("gif")) {
+	            ContentType = "image/gif";
+	        } else if (attachmentType.equals("doc")) {
+	            ContentType = "application/msword";
+	        } else if (attachmentType.equals("docx")) {
+	            ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+	        } else if (attachmentType.equals("xls")) {
+	            ContentType = "application/vnd.ms-excel";
+	        } else if (attachmentType.equals("xlsx")) {
+	            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+	        } else if (attachmentType.equals("zip")) {
+	            ContentType = "application/zip";
+	        }
 
+	        // Step 2: Create the AttachmentContent
 	        JsonObject attachmentContent = new JsonObject();
-	        attachmentContent.addProperty("Content", base64EncodedContent);
+	        attachmentContent.addProperty("Content", encodedContent);
 	        CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
 	        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+	        if (!attachmentContentResponse.wasSuccessful()) {
+	            logger.error("Error creating AttachmentContent for file " + filePath + ": " + attachmentContentResponse.getErrors());
+	            return null;
+	        }
 	        String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
 
+	        // Step 3: Create the Attachment
 	        JsonObject attachment = new JsonObject();
-	        attachment.addProperty("Artifact", rallyObjectRef);
+	        attachment.addProperty("Artifact", "/testcase/" + testCaseId); // Reference to the test case
 	        attachment.addProperty("Content", attachmentContentRef);
-	        attachment.addProperty("Name", file.getName());
-	        attachment.addProperty("ContentType", Files.probeContentType(file.toPath()));
-	        attachment.addProperty("Size", file.length());
-
+	        attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
+	        attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
+	        attachment.addProperty("ContentType", ContentType);
+	        attachment.addProperty("Size", fileContent.length);
 	        CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
 	        CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
-	        return attachmentResponse.getObject().get("_ref").getAsString();
+	        if (attachmentResponse.wasSuccessful()) {
+	            logger.info("Attachment created successfully for file " + filePath + ": " + attachmentResponse.getObject().get("_ref").getAsString());
+	            return attachmentResponse.getObject().get("_ref").getAsString();
+	        } else {
+	            logger.error("Error creating Attachment for file " + filePath + ": " + attachmentResponse.getErrors());
+	            return null;
+	        }
 	    }
+
 	
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 //attachFilesToTestStep
-	 
-	 public void attachFilesToTestStep(String rallyTestCaseOID, int stepIndex, List<String> filePaths) {
-	        RallyRestApi rallyApi = null;
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+	public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
+	    List<String> testcaseAttachmentOIDs = new ArrayList<>();
+	    RallyRestApi rallyApi = null;
+	    try {
+	        rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+	        for (String filePath : filePaths) {
+	            try {
+	                String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
+	                if (attachmentOID != null) {
+	                    testcaseAttachmentOIDs.add(attachmentOID);
+	                    logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
+	                } else {
+	                    logger.error("Failed to attach file " + filePath + " to Rally TestCase.");
+	                }
+	            } catch (IOException e) {
+	                logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
+	            }
+	        }
+	    } catch (Exception e) {
+	        logger.error("Error while attaching files to Rally TestCase", e);
+	    } finally {
 	        try {
-	            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-	            String testStepRef = getTestStepRef(rallyApi, rallyTestCaseOID, stepIndex);
+	            if (rallyApi != null) {
+	                rallyApi.close();
+	            }
+	        } catch (IOException e) {
+	            logger.error("Rally API resource is not closed due to IO exception.", e);
+	        }
+	    }
+	    return testcaseAttachmentOIDs;
+	}
+
+	private String getTestStepRef(RallyRestApi rallyApi, String rallyTestCaseOID, int stepIndex) throws IOException {
+	    // Create a query request for the "testcasestep" endpoint
+	    QueryRequest request = new QueryRequest("testcasestep");
+	    request.setQueryFilter(new QueryFilter("TestCase.ObjectID", "=", rallyTestCaseOID)
+	            .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
+	    request.setFetch(new Fetch("ObjectID"));
+
+	    // Execute the query and get the results
+	    QueryResponse response = rallyApi.query(request);
+	    
+	    if (response.wasSuccessful() && response.getTotalResultCount() > 0) {
+	        JsonObject queryResult = response.getResults().get(0).getAsJsonObject();
+	        return queryResult.get("_ref").getAsString();
+	    } else {
+	        logger.error("Test step not found for TestCase OID: " + rallyTestCaseOID + " and StepIndex: " + stepIndex);
+	        throw new IOException("Test step not found");
+	    }
+	}
+
+	private void attachFileToRallyTestStep(RallyRestApi rallyApi, String testStepRef, String filePath) throws IOException {
+	    attachFile(rallyApi, testStepRef, filePath, "testcasestep");
+	}
+
+	private String attachFile(RallyRestApi rallyApi, String rallyObjectRef, String filePath, String attachmentType) throws IOException {
+	    File file = new File(filePath);
+	    if (!file.exists()) {
+	        logger.error("File not found: " + filePath);
+	        return null;
+	    }
+	    String base64EncodedContent = Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath()));
+
+	    JsonObject attachmentContent = new JsonObject();
+	    attachmentContent.addProperty("Content", base64EncodedContent);
+	    CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
+	    CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+	    String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+
+	    JsonObject attachment = new JsonObject();
+	    attachment.addProperty("Artifact", rallyObjectRef);
+	    attachment.addProperty("Content", attachmentContentRef);
+	    attachment.addProperty("Name", file.getName());
+	    attachment.addProperty("ContentType", Files.probeContentType(file.toPath()));
+	    attachment.addProperty("Size", file.length());
+
+	    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+	    CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+	    return attachmentResponse.wasSuccessful() ? attachmentResponse.getObject().get("_ref").getAsString() : null;
+	}
+
+	public void attachFilesToTestStep(String rallyTestCaseOID, int stepIndex, List<String> filePaths) {
+	    RallyRestApi rallyApi = null;
+	    try {
+	        rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+	        String testStepRef = getTestStepRef(rallyApi, rallyTestCaseOID, stepIndex);
+	        if (testStepRef != null) {
 	            for (String filePath : filePaths) {
 	                try {
 	                    attachFileToRallyTestStep(rallyApi, testStepRef, filePath);
@@ -267,123 +354,37 @@ public class RallyOperation {
 	                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
 	                }
 	            }
-	        } catch (Exception e) {
-	            logger.error("Error while attaching files to Rally TestStep", e);
-	        } finally {
-	            try {
-	                if (rallyApi != null) {
-	                    rallyApi.close();
-	                }
-	            } catch (IOException e) {
-	                logger.error("Rally API resource is not closed due to IO exception.", e);
+	        } else {
+	            logger.error("Test step reference not found for test case OID: " + rallyTestCaseOID + " and step index: " + stepIndex);
+	        }
+	    } catch (Exception e) {
+	        logger.error("Error while attaching files to Rally TestStep", e);
+	    } finally {
+	        try {
+	            if (rallyApi != null) {
+	                rallyApi.close();
 	            }
+	        } catch (IOException e) {
+	            logger.error("Rally API resource is not closed due to IO exception.", e);
 	        }
 	    }
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	
-	 //  method to attach files to Rally Test Case
-    public String attachFileToRallyTestCase(RallyRestApi rallyRestApi, String rallyTestCaseRef, String filePath) throws IOException {
-        String attachmentOID = null;
-        File file = new File(filePath);
-        if (!file.exists()) {
-            logger.error("File not found: " + filePath);
-            return null;
-        }
+	}
+    // New method to upload a list of attachments to Rally
+    public List<String> uploadAttachmentsToRally(List<String> attachmentPaths, RallyRestApi rallyRestApi, String rallyTestCaseRef) {
+        List<String> rallyAttachmentRefs = new ArrayList<>();
 
-        long fileSize = file.length();
-        if (fileSize > 5 * 1024 * 1024) {
-            logger.error("File too large to upload: " + filePath);
-            return null;
-        }
-
-        byte[] fileContent = Files.readAllBytes(file.toPath());
-        String base64Content = Base64.getEncoder().encodeToString(fileContent);
-
-        JsonObject attachmentContent = new JsonObject();
-        attachmentContent.addProperty("TestCase", rallyTestCaseRef);
-        attachmentContent.addProperty("Name", file.getName());
-        attachmentContent.addProperty("Description", "Attachment for Test Case");
-        attachmentContent.addProperty("Content", base64Content);
-
-        CreateRequest createRequest = new CreateRequest("Attachment", attachmentContent);
-        CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-        if (createResponse.wasSuccessful()) {
-            attachmentOID = createResponse.getObject().get("_ref").getAsString();
-            logger.info("Successfully uploaded attachment: " + filePath);
-        } else {
-            logger.error("Failed to upload attachment: " + filePath);
-            for (String error : createResponse.getErrors()) {
-                logger.error(error);
+        for (String filePath : attachmentPaths) {
+            try {
+                String attachmentRef = attachFileToRallyTestCase(rallyRestApi, rallyTestCaseRef, filePath);
+                rallyAttachmentRefs.add(attachmentRef);
+                logger.info("File " + filePath + " uploaded successfully to Rally.");
+            } catch (IOException e) {
+                logger.error("Failed to upload attachment: " + filePath, e);
             }
         }
 
-        return attachmentOID;
+        return rallyAttachmentRefs;
     }
-	
-	
-	public List<String> uploadAttachmentsToRally(List<String> attachmentPaths, RallyRestApi rallyRestApi, String rallyTestCaseRef) {
-	    List<String> rallyAttachmentRefs = new ArrayList<>();
-
-	    for (String filePath : attachmentPaths) {
-	        try {
-	            String attachmentRef = attachFileToRallyTestCase(rallyRestApi, rallyTestCaseRef, filePath);
-	            rallyAttachmentRefs.add(attachmentRef);
-	            logger.info("File " + filePath + " uploaded successfully to Rally.");
-	        } catch (IOException e) {
-	            logger.error("Failed to upload attachment: " + filePath, e);
-	        }
-	    }
-
-	    return rallyAttachmentRefs;
-	}
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 
 	// Method to migrate test steps from JIRA to Rally
 	public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi) {
@@ -399,7 +400,7 @@ public class RallyOperation {
 	            newTestStep.addProperty("TestData", step.getTestdata());
 
 	            // Handle attachments
-	            List<String> attachmentPaths = JiraOperation.downloadStepAttachments(step); // assuming jiraOperation is an instance of JiraOperation class
+	            List<String> attachmentPaths = JiraOperation.downloadStepAttachments(step);
 	            List<String> rallyAttachmentRefs = uploadAttachmentsToRally(attachmentPaths, rallyRestApi, rallyTestCaseRef);
 
 	            if (!rallyAttachmentRefs.isEmpty()) {
@@ -425,7 +426,4 @@ public class RallyOperation {
 	        }
 	    }
 	}
-
-
-    
 }
