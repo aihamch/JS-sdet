@@ -1,48 +1,34 @@
-// Existing imports...
 import java.io.BufferedInputStream;
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
 public class JiraOperation {
-    // Existing class fields...
-    private static final String tsFileAttachmentDownloadLocation = "your-download-location"; // Update this path as necessary
-
-    // New method to download embedded images from JIRA test steps
-    public List<String> downloadStepAttachments(JiraTestStep step) {
-        List<String> attachmentPaths = new ArrayList<>();
-        
-        for (JiraAttachment attachment : step.getAttachments()) {
-            try {
-                String downloadUrl = attachment.getUrl();
-                String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
-                
-                downloadFileFromURL(downloadUrl, localPath);
-                
-                attachmentPaths.add(localPath);
-            } catch (IOException e) {
-                logger.error("Failed to download attachment: " + attachment.getFileName(), e);
-            }
-        }
-        
-        return attachmentPaths;
-    }
-
-    // Alternative method to download a file from a URL without using Apache Commons IO
+    // Method to download a file from a URL without using Apache Commons IO
     private void downloadFileFromURL(String fileUrl, String destination) throws IOException {
         try (InputStream in = new BufferedInputStream(new URL(fileUrl).openStream());
              FileOutputStream out = new FileOutputStream(destination)) {
-            byte[] dataBuffer = new byte[1024];
+             
+            byte[] buffer = new byte[1024];
             int bytesRead;
-            while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
-                out.write(dataBuffer, 0, bytesRead);
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
             }
         }
     }
+
+    // Example usage of the downloadFileFromURL method
+    public void exampleUsage() {
+        try {
+            String fileUrl = "http://example.com/file.jpg";
+            String destination = "C:/path/to/downloaded/file.jpg";
+            downloadFileFromURL(fileUrl, destination);
+            System.out.println("File downloaded successfully.");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
     
-    // ... other existing methods
+    // Other methods...
 }
