@@ -1,13 +1,17 @@
 package com.optum.coe.automation.rally;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.ParseException;
 import org.apache.http.client.methods.HttpGet;
@@ -101,6 +105,55 @@ public class JiraOperation {
 		}
 		return jiraJson;
 	}
+	
+	
+	
+	public static List<String> downloadStepAttachments(JiraTestStep step) {
+	    List<String> attachmentPaths = new ArrayList<>();
+	    
+	    for (JiraAttachment attachment : step.getAttachments()) {
+	        try {
+	            String downloadUrl = attachment.getUrl();
+	            String localPath = "C:/attachments/" + attachment.getFileName();
+	            // Logic to download the file from downloadUrl to localPath
+	            // You can use Apache Commons IO or other libraries to handle this
+	            FileUtils.copyURLToFile(new URL(downloadUrl), new File(localPath));
+	            attachmentPaths.add(localPath);
+	        } catch (IOException e) {
+	            logger.error("Failed to download attachment: " + attachment.getFileName(), e);
+	        }
+	    }
+	    
+	    return attachmentPaths;
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
 	public List<String> jiraAttachmentsDownload(String testcaseKey, String testType, String attachmentType) {
 		List<String> fileAttachmentDownloadPaths = null;
