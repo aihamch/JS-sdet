@@ -1,93 +1,48 @@
-package com.optum.coe.automation.rally;
-
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.net.URI;
+// Existing imports...
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RunnerClass {
-    private static final Logger logger = LogManager.getLogger();
+public class JiraOperation {
+    // Existing class fields...
+    private static final String tsFileAttachmentDownloadLocation = "your-download-location"; // Update this path as necessary
 
-    public static void main(String[] args) {
-        try {
-            Gson gson = new Gson();
-            JiraTestCase jiraTestCase = new JiraTestCase();
-            JiraOperation jiraOperation = new JiraOperation();
-            ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-
-            String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-            String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-            RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
-
-            for (String testcaseKey : testcaseKeys) {
-                boolean rallyTestcaseCreationStatus = false;
-                boolean rallyOverallTestStepAttachmentsStatus = false;
-                jiraTestCase.setKey(testcaseKey);
-                logger.info("Processing " + jiraTestCase.getKey());
-                JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-                RallyOperation rallyOperation = new RallyOperation();
-                String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
-
-                if (rallyTestcaseOID != null) {
-                    rallyTestcaseCreationStatus = true;
-                } else {
-                    logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
-                    break;
-                }
-
-                // Download attachments at the testcase level
-                List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-                if (fileAttachmentDownloadPathsTestcaseLevel != null) {
-                    logger.info("Attachment paths are found in the list.");
-                    List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-
-                    if (testcaseAttachmentOIDs.isEmpty()) {
-                        logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
-                        return;
-                    }
-                } else {
-                    logger.info("No Attachment path found for Testcase level.");
-                }
-
-                // Handle test steps
-                JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-                List<JiraTestStep> testSteps = new ArrayList<>();
-
-                for (JsonElement element : stepsArray) {
-                    JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
-                    testSteps.add(step);
-                }
-
-                rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi);
-
-                // Download and upload attachments for each test step
-                for (JiraTestStep step : testSteps) {
-                    List<String> stepAttachmentPaths = jiraOperation.downloadStepAttachments(step);
-                    List<String> embeddedImages = jiraOperation.downloadEmbeddedImages(step);
-                    stepAttachmentPaths.addAll(embeddedImages);
-
-                    if (!stepAttachmentPaths.isEmpty()) {
-                        rallyOperation.attachFilesToTestStep(rallyTestcaseOID, step.getIndex(), stepAttachmentPaths);
-                        Utils.deleteAttachmentFileFromLocal(stepAttachmentPaths);
-                    }
-                }
-
-                if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                    System.out.println("Rally Testcase Creation Status is true");
-                } else {
-                    logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
-                }
+    // New method to download embedded images from JIRA test steps
+    public List<String> downloadStepAttachments(JiraTestStep step) {
+        List<String> attachmentPaths = new ArrayList<>();
+        
+        for (JiraAttachment attachment : step.getAttachments()) {
+            try {
+                String downloadUrl = attachment.getUrl();
+                String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
+                
+                downloadFileFromURL(downloadUrl, localPath);
+                
+                attachmentPaths.add(localPath);
+            } catch (IOException e) {
+                logger.error("Failed to download attachment: " + attachment.getFileName(), e);
             }
-        } catch (Exception e) {
-            logger.error("Error occurred during the migration process", e);
+        }
+        
+        return attachmentPaths;
+    }
+
+    // Alternative method to download a file from a URL without using Apache Commons IO
+    private void downloadFileFromURL(String fileUrl, String destination) throws IOException {
+        try (InputStream in = new BufferedInputStream(new URL(fileUrl).openStream());
+             FileOutputStream out = new FileOutputStream(destination)) {
+            byte[] dataBuffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
+                out.write(dataBuffer, 0, bytesRead);
+            }
         }
     }
+    
+    // ... other existing methods
 }
