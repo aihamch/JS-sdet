@@ -1,29 +1,8 @@
-The logs indicate a few issues with your current implementation:
-
-1. **Null URL for Downloaded Images**:
-   - The error `java.net.MalformedURLException: Cannot invoke "String.length()" because "spec" is null` indicates that the URL for the image or file being downloaded is null, leading to a failure in downloading the file. This happens in the `Utils.downloadFileFromUrl()` method when trying to create a URL object.
-
-2. **Test Step Not Found**:
-   - The error `java.io.IOException: Test step not found` in the `RallyOperation.getTestStepRef()` method suggests that the test step reference is not found in Rally, which then causes the attachment process to fail.
-
-### Steps to Address These Issues:
-
-#### 1. **Fix the Null URL Issue:**
-   - Investigate why the `downloadFileFromUrl` method is receiving a null `spec` parameter. Ensure that the `downloadEmbeddedImages` method in `JiraOperation` correctly extracts the URLs for the embedded images.
-   - Validate that the URLs for the attachments are correctly fetched from Jira. You can add logging before attempting to download each file to confirm the URL is not null.
-
-#### 2. **Handle Missing Test Steps in Rally:**
-   - The error `Test step not found for TestCase OID` suggests that the test step might not have been created correctly in Rally before attempting to attach files to it. Ensure that the test step creation process is completed successfully before attaching files.
-   - You can add checks to ensure the test step reference (`testStepRef`) is not null before proceeding with the attachment.
-
-### Code Snippet to Add Logging and Validation:
-
-In the `JiraOperation` class:
-
-```java
 public List<String> downloadEmbeddedImages(JiraTestStep step) {
     List<String> embeddedImageUrls = step.getEmbeddedImageUrls();
     List<String> downloadedPaths = new ArrayList<>();
+    String jiraBaseUrl = ConfigLoader.getConfigValue("JIRA_BASE_URL");  // Get the Jira base URL from the configuration
+
     if (embeddedImageUrls == null || embeddedImageUrls.isEmpty()) {
         logger.warn("No embedded images found for the test step: " + step.getDescription());
         return downloadedPaths;
@@ -32,13 +11,16 @@ public List<String> downloadEmbeddedImages(JiraTestStep step) {
     for (String imageUrl : embeddedImageUrls) {
         if (imageUrl != null && !imageUrl.isEmpty()) {
             try {
-                logger.info("Downloading image from URL: " + imageUrl);
-                String filePath = Utils.downloadFileFromUrl(imageUrl, "C:attachments");
+                // Construct the full URL
+                String fullUrl = imageUrl.startsWith("http") ? imageUrl : jiraBaseUrl + imageUrl.replace("../", "/");
+
+                logger.info("Downloading image from URL: " + fullUrl);
+                String filePath = Utils.downloadFileFromUrl(fullUrl, "C:attachments");
                 if (filePath != null) {
                     downloadedPaths.add(filePath);
                     logger.info("Downloaded image to: " + filePath);
                 } else {
-                    logger.error("Failed to download image from URL: " + imageUrl);
+                    logger.error("Failed to download image from URL: " + fullUrl);
                 }
             } catch (Exception e) {
                 logger.error("Exception while downloading image from URL: " + imageUrl, e);
@@ -49,43 +31,3 @@ public List<String> downloadEmbeddedImages(JiraTestStep step) {
     }
     return downloadedPaths;
 }
-```
-
-In the `RallyOperation` class:
-
-```java
-public void attachFilesToTestStep(String rallyTestCaseOID, int stepIndex, List<String> filePaths) {
-    RallyRestApi rallyApi = null;
-    try {
-        rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-        String testStepRef = getTestStepRef(rallyApi, rallyTestCaseOID, stepIndex);
-        if (testStepRef == null) {
-            logger.error("Test step reference is null. Skipping attachment for step index: " + stepIndex);
-            return;
-        }
-
-        for (String filePath : filePaths) {
-            try {
-                attachFileToRallyTestStep(rallyApi, testStepRef, filePath);
-                logger.info("File " + filePath + " is attached to the test step index " + stepIndex + " in Rally successfully");
-            } catch (IOException e) {
-                logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
-            }
-        }
-    } catch (Exception e) {
-        logger.error("Error while attaching files to Rally TestStep", e);
-    } finally {
-        try {
-            if (rallyApi != null) {
-                rallyApi.close();
-            }
-        } catch (IOException e) {
-            logger.error("Rally API resource is not closed due to IO exception.", e);
-        }
-    }
-}
-```
-
-### Additional Notes:
-- Ensure that each step in your migration process is logged properly to identify exactly where issues occur. This includes before and after downloading files, creating test steps, and attaching files to test steps.
-- Test your changes with different test cases to ensure that embedded images and file attachments are correctly handled across various scenarios.
