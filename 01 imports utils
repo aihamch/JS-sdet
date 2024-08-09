@@ -1,51 +1,18 @@
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.log4j.Logger;
+private String getTestStepRef(RallyRestApi rallyApi, String rallyTestCaseOID, int stepIndex) throws IOException {
+    // Create a query request for the "testcasestep" endpoint
+    QueryRequest request = new QueryRequest("testcasestep");
+    request.setQueryFilter(new QueryFilter("TestCase.ObjectID", "=", rallyTestCaseOID)
+            .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
+    request.setFetch(new Fetch("ObjectID"));
 
-public class JiraOperation {
-
-    private static final Logger logger = Logger.getLogger(JiraOperation.class);
-
-    public List<String> downloadEmbeddedImages(JiraTestStep step) {
-        List<String> embeddedImagePaths = new ArrayList<>();
-
-        // Assume that JiraTestStep has a method to get embedded image URLs
-        List<String> imageUrls = step.getEmbeddedImageUrls(); // You need to implement getEmbeddedImageUrls()
-
-        for (String imageUrl : imageUrls) {
-            try {
-                String imagePath = downloadImage(imageUrl);
-                embeddedImagePaths.add(imagePath);
-            } catch (IOException e) {
-                logger.error("Failed to download embedded image from URL: " + imageUrl, e);
-            }
-        }
-
-        return embeddedImagePaths;
-    }
-
-    private String downloadImage(String imageUrl) throws IOException {
-        URL url = new URL(imageUrl);
-        String fileName = "downloaded_" + System.currentTimeMillis() + "_" + url.getFile().substring(url.getFile().lastIndexOf('/') + 1);
-        File file = new File("downloads/" + fileName);
-        file.getParentFile().mkdirs();
-
-        try (InputStream in = new BufferedInputStream(url.openStream());
-             FileOutputStream fos = new FileOutputStream(file)) {
-
-            byte[] buffer = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                fos.write(buffer, 0, bytesRead);
-            }
-        }
-
-        return file.getAbsolutePath();
+    // Execute the query and get the results
+    QueryResponse response = rallyApi.query(request);
+    
+    if (response.wasSuccessful() && response.getTotalResultCount() > 0) {
+        JsonObject queryResult = response.getResults().get(0).getAsJsonObject();
+        return queryResult.get("_ref").getAsString();
+    } else {
+        logger.error("Test step not found for TestCase OID: " + rallyTestCaseOID + " and StepIndex: " + stepIndex);
+        throw new IOException("Test step not found");
     }
 }
