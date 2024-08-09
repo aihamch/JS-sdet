@@ -1,6 +1,5 @@
 package com.optum.coe.automation.rally;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,18 +12,14 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
 import org.apache.http.ParseException;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.json.JSONArray;
@@ -39,7 +34,7 @@ public class JiraOperation {
     private String tcFileAttachmentDownloadLocation;
     private static String tsFileAttachmentDownloadLocation;
     private static final Logger logger = LogManager.getLogger();
-    private static final String tsEmbeddedAttachmentDownloadLocation = null;
+    private static final String tsEmbeddedAttachmentDownloadLocation = "C:attachments"; // Assuming a default location
 
     public JiraOperation() {
         jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
@@ -57,7 +52,7 @@ public class JiraOperation {
     }
 
     public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
-        ArrayList<String> testCaseKeys = new ArrayList<String>();
+        ArrayList<String> testCaseKeys = new ArrayList<>();
         String encodedKey = null;
         try {
             encodedKey = URLEncoder.encode(
@@ -111,7 +106,6 @@ public class JiraOperation {
         return jiraJson;
     }
 
-    // Method to download attachments from JIRA test steps
     public static List<String> downloadStepAttachments(JiraTestStep step) {
         List<String> attachmentPaths = new ArrayList<>();
 
@@ -144,7 +138,6 @@ public class JiraOperation {
         return attachmentPaths;
     }
 
-    // Alternative method to download a file from a URL without using Apache Commons IO
     private static void downloadFileFromURL(String fileURL, String destinationFile) throws IOException {
         logger.debug("Attempting to download file from URL: " + fileURL + " to: " + destinationFile);
         URL url = new URL(fileURL);
@@ -183,23 +176,13 @@ public class JiraOperation {
                 } else {
                     logger.info("Attachment URL is found for the testcase key " + testcaseKey + "; JSON body: " + result);
                     if (testType.equals("testcase")) {
-                        Map<String, String> testMap = Utils.pharseJsonGetAttachmentUrlAndName(result);
-                        fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromJiraTestCase(testMap,
+                        fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromJiraTestCase(result,
                                 tcFileAttachmentDownloadLocation, jiraApiKey, testcaseKey);
                     } else if (testType.equals("teststep") && attachmentType.equals("file")) {
                         fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromTestStep(result, jiraApiKey,
                                 tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL);
                     } else if (testType.equals("teststep") && attachmentType.equals("embedded")) {
-                        List<String> descriptionAttachmentDownloadPaths, testDataAttachmentDownloadPaths, expectedResultAttachmentDownloadPaths;
-                        descriptionAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "description");
-                        testDataAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "testData");
-                        expectedResultAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "expectedResult");
-                        descriptionAttachmentDownloadPaths.addAll(testDataAttachmentDownloadPaths);
-                        descriptionAttachmentDownloadPaths.addAll(expectedResultAttachmentDownloadPaths);
-                        fileAttachmentDownloadPaths = descriptionAttachmentDownloadPaths;
+                        fileAttachmentDownloadPaths = downloadEmbeddedImagesFromJson(result, testcaseKey);
                     } else {
                         logger.error("Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
                         return null;
@@ -215,92 +198,82 @@ public class JiraOperation {
     }
 
     // Method to download embedded images from JIRA test steps
-    public List<String> downloadEmbeddedImages(JiraTestStep step) {
-        List<String> embeddedImageUrls = step.getEmbeddedImageUrls();
+    public List<String> downloadEmbeddedImagesFromJson(String jsonString, String testcaseKey) {
         List<String> downloadedPaths = new ArrayList<>();
-        String jiraBaseUrl = ConfigLoader.getConfigValue("JIRA_BASE_URL");  // Get the Jira base URL from the configuration
-
-        if (embeddedImageUrls == null || embeddedImageUrls.isEmpty()) {
-            logger.warn("No embedded images found for the test step: " + step.getDescription());
-            return downloadedPaths;
-        }
-
-        for (String imageUrl : embeddedImageUrls) {
-            if (imageUrl != null && !imageUrl.isEmpty()) {
-                try {
-                    // Construct the full URL
-                    String fullUrl = imageUrl.startsWith("http") ? imageUrl : jiraBaseUrl + imageUrl.replace("../", "/");
-
-                    logger.info("Downloading image from URL: " + fullUrl);
-                    String filePath = Utils.downloadFileFromUrl(fullUrl, "C:attachments");
-                    if (filePath != null) {
-                        downloadedPaths.add(filePath);
-                        logger.info("Downloaded image to: " + filePath);
-                    } else {
-                        logger.error("Failed to download image from URL: " + fullUrl);
-                    }
-                } catch (Exception e) {
-                    logger.error("Exception while downloading image from URL: " + imageUrl, e);
-                }
-            } else {
-                logger.warn("Encountered null or empty image URL.");
-            }
-        }
-        return downloadedPaths;
-    }
-
-    // Method to download images (from relative URLs)
-    public String downloadImage(String baseUrl, String relativeUrl) {
-        try {
-            URL fullUrl = new URL(baseUrl + relativeUrl.replace("../", "/"));
-            String downloadedFilePath = Utils.downloadFileFromUrl(tsEmbeddedAttachmentDownloadLocation, tsEmbeddedAttachmentDownloadLocation);
-            return downloadedFilePath;
-        } catch (MalformedURLException e) {
-            logger.error("Failed to download embedded image from URL: " + relativeUrl, e);
-            return null;
-        }
-    }
-
-    // Method to fetch test steps from JIRA for a given test case ID
-    public List<JiraTestStep> getTestSteps(String testCaseId) {
-        List<JiraTestStep> testSteps = new ArrayList<>();
-        CloseableHttpClient httpClient = HttpClients.createDefault();
+        String jiraBaseUrl = ConfigLoader.getConfigValue("JIRA_BASE_URL");
 
         try {
-            String url = jiraBaseURL + "/rest/api/2/issue/" + testCaseId + "/teststeps";
-            HttpGet request = new HttpGet(url);
-            request.addHeader("Authorization", "Basic " + jiraApiKey);
-
-            HttpResponse response = (HttpResponse) httpClient.execute(request);
-            String jsonResponse = EntityUtils.toString(((org.apache.http.HttpResponse) response).getEntity());
-
-            JSONObject jsonObject = new JSONObject(jsonResponse);
+            JSONObject jsonObject = new JSONObject(jsonString);
             JSONArray stepsArray = jsonObject.getJSONArray("testSteps");
-
-            logger.info("URL used to fetch test steps: " + url);
-            logger.info("Number of teststeps retrieved: " + stepsArray.length());
 
             for (int i = 0; i < stepsArray.length(); i++) {
                 JSONObject stepJson = stepsArray.getJSONObject(i);
                 JiraTestStep step = new JiraTestStep();
-                step.setId(stepJson.getInt("id"));
                 step.setDescription(stepJson.getString("description"));
-                step.setExpectedResult(stepJson.getString("expectedResult"));
-                step.setIndex(stepJson.getInt("index"));
                 step.setTestData(stepJson.getString("testData"));
-                testSteps.add(step);
-            }
+                step.setExpectedResult(stepJson.getString("expectedResult"));
 
-            logger.info("Fetched " + testSteps.size() + " test steps for test case ID: " + testCaseId);
+                List<String> embeddedImageUrls = step.getEmbeddedImageUrls();
+                for (String imageUrl : embeddedImageUrls) {
+                    if (imageUrl != null && !imageUrl.isEmpty()) {
+                        try {
+                            String fullUrl = imageUrl.startsWith("http") ? imageUrl : jiraBaseUrl + imageUrl.replace("../", "/");
+
+                            logger.info("Downloading image from URL: " + fullUrl);
+                            String filePath = Utils.downloadFileFromUrl(fullUrl, tsEmbeddedAttachmentDownloadLocation);
+                            if (filePath != null) {
+                                downloadedPaths.add(filePath);
+                                logger.info("Downloaded image to: " + filePath);
+                            } else {
+                                logger.error("Failed to download image from URL: " + fullUrl);
+                            }
+                        } catch (Exception e) {
+                            logger.error("Exception while downloading image from URL: " + imageUrl, e);
+                        }
+                    } else {
+                        logger.warn("Encountered null or empty image URL.");
+                    }
+                }
+            }
 
         } catch (Exception e) {
-            logger.error("Error fetching test steps for test case ID: " + testCaseId, e);
-        } finally {
-            try {
-                httpClient.close();
-            } catch (Exception e) {
-                logger.error("Error closing HttpClient", e);
+            logger.error("Error parsing embedded images from JSON for testcase key: " + testcaseKey, e);
+        }
+
+        return downloadedPaths;
+    }
+
+    public List<JiraTestStep> getTestSteps(String testCaseId) {
+        List<JiraTestStep> testSteps = new ArrayList<>();
+        try {
+            String url = jiraBaseURL + "/rest/api/2/issue/" + testCaseId + "/teststeps";
+            HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+            if (response != null) {
+                String jsonResponse = EntityUtils.toString(response);
+                JSONObject jsonObject = new JSONObject(jsonResponse);
+                JSONArray stepsArray = jsonObject.getJSONArray("testSteps");
+
+                logger.info("URL used to fetch test steps: " + url);
+                logger.info("Number of teststeps retrieved: " + stepsArray.length());
+
+                for (int i = 0; i < stepsArray.length(); i++) {
+                    JSONObject stepJson = stepsArray.getJSONObject(i);
+                    JiraTestStep step = new JiraTestStep();
+                    step.setId(stepJson.getInt("id"));
+                    step.setDescription(stepJson.getString("description"));
+                    step.setExpectedResult(stepJson.getString("expectedResult"));
+                    step.setIndex(stepJson.getInt("index"));
+                    step.setTestData(stepJson.getString("testData"));
+                    testSteps.add(step);
+                }
+
+                logger.info("Fetched " + testSteps.size() + " test steps for test case ID: " + testCaseId);
+
+            } else {
+                logger.error("Failed to fetch test steps for test case ID: " + testCaseId);
             }
+        } catch (Exception e) {
+            logger.error("Error fetching test steps for test case ID: " + testCaseId, e);
         }
 
         return testSteps;
