@@ -1,11 +1,16 @@
-import org.json.JSONObject;
+import com.google.gson.JsonObject; // Import for JsonObject
+import com.google.gson.JsonArray; // Import for JsonArray
+import com.google.gson.Gson;
+
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import com.rallydev.rest.RallyRestApi;
 
 public class RunnerClass {
@@ -34,7 +39,7 @@ public class RunnerClass {
             boolean rallyOverallTestStepAttachmentsStatus = false;
             jiraTestCase.setKey(testcaseKeys.get(i));
             logger.info("Processing " + jiraTestCase.getKey());
-            JSONObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey()); // Update to return JsonObject
             RallyOperation rallyOperation = new RallyOperation();
             
             // Declaration of rallyTestcaseOID
@@ -72,7 +77,7 @@ public class RunnerClass {
             }
 
             // Process test steps
-            JSONArray testSteps = jiraTestcaseJson.getJSONObject("testScript").getJSONArray("steps");
+            JsonArray testSteps = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps"); // Updated to use JsonArray
             List<JiraTestStep> jiraTestSteps = jiraOperation.getTestStepsForTestCase(jiraTestCase.getKey());
 
             if (jiraTestSteps != null && !jiraTestSteps.isEmpty()) {
@@ -83,7 +88,8 @@ public class RunnerClass {
 
             // Upload test step file attachments to Rally
             for (JiraTestStep step : jiraTestSteps) {
-                String rallyTestStepOID = rallyOperation.createRallyTestStep(rallyTestcaseOID, new JSONObject(step));
+                JsonObject gsonTestStepJson = new Gson().toJsonTree(step).getAsJsonObject(); // Convert JiraTestStep to JsonObject
+                String rallyTestStepOID = rallyOperation.createRallyTestStep(rallyTestcaseOID, gsonTestStepJson);
                 
                 if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
                     List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestStep(rallyTestStepOID, fileAttachmentDownloadPathsTestStepLevel);
