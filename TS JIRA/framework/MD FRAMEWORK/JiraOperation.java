@@ -7,6 +7,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +48,14 @@ public class JiraOperation {
 	private String tcFileAttachmentDownloadLocation;
 	private static String tsFileAttachmentDownloadLocation;
 	private static final Logger logger = LogManager.getLogger();
+	private static final String tsEmbeddedAttachmentDownloadLocation = null;
+	
+	
+	
+	
+	
+	
+
 
 	public JiraOperation() {
 		jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
@@ -123,41 +133,50 @@ public class JiraOperation {
 	
 	
 	
-	//  method to download embedded images from JIRA test steps
-    public static List<String> downloadStepAttachments(JiraTestStep step) {
-        List<String> attachmentPaths = new ArrayList<>();
-        
-        for (JiraAttachment attachment : step.getAttachments()) {
-            try {
-                String downloadUrl = attachment.getUrl();
-                String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
-                
-                downloadFileFromURL(downloadUrl, localPath);
-                
-                attachmentPaths.add(localPath);
-            } catch (IOException e) {
-                logger.error("Failed to download attachment: " + attachment.getFileName(), e);
-            }
-        }
-        
-        return attachmentPaths;
-    }
-	
-	
-	
+	   // Method to download attachments from JIRA test steps
+	 public static List<String> downloadStepAttachments(JiraTestStep step) {
+	        List<String> attachmentPaths = new ArrayList<>();
+
+	        if (step == null) {
+	            logger.warn("JiraTestStep is null.");
+	            return attachmentPaths;
+	        }
+
+	        List<JiraAttachment> attachments = step.getAttachments();
+	        if (attachments == null || attachments.isEmpty()) {
+	            logger.warn("No attachments found for the test step.");
+	            return attachmentPaths;
+	        }
+
+	        for (JiraAttachment attachment : attachments) {
+	            try {
+	                String downloadUrl = attachment.getUrl();
+	                if (downloadUrl != null && !downloadUrl.isEmpty()) {
+	                    String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
+	                    downloadFileFromURL(downloadUrl, localPath);
+	                    attachmentPaths.add(localPath);
+	                } else {
+	                    logger.warn("Download URL is null or empty for attachment: " + attachment.getFileName());
+	                }
+	            } catch (IOException e) {
+	                logger.error("Failed to download attachment: " + attachment.getFileName(), e);
+	            }
+	        }
+
+	        return attachmentPaths;
+	    }
 	
     // Alternative method to download a file from a URL without using Apache Commons IO
-    private static void downloadFileFromURL(String fileUrl, String destination) throws IOException {
-        try (InputStream in = new BufferedInputStream(new URL(fileUrl).openStream());
-             FileOutputStream out = new FileOutputStream(destination)) {
-            byte[] dataBuffer = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
-                out.write(dataBuffer, 0, bytesRead);
-            }
-        }
-    }
-	
+	    private static void downloadFileFromURL(String fileURL, String destinationFile) throws IOException {
+	        logger.debug("Attempting to download file from URL: " + fileURL + " to: " + destinationFile);
+	        URL url = new URL(fileURL);
+	        try (InputStream inputStream = url.openStream();
+	             FileOutputStream fos = new FileOutputStream(destinationFile);
+	             ReadableByteChannel rbc = Channels.newChannel(inputStream)) {
+	            fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+	        }
+	        logger.info("Downloaded file from URL: " + fileURL + " to: " + destinationFile);
+	    }
 	
 	
 	
@@ -238,16 +257,29 @@ public class JiraOperation {
 		}
 		return fileAttachmentDownloadPaths;
 	}
+	// Method to download embedded images from JIRA test steps
 	  public List<String> downloadEmbeddedImages(JiraTestStep step) {
 	        List<String> embeddedImagePaths = new ArrayList<>();
 
-	        // Assume that JiraTestStep has a method to get embedded image URLs
-	        List<String> imageUrls = step.getEmbeddedImageUrls(); // You need to implement getEmbeddedImageUrls()
+	        if (step == null) {
+	            logger.warn("JiraTestStep is null.");
+	            return embeddedImagePaths;
+	        }
+
+	        List<String> imageUrls = step.getEmbeddedImageUrls();
+	        if (imageUrls == null || imageUrls.isEmpty()) {
+	            logger.warn("No embedded images found for the test step.");
+	            return embeddedImagePaths;
+	        }
 
 	        for (String imageUrl : imageUrls) {
 	            try {
-	                String imagePath = downloadImage(imageUrl);
-	                embeddedImagePaths.add(imagePath);
+	                if (imageUrl != null && !imageUrl.isEmpty()) {
+	                    String imagePath = downloadImage(imageUrl);
+	                    embeddedImagePaths.add(imagePath);
+	                } else {
+	                    logger.warn("Image URL is null or empty.");
+	                }
 	            } catch (IOException e) {
 	                logger.error("Failed to download embedded image from URL: " + imageUrl, e);
 	            }
@@ -255,24 +287,17 @@ public class JiraOperation {
 
 	        return embeddedImagePaths;
 	    }
-	  private String downloadImage(String imageUrl) throws IOException {
-	        URL url = new URL(imageUrl);
-	        String fileName = "downloaded_" + System.currentTimeMillis() + "_" + url.getFile().substring(url.getFile().lastIndexOf('/') + 1);
-	        File file = new File("downloads/" + fileName);
-	        file.getParentFile().mkdirs();
 
-	        try (InputStream in = new BufferedInputStream(url.openStream());
-	             FileOutputStream fos = new FileOutputStream(file)) {
-
-	            byte[] buffer = new byte[1024];
-	            int bytesRead;
-	            while ((bytesRead = in.read(buffer)) != -1) {
-	                fos.write(buffer, 0, bytesRead);
-	            }
-	        }
-
-	        return file.getAbsolutePath();
+	   
+	    private String downloadImage(String imageUrl) throws IOException {
+	        logger.debug("Attempting to download image from URL: " + imageUrl);
+	        String fileName = "downloaded_" + System.currentTimeMillis() + "_" + imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
+	        String localPath = tsEmbeddedAttachmentDownloadLocation + "/" + fileName;
+	        downloadFileFromURL(imageUrl, localPath);
+	        logger.info("Downloaded image from URL: " + imageUrl + " to: " + localPath);
+	        return localPath;
 	    }
+	
 	
 	
 	// Method to fetch test steps from JIRA for a given test case ID
