@@ -1,270 +1,161 @@
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.request.QueryRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.response.QueryResponse;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.util.Fetch;
-import com.rallydev.rest.util.*;
+Let's address these issues one by one.
 
+### 1. **`attachment.getId()` Not Defined in `JiraAttachment` Class:**
 
-import java.net.URI;
+The `JiraAttachment` class should have a method `getId()` that returns the ID of the attachment. I’ll add this method to the `JiraAttachment` class if it's missing.
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+Here’s an example of how the `JiraAttachment` class might look with the `getId()` method:
 
-public class FoldersTestCase {
+```java
+package com.optum.coe.automation.rally;
 
-    public static void main(String[] args) throws Exception {
-        String testCaseId = "CC2-T46114";
-        String jiraBaseUri = "https://jira.healthcareit.net/";
-        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
-        String projectRef = "789325818991";
+public class JiraAttachment {
 
-        // Send the GET request to JIRA using HttpClient
-        HttpClient client = HttpClients.createDefault();
-        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
-        request.setHeader("Authorization", "Bearer " + authToken);
-        request.setHeader("Accept", "application/json");
+    private String id;
+    private String url;
+    private String fileName;
+    private long fileSize;
 
-        HttpResponse response = client.execute(request);
-        String responseBody = EntityUtils.toString(response.getEntity());
+    // Constructor, getters, and setters
 
-        System.out.println("Pretty Response: " + responseBody);
-
-        // Parse the JIRA response
-        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
-
-        // Create the Rally JSON object
-        JsonObject rallyJson = new JsonObject();
-        rallyJson.addProperty("projectRef", projectRef);
-
-        // Create a new test case
-        JsonObject testCase = new JsonObject();
-
-        // Add name
-        JsonElement nameElement = jiraJson.get("name");
-        if (nameElement != null && !nameElement.isJsonNull()) {
-            testCase.addProperty("Name", nameElement.getAsString());
-        } else {
-            testCase.addProperty("Name", "Default Test Case Name"); // default value
-        }
-
-        // Add method
-        testCase.addProperty("Method", "Manual"); // Assuming a default value
-
-        // Add priority
-        JsonElement priorityElement = jiraJson.get("priority");
-        if (priorityElement != null && !priorityElement.isJsonNull()) {
-            String priority = priorityElement.getAsString();
-            if (priority.equalsIgnoreCase("Normal")) {
-                testCase.addProperty("Priority", "Useful");
-            } else {
-                testCase.addProperty("Priority", priority);
-            }
-        } else {
-            testCase.addProperty("Priority", "Default Priority"); // default value
-        }
-
-        // Add owner
-        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
-
-        // Add status
-        JsonElement statusElement = jiraJson.get("status");
-        if (statusElement != null && !statusElement.isJsonNull()) {
-            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
-        } else {
-            testCase.addProperty("Ready", false); // default value
-        }
-
-        // Add Tags
-        JsonArray tagsArray = new JsonArray();
-        JsonObject tagObject = new JsonObject();
-        tagObject.addProperty("_ref", "/tag/56011614555");
-        tagObject.addProperty("Name", "Billing and Eligibility");
-        tagsArray.add(tagObject);
-        testCase.add("Tags", tagsArray);
-
-        // Get folder hierarchy from JIRA response
-        String folderPath = jiraJson.get("folder").getAsString();
-        String[] folderHierarchy = folderPath.split("/");
-
-        // Create TestFolder based on folder hierarchy
-        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
-        if (testFolder == null) {
-            System.out.println("Failed to create or retrieve TestFolder.");
-            return; // Exit the method or handle accordingly
-        }
-        // Add TestFolder to the test case
-        rallyJson.add("TestFolder", testFolder);
-
-        // Add the testCase object to the rallyJson
-        rallyJson.add("testCase", testCase);
-
-        // Save the transformed JSON to a variable
-        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
-
-        // Print the transformed JSON string
-        System.out.println("Transformed JSON: " + rallyJsonString);
-
-        // Initialize Rally API
-        RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
-        restApi.setApplicationName("CreateTestCaseApp");
-
-        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
-
-        // Extract values from JSON:
-        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
-        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
-
-        try {
-            // Create a new test case
-            JsonObject newTestCase = new JsonObject();
-            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
-            newTestCase.addProperty("Project", projectRef);
-            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
-            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
-            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
-            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
-
-            // Add Tags to the test case from the JSON file
-            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
-            if (tagsArrayFromJson != null) {
-                JsonArray newTagsArray = new JsonArray();
-                for (JsonElement tagElement : tagsArrayFromJson) {
-                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
-                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
-                    JsonObject newTagObject = new JsonObject();
-                    newTagObject.addProperty("_ref", tagRef);
-                    newTagsArray.add(newTagObject);
-                }
-                newTestCase.add("Tags", newTagsArray);
-            }
-
-            // Add TestFolder to the test case from the JSON file
-            String testFolderRef = testFolderData.get("_ref").getAsString();
-            newTestCase.addProperty("TestFolder", testFolderRef);
-
-            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
-            CreateResponse createResponse = restApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
-            } else {
-                System.out.println("Error occurred creating test case:");
-                for (String error : createResponse.getErrors()) {
-                    System.out.println(error);
-                }
-            }
-        } finally {
-            // Release resources
-            restApi.close();
-        }
+    public JiraAttachment(String id, String url, String fileName, long fileSize) {
+        this.id = id;
+        this.url = url;
+        this.fileName = fileName;
+        this.fileSize = fileSize;
     }
 
+    public String getId() {
+        return id;
+    }
 
-  
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
-    	// Initialize the last folder and its reference as null
-        JsonObject lastFolder = null;
-        String lastFolderRef = null;
+    public String getUrl() {
+        return url;
+    }
 
-        RallyRestApi restApi = null;
-        try {
-        	// Initialize RallyRestApi with the Rally URI and API key
-            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
-            restApi.setApplicationName("CreateTestCaseApp");
+    public void setUrl(String url) {
+        this.url = url;
+    }
 
-         // Iterate through the folder hierarchy
-            for (String folderName : folderHierarchy) {
-                // Validate folder name
-                if (folderName == null || folderName.trim().isEmpty()) {
-                    System.out.println("Invalid folder name encountered: '" + folderName + "'");
-                    continue; // Skip invalid folder names
-                }
+    public String getFileName() {
+        return fileName;
+    }
 
-             // Create a QueryRequest to check if the folder already exists in Rally
-                QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
-                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()));
-                folderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent")); // Set fields to fetch
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
 
-             // Execute the query to check for folder existence
-                QueryResponse queryResponse = restApi.query(folderExistenceRequest);
-                
-             // Check if the query was successful
-                if (queryResponse.wasSuccessful()) {
-                	
-                	// Check if any folder with the specified name exists
-                	
-                    if (queryResponse.getTotalResultCount() > 0) {
-                    	
-                    	// Folder exists, retrieve its _ref and update the last folder reference                       
-                    	lastFolder = queryResponse.getResults().get(0).getAsJsonObject();
-                        lastFolderRef = lastFolder.get("_ref").getAsString();
-                        System.out.println("Folder already exists: " + lastFolderRef);
-                    } else {
-                        // Folder does not exist, create new folder
-                        JsonObject newFolder = new JsonObject();
-                        newFolder.addProperty("Name", folderName.trim());
-                        newFolder.addProperty("Project", projectRef);
- 
-                        // If there's a parent folder, set it as the parent of the new folder
-                        if (lastFolderRef != null) {
-                            newFolder.addProperty("Parent", lastFolderRef);
-                        }
-                     // Create a CreateRequest to create the new folder in Rally
-                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+    public long getFileSize() {
+        return fileSize;
+    }
 
-                        if (createFolderResponse.wasSuccessful()) {
-                        	// Update the last folder reference and object
-                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                            newFolder.addProperty("_ref", lastFolderRef);
-                            lastFolder = newFolder;
-                            System.out.println("Successfully created folder: " + lastFolderRef);
-                        } else {
-                        	// Handle errors in folder creation
-                            System.out.println("Error occurred creating folder:");
-                            for (String error : createFolderResponse.getErrors()) {
-                                System.out.println(error);
-                            }
-                            break;
-                        }
-                    }
-                } else {
-                	// Handle errors in querying folders
-                    System.out.println("Error querying folders:");
-                    for (String error : queryResponse.getErrors()) {
-                        System.out.println(error);
-                    }
-                    break;
-                }
-            }
-
-            // Return the last created or retrieved folder
-            return lastFolder;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (restApi != null) {
-                try {
-                    restApi.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        return null;
+    public void setFileSize(long fileSize) {
+        this.fileSize = fileSize;
     }
 }
+```
+
+### 2. **`Utils.downloadFileFromURL` Method is Undefined:**
+
+If `downloadFileFromURL` is not defined in your `Utils` class, we’ll need to implement this method. The method should download a file from a given URL and save it to a specified location.
+
+Here’s an example implementation:
+
+```java
+package com.optum.coe.automation.rally;
+
+import java.io.BufferedInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.file.Paths;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class Utils {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    // Method to download a file from a URL and save it to the specified location
+    public static String downloadFileFromURL(URL url, String destinationDir) throws IOException {
+        String fileName = Paths.get(url.getPath()).getFileName().toString();
+        String destinationFilePath = Paths.get(destinationDir, fileName).toString();
+
+        try (BufferedInputStream in = new BufferedInputStream(url.openStream());
+             FileOutputStream fileOutputStream = new FileOutputStream(destinationFilePath)) {
+
+            byte dataBuffer[] = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
+                fileOutputStream.write(dataBuffer, 0, bytesRead);
+            }
+
+            logger.info("Downloaded file: " + fileName + " to " + destinationFilePath);
+        } catch (IOException e) {
+            logger.error("Failed to download file from URL: " + url, e);
+            throw e;
+        }
+
+        return destinationFilePath;
+    }
+}
+```
+
+### Updated `JiraOperation` Class with Adjustments:
+
+```java
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class JiraOperation {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    // Method to download attachments for Jira Test Steps
+    public static List<String> downloadStepAttachments(JiraTestStep step) {
+        List<String> attachmentPaths = new ArrayList<>();
+        List<JiraAttachment> attachments = step.getAttachments();
+
+        if (attachments == null || attachments.isEmpty()) {
+            logger.warn("No attachments found for the test step.");
+            return attachmentPaths;
+        }
+
+        for (JiraAttachment attachment : attachments) {
+            String downloadUrl = attachment.getUrl();
+            if (downloadUrl == null || downloadUrl.isEmpty()) {
+                logger.warn("Download URL is null or empty for attachment: " + attachment.getId());
+                continue;
+            }
+
+            try {
+                String downloadedFilePath = Utils.downloadFileFromURL(new URL(downloadUrl), ConfigLoader.getConfigValue("TestStep_File_Attachment_Location"));
+                attachmentPaths.add(downloadedFilePath);
+            } catch (IOException e) {
+                logger.error("Failed to download attachment: " + attachment.getId(), e);
+            }
+        }
+
+        return attachmentPaths;
+    }
+}
+```
+
+### Summary:
+- **`JiraAttachment` Class**: Added the `getId()` method.
+- **`Utils` Class**: Implemented the `downloadFileFromURL` method to handle file downloads from a URL.
+- **`JiraOperation` Class**: Updated to use the new `downloadFileFromURL` method and handle attachments correctly.
+
+These changes should resolve the issues you're encountering. If there are any more errors or issues, feel free to share them!
