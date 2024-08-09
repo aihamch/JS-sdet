@@ -1,463 +1,394 @@
-Here is the full updated `RallyOperation.java` class with the inclusion of the `migrateTestSteps` method and other necessary methods for handling test steps and attachments:
+Here is the full `JiraOperation.java` class based on the updates and context provided:
 
 ```java
 package com.optum.coe.automation.rally;
 
-import java.io.File;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.ParseException;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
 
-public class RallyOperation {
+public class JiraOperation {
 
     // Initialization of the class member variables. This section can be updated in future if more member variables are added during integration if needed.
-    private String rallyBaseURL;
-    private String rallyApiKey;
-    private String rallyProjectKey;
-    private String rallyUser;
 
-    // Logger Initialization for RallyOperation Class
+    private String jiraBaseURL;
+    private String jiraApiKey;
+    private String jiraProjectKey;
+    private String max_chunk;
+    private String tcFileAttachmentDownloadLocation;
+    private String tsFileAttachmentDownloadLocation;
+
+    // Logger Initialization for JiraOperation Class
+
     private static final Logger logger = LogManager.getLogger();
 
-    /* A Constructor loads the value from .properties file. These value will be loaded as soon as a object is created for this class.
-     * Rally Base URL, Rally API Key, Rally Project Reference, Rally user are loaded from .properties file */
+    /*
+     * A Constructor loads the value from .properties file. These value will be
+     * loaded as soon as a object is created for this class. Jira Base URL, Jira API
+     * Key, Jira Project Key, Max Chunk values are loaded from .properties file
+     * max_chunk value refers that how many test cases should be migrated for a run.
+     */
 
-    public RallyOperation() {
+    public JiraOperation() {
 
-        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
-        rallyUser = ConfigLoader.getConfigValue("RALLY_USER_REF");
-        logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
-        logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL + "\nRally Project Reference " + rallyProjectKey);
+        jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
+        jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
+        jiraProjectKey = ConfigLoader.getConfigValue("JIRA_PROJECT_KEY");
+        max_chunk = ConfigLoader.getConfigValue("MAX_VALUE_CHUNK");
+        tcFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_CASE_FILE_ATTACHMENT_LOCATION");
+        tsFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
+        logger.info("Jira values for the project key " + jiraProjectKey
+                + " are assiged from rally_migration_config.properties file");
+        logger.log(Level.getLevel("VERBOSE"),
+                "Below the values assigned from rally_migration_config.properties file. \nJira Base URL - "
+                        + jiraBaseURL + "\nJira Project Key " + jiraProjectKey + "\nMax Chunk value - " + max_chunk
+                        + "\nTest Case File Attachment Download location - " + tcFileAttachmentDownloadLocation
+                        + "\nTest Step File Attachment location - " + tsFileAttachmentDownloadLocation);
 
     }
 
-    /* A method which handles below major functionalities
-     * 1. Transform the Jira Testcase details to Rally Test variable
-     * 2. Check if the Jira folder structure is available in Rally
-     *      a. If folder structure is not available in rally, then create the same Jira folder structure in rally for the testcase
-     *      b. If folder structure is available in rally, no action is required
-     * 3. Create the testcase
-     * 4. Log the testcase OID to the log file; This OID will be used while integrating TestStep, Attachments implementation for the testcase
-     * 5. Returns a boolean value as true for a successful testcase creation in rally, else returns false */
+    /*
+     * A method to get non migrated testcase keys using JIRA REST Api and
+     * save them to Testcase array list
+     */
 
-    public String createRallyTestcase(JSONObject jiraJson) throws IOException {
+    public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
 
-        String rallyTestCaseOID = null;
+        // An ArrayList is used to store the testcases keys from Jira response
 
-        // Create JSON object for rally Json and add rally project reference key
-        JsonObject rallyJson = new JsonObject();
-        rallyJson.addProperty("projectRef", rallyProjectKey);
+        ArrayList<String> testCaseKeys = new ArrayList<String>();
 
-        // Create JSON object for testcase Json to add the rally testcase property
-        JsonObject testCase = new JsonObject();
+        // Preparation of URL string building.
 
-        // Get testcase name from Jira Json body and add it to rally testcase as a property
-        String name = jiraJson.optString("name", "Default Test Case Name - No TestCase name found in Jira");
-        testCase.addProperty("Name", name);
+        String encodededKey = null;
+        try {
+            encodededKey = URLEncoder.encode(
+                    "projectKey = " + jiraProjectKey
+                            + " AND \"Migrate Test to Rally\" = true AND \"TestCase Migrated\" = false",
+                    StandardCharsets.UTF_8.toString());
+        } catch (UnsupportedEncodingException e) {
+            logger.error("Error while encoding a part of URL ", e);
+        }
 
-        // Add method as Manual to rally testcase as a property
-        testCase.addProperty("Method", "Manual");
+        /*
+         * Jira URL string building. This URL will give the Jira Testcase keys
+         * 
+         * 1. For max chunk configured numbers testcases. "max_result" is the URL
+         * argument which handles this part. AND 2. For the testcases which are not
+         * migrated already. It will be determined by "TestCase Migrated" field which
+         * will be false for migrated testcase in Jira AND 3. For the testcases which
+         * need to be migrated. It will be determined by "Migrate Test to Rally" field
+         * which will be true for non-migated testcase in Jira AND 4. For the testcases
+         * associated with the configured Jira project key
+         */
 
-        // Add priority value from Jira Json body to rally testcase as a property
-        String priority = jiraJson.optString("priority", "Default Priority");
-        if (priority.equalsIgnoreCase("Normal")) {
-            testCase.addProperty("Priority", "Useful");
+        String url = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=" + max_chunk + "&query="
+                + encodededKey;
+        logger.info("String URL to get non migrated testcase keys from Jira " + url); // Log the string URL in log file
+
+        /*
+         * Call "getJiraResponse" from Utils class. This method will return the JIRA
+         * JSON response for the given URL. Since the URL has been built such a way that
+         * to list the non migrated testcases, the output of this method would be Jira
+         * testcase keys in a JSON format
+         */
+
+        HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+
+        if (response != null) {
+            String result = null;
+            try {
+                // Parse the Json into string; meaning get the jira testcase keys as string
+                // value from Json
+                result = EntityUtils.toString(response);
+
+                // Exceptional Handling while parsing the Json response
+            } catch (ParseException e) {
+                logger.error("Error while parsing the Json response ", e);
+
+            } catch (IOException e) {
+                logger.error("Error while parsing the Json response", e);
+
+            }
+            // Add the parsed Jira testcase keys into JSON Array.
+
+            JSONArray jsonArray = new JSONArray(result);
+
+            // Iterate each keys, get the value of testcase key and add it to ArrayList
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject jsonObject = jsonArray.getJSONObject(i);
+                String key = jsonObject.getString("key");
+                logger.info("Key retrieved: " + jsonObject.getString("key"));
+                testCaseKeys.add(key);
+            }
+
         } else {
-            testCase.addProperty("Priority", priority);
+            // Log if null response
+            logger.error("Response is NULL from while retrieving non migrated keys from JIRA. Returning NULL");
         }
 
-        // Add owner from config file to the rally testcase as a property
-        testCase.addProperty("Owner", "/user/" + rallyUser);
-
-        // Add status from Jira Json and add to the rally testcase as a property
-        String status = jiraJson.optString("status", "false");
-        testCase.addProperty("Ready", status.equals("Ready"));
-
-        // Add tags - Need implementation as discussed in code review meeting
-        // Convert Jira labels to Rally tags if labels are present
-        
-        JsonArray tagsArray = new JsonArray();
-        if (jiraJson.has("labels")) {
-            JsonArray labelsArray = new JsonArray();
-            RallyRestApi restApi = null;
-            try {
-                restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-                for (JsonElement labelElement : labelsArray) {
-                    String label = labelElement.getAsString();
-                    JsonObject tag = Utils.findOrCreateTag(restApi, label);
-                    if (tag != null) {
-                        tagsArray.add(tag);
-                    }
-                }
-            } catch (URISyntaxException e) {
-                logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
-            }
-            testCase.add("Tags", tagsArray);
-        }
-
-        // Get folder hierarchy from JIRA response
-        String folderPath = jiraJson.getString("folder");
-        String[] folderHierarchy = folderPath.split("/");
-
-        // Call a Util method to create test folder based on folder hierarchy
-        JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey, rallyBaseURL, rallyApiKey);
-        if (testFolder == null) {
-            logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
-            return rallyTestCaseOID; // Exit the method or handle accordingly
-        } else logger.info("Folder " + folderPath + " is created successfully in Rally");
-
-        // Add TestFolder to the test case
-        rallyJson.add("TestFolder", testFolder);
-
-        // Add the testCase object to the rallyJson
-        rallyJson.add("testCase", testCase);
-
-        // Save the transformed JSON to a variable
-        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
-
-        // Initialize Rally API
-        RallyRestApi restApi = null;
-        try {
-            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-        } catch (URISyntaxException e) {
-            logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
-        }
-        restApi.setApplicationName("CreateTestCaseApp");
-
-        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
-
-        // Extract values from JSON:
-        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
-        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
-
-        try {
-            // Create a new test case
-            JsonObject newTestCase = new JsonObject();
-            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
-            newTestCase.addProperty("Project", rallyProjectKey);
-            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
-            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
-            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
-            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
-
-            // Add Tags to the test case from the JSON file
-            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
-            if (tagsArrayFromJson != null) {
-                JsonArray newTagsArray = new JsonArray();
-                for (JsonElement tagElement : tagsArrayFromJson) {
-                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
-                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
-                    JsonObject newTagObject = new JsonObject();
-                    newTagObject.addProperty("_ref", tagRef);
-                    newTagsArray.add(newTagObject);
-                }
-                newTestCase.add("Tags", newTagsArray);
-            }
-
-            // Add TestFolder to the test case from the JSON file
-            String testFolderRef = testFolderData.get("_ref").getAsString();
-            newTestCase.addProperty("TestFolder", testFolderRef);
-
-            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
-            CreateResponse createResponse = null;
-            try {
-                createResponse = restApi.create(createRequest);
-            } catch (IOException e) {
-                logger.error("IO exception during create request.", e);
-            }
-
-            if (createResponse.wasSuccessful()) {
-                rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test case and the OID for created testcase: " + createResponse.getObject().get("_ref").getAsString());
-
-            } else {
-                logger.error("Error occurred creating test case");
-                for (String error : createResponse.getErrors()) {
-                    logger.error(error);
-                }
-            }
-
-        } finally {
-            // Release resources
-            try {
-                restApi.close();
-                logger.info("Closed rest api resource in finally block");
-            } catch (IOException e) {
-                logger.error("Error occurred while closing rest api resource at finally block", e);
-            }
-        }
-        return rallyTestCaseOID;
+        return testCaseKeys;
     }
 
-    public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID
+    /*
+     * Create a method to get the testcase details for a given jira testcase key.
+     * This method accepts Jira key as string argument and returns the testcase keys
+     * as Json Object for further processing Create a method to get JIRA Test case
+     * details for the current key
+     */
 
-, List<String> filePaths) {
-        List<String> testcaseAttachmentOIDs = new ArrayList<String>();
-        RallyRestApi rallyApi = null;
-        try {
-            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-        } catch (URISyntaxException e) {
-            logger.error("Rally Base URL has some syntax error.", e);
-        }
-        try {
-            for (String filePath : filePaths) {
-                try {
-                    testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
-                    logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
-                } catch (IOException e) {
-                    testcaseAttachmentOIDs.clear();
-                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
-                    return testcaseAttachmentOIDs;
-                }
-            }
-        } finally {
-            try {
-                rallyApi.close();
-            } catch (IOException e) {
-                logger.error("Rally API resource is not closed due to IO exception.", e);
-            }
-        }
-        return testcaseAttachmentOIDs;
+    // Method to get Jira TestCase details and return as org.json.JSONObject
+    public JSONObject getJiraTestCaseDetails(String testCaseKey) {
+        String jsonResponse = getJiraResponse(testCaseKey);
+        JSONObject jiraTestcaseJson = new JSONObject(jsonResponse);
+        return jiraTestcaseJson;
     }
 
-    public List<String> attachFilestoRallyTestStep(String rallyTestStepOID, List<String> filePaths) {
-        List<String> testStepAttachmentOIDs = new ArrayList<String>();
-        RallyRestApi rallyApi = null;
+    // Helper method to perform HTTP GET request to Jira and return the response as a string
+    private String getJiraResponse(String testCaseKey) {
+        String urlString = jiraBaseURL + "/rest/atm/1.0/testcase/" + testCaseKey;
+        HttpURLConnection connection = null;
+        StringBuilder response = new StringBuilder();
+
         try {
-            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-        } catch (URISyntaxException e) {
-            logger.error("Rally Base URL has some syntax error.", e);
-        }
-        try {
-            for (String filePath : filePaths) {
-                try {
-                    testStepAttachmentOIDs.add(attachFileToRallyTestStep(rallyApi, rallyTestStepOID, filePath));
-                    logger.info("File " + filePath + " is attached for the test step OID " + rallyTestStepOID + " in Rally successfully");
-                } catch (IOException e) {
-                    testStepAttachmentOIDs.clear();
-                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
-                    return testStepAttachmentOIDs;
+            URL url = new URL(urlString);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Authorization", "Bearer " + jiraApiKey);
+            connection.setRequestProperty("Content-Type", "application/json");
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                String inputLine;
+                while ((inputLine = in.readLine()) != null) {
+                    response.append(inputLine);
                 }
-            }
-        } finally {
-            try {
-                rallyApi.close();
-            } catch (IOException e) {
-                logger.error("Rally API resource is not closed due to IO exception.", e);
-            }
-        }
-        return testStepAttachmentOIDs;
-    }
-
-    private String attachFileToRallyTestStep(RallyRestApi rallyApi, String rallyTestStepOID, String filePath) throws IOException {
-        JsonObject newAttachment = new JsonObject();
-        newAttachment.addProperty("Artifact", rallyTestStepOID);
-        newAttachment.addProperty("ContentType", "application/octet-stream");
-        newAttachment.addProperty("Name", new File(filePath).getName());
-
-        CreateRequest attachmentCreateRequest = new CreateRequest("Attachment", newAttachment);
-        CreateResponse attachmentCreateResponse = rallyApi.create(attachmentCreateRequest);
-
-        if (attachmentCreateResponse.wasSuccessful()) {
-            String attachmentOID = attachmentCreateResponse.getObject().get("_ref").getAsString();
-            return attachmentOID;
-        } else {
-            logger.error("Failed to create attachment: " + attachmentCreateResponse.getErrors());
-            return null;
-        }
-    }
-
-    public String createRallyTestStep(String rallyTestcaseOID, JSONObject testStepJson) {
-        RallyRestApi restApi = null;
-        String rallyTestStepOID = null;
-        try {
-            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-            restApi.setApplicationName("CreateTestCaseApp");
-
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestcaseOID);
-            newTestStep.addProperty("StepIndex", testStepJson.getInt("index"));
-
-            // Check if keys exist before accessing them
-            if (testStepJson.has("description")) {
-                newTestStep.addProperty("Input", testStepJson.getString("description"));
+                in.close();
             } else {
-                newTestStep.addProperty("Input", "No description provided");
+                logger.error("GET request to Jira failed with response code: " + responseCode);
             }
-
-            if (testStepJson.has("expectedResult")) {
-                newTestStep.addProperty("ExpectedResult", testStepJson.getString("expectedResult"));
-            } else {
-                newTestStep.addProperty("ExpectedResult", "No expected result provided");
-            }
-
-            if (testStepJson.has("testData")) {
-                newTestStep.addProperty("ValidationInput", testStepJson.getString("testData"));
-            } else {
-                newTestStep.addProperty("ValidationInput", "No test data provided");
-            }
-
-            CreateRequest createTestStepRequest = new CreateRequest("TestStep", newTestStep);
-            CreateResponse createTestStepResponse = restApi.create(createTestStepRequest);
-
-            if (createTestStepResponse.wasSuccessful()) {
-                rallyTestStepOID = createTestStepResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test step in Rally with OID: " + rallyTestStepOID);
-            } else {
-                logger.error("Error occurred creating test step in Rally.");
-                for (String error : createTestStepResponse.getErrors()) {
-                    logger.error(error);
-                }
-            }
-
         } catch (Exception e) {
-            logger.error("Exception occurred while creating test step in Rally: ", e);
+            logger.error("Exception occurred while making GET request to Jira: ", e);
         } finally {
-            if (restApi != null) {
-                try {
-                    restApi.close();
-                } catch (Exception e) {
-                    logger.error("Exception occurred while closing Rally REST API: ", e);
-                }
+            if (connection != null) {
+                connection.disconnect();
             }
         }
-        return rallyTestStepOID;
+        return response.toString();
     }
 
-    private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
-        // Step 1: Read the file and encode it in Base64
-        byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
-        String encodedContent = Base64.getEncoder().encodeToString(fileContent);
+    /*
+     * Create method to download the attachment from Jira Test case For a given test
+     * case key, this method downloads Test case level File Attachments, Not
+     * Embedded Attachments Testcase key is given as a String Argument Type is given
+     * as another String Argument. The "type" should be either
+     * "testcase" or "teststep"
+     */
 
-        // Step 2: Create a new attachment content record in Rally
-        JsonObject newAttachmentContent = new JsonObject();
-        newAttachmentContent.addProperty("Content", encodedContent);
+    public List<String> jiraAttachmentsDownload(String testcaseKey, String testType, String attachmentType) {
+        // A String is used to return the file attachments download paths
+        List<String> fileAttachmentDownloadPaths = null;
+        String testAttachmentUrl = null;
+        if (testType == "testcase") {
+            testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey + "/attachments";
+            logger.info("URL String for testcase attachments: " + testAttachmentUrl);
+        } else if ((testType == "teststep") && (attachmentType == "file")) {
+            logger.info("URL String for teststep attachments: " + testAttachmentUrl);
+            testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey;
+        } else if ((testType == "teststep") && (attachmentType == "embedded")) {
+            logger.info("URL String for teststep attachments: " + testAttachmentUrl);
+            testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey;
 
-        CreateRequest attachmentContentCreateRequest = new CreateRequest("AttachmentContent", newAttachmentContent);
-        CreateResponse attachmentContentCreateResponse = rallyApi.create(attachmentContentCreateRequest);
 
-        if (!attachmentContentCreateResponse.wasSuccessful()) {
-            logger.error("Failed to create attachment content: " + attachmentContentCreateResponse.getErrors());
-            return null;
-        }
-
-        // Step 3: Create the attachment record and associate it with the test case
-        JsonObject newAttachment = new JsonObject();
-        newAttachment.addProperty("Artifact", testCaseId);
-        newAttachment.addProperty("Content", attachmentContentCreateResponse.getObject().get("_ref").getAsString());
-        newAttachment.addProperty("ContentType", "application/octet-stream");
-        newAttachment.addProperty("Name", new File(filePath).getName());
-
-        CreateRequest attachmentCreateRequest = new CreateRequest("Attachment", newAttachment);
-        CreateResponse attachmentCreateResponse = rallyApi.create(attachmentCreateRequest);
-
-        if (attachmentCreateResponse.wasSuccessful()) {
-            String attachmentOID = attachmentCreateResponse.getObject().get("_ref").getAsString();
-            return attachmentOID;
         } else {
-            logger.error("Failed to create attachment: " + attachmentCreateResponse.getErrors());
+            logger.error(
+                    "Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
             return null;
         }
-    }
-
-    // Method to migrate test steps from JIRA to Rally
-    public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi) {
-        Collections.reverse(jiraTestSteps);
-
-        for (JiraTestStep step : jiraTestSteps) {
+        HttpEntity response = Utils.getJiraResponse(testAttachmentUrl, jiraApiKey);
+        if (response != null) {
+            String result = null;
             try {
-                JsonObject newTestStep = new JsonObject();
-                newTestStep.addProperty("TestCase", rallyTestCaseRef);
-                newTestStep.addProperty("StepIndex", step.getIndex());
-                newTestStep.addProperty("Input", step.getDescription());
-                newTestStep.addProperty("ExpectedResult", step.getExpectedResult());
-                newTestStep.addProperty("TestData", step.getTestData());
-
-                // Handle attachments
-                List<String> attachmentPaths = JiraOperation.downloadStepAttachments(step);
-                List<String> rallyAttachmentRefs = uploadAttachmentsToRally(attachmentPaths, rallyRestApi, rallyTestCaseRef);
-
-                if (!rallyAttachmentRefs.isEmpty()) {
-                    JsonArray attachmentsArray = new JsonArray();
-                    for (String attachmentRef : rallyAttachmentRefs) {
-                        JsonObject attachmentObj = new JsonObject();
-                        attachmentObj.addProperty("_ref", attachmentRef);
-                        attachmentsArray.add(attachmentObj);
-                    }
-                    newTestStep.add("Attachments", attachmentsArray);
-                }
-
-                CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
-                CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-                if (createResponse.wasSuccessful()) {
-                    logger.info("Successfully created test step: " + step.getDescription());
+                /*
+                 * Parse the Json into string; meaning get the jira testcase keys as string
+                 * value from Json. No Attachment is found when JSON response is empty
+                 * Attachment is found when JSON response is not empty
+                 */
+                result = EntityUtils.toString(response);
+                if (result.trim().isEmpty() || result.equals("{}") || result.equals("[]")) {
+                    logger.info("No Attachment URL found for the testcase key " + testcaseKey);
                 } else {
-                    logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + createResponse.getErrors());
+                    logger.info("Attachment URL is found for the testcase key " + testcaseKey
+                            + "; JSON body while finding the attachment URL and name of the attachment: " + result);
+
+                    if (testType == "testcase") {
+                        Map<String, String> testMap = Utils.pharseJsonGetAttachmentUrlAndName(result);
+                        fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromJiraTestCase(testMap,
+                                tcFileAttachmentDownloadLocation, jiraApiKey, testcaseKey);
+                    } else if ((testType == "teststep") && (attachmentType == "file")) {
+                        fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromTestStep(result, jiraApiKey,
+                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL);
+                    } else if ((testType == "teststep") && (attachmentType == "embedded")) {
+
+                        List<String> descriptionAttachmentDownloadPaths, testDataAttachmentDownloadPaths, expectedResultAttachmentDownloadPaths;
+                        descriptionAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
+                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "description");
+                        testDataAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
+                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "testData");
+                        expectedResultAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
+                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "expectedResult");
+                        descriptionAttachmentDownloadPaths.addAll(testDataAttachmentDownloadPaths);
+                        descriptionAttachmentDownloadPaths.addAll(expectedResultAttachmentDownloadPaths);
+                        fileAttachmentDownloadPaths = descriptionAttachmentDownloadPaths;
+
+                    } else {
+
+                        logger.error(
+                                "Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
+                        return null;
+
+                    }
                 }
-            } catch (Exception e) {
-                logger.error("Exception while creating test step: " + step.getDescription(), e);
+                // Exceptional Handling while parsing the Json response
+            } catch (ParseException e) {
+                logger.error("Error while parsing the Json response ", e);
+
+            } catch (IOException e) {
+                logger.error("Error while parsing the Json response", e);
+
             }
+
+        } else {
+            // Log if null response
+            logger.error("Response is NULL from while retrieving non migrated keys from JIRA. Returning NULL");
         }
+        return fileAttachmentDownloadPaths;
+
     }
 
-    private List<String> uploadAttachmentsToRally(List<String> attachmentPaths, RallyRestApi rallyRestApi, String rallyTestCaseRef) {
-        List<String> attachmentRefs = new ArrayList<>();
+    // Method to download attachments for a given Jira test step
+    public static List<String> downloadStepAttachments(JiraTestStep step) {
+        List<String> attachmentPaths = new ArrayList<>();
 
-        for (String filePath : attachmentPaths) {
-            try {
-                String attachmentRef = attachFileToRallyTestCase(rallyRestApi, rallyTestCaseRef, filePath);
-                if (attachmentRef
+        // Download file attachments from the test step
+        List<JiraAttachment> attachments = step.getAttachments();
+        if (attachments != null && !attachments.isEmpty()) {
+            for (JiraAttachment attachment : attachments) {
+                try {
+                    String fileUrl = attachment.getUrl();
+                    String fileName = attachment.getFilename();
+                    String downloadLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
 
- != null) {
-                    attachmentRefs.add(attachmentRef);
+                    HttpEntity response = Utils.getJiraResponse(fileUrl, ConfigLoader.getConfigValue("JIRA_API_TOKEN"));
+
+                    if (response != null) {
+                        Path path = Paths.get(downloadLocation);
+                        if (!Files.exists(path)) {
+                            Files.createDirectories(path);
+                        }
+
+                        Path filePath = Paths.get(downloadLocation + "/" + fileName);
+                        try (InputStream in = response.getContent()) {
+                            Files.copy(in, filePath);
+                            attachmentPaths.add(filePath.toString());
+                            EntityUtils.consume(response);
+                            logger.info("Downloaded test step attachment: " + fileName + " to " + filePath);
+                        } catch (IOException e) {
+                            logger.error("Failed to download test step attachment: " + fileName, e);
+                        }
+                    } else {
+                        logger.error("No response received when trying to download attachment: " + fileName);
+                    }
+                } catch (IOException e) {
+                    logger.error("Error while downloading attachment for test step", e);
                 }
-            } catch (IOException e) {
-                logger.error("Failed to upload attachment to Rally: " + filePath, e);
             }
         }
 
-        return attachmentRefs;
+        // Download embedded images from the test step (if any)
+        List<String> embeddedImageUrls = step.getEmbeddedImageUrls();
+        if (embeddedImageUrls != null && !embeddedImageUrls.isEmpty()) {
+            String embeddedDownloadLocation = ConfigLoader.getConfigValue("TEST_STEP_EMBEDDED_ATTACHMENT_LOCATION");
+            for (String imageUrl : embeddedImageUrls) {
+                try {
+                    HttpEntity response = Utils.getJiraResponse(imageUrl, ConfigLoader.getConfigValue("JIRA_API_TOKEN"));
+
+                    if (response != null) {
+                        Path path = Paths.get(embeddedDownloadLocation);
+                        if (!Files.exists(path)) {
+                            Files.createDirectories(path);
+                        }
+
+                        String[] parts = imageUrl.split("/");
+                        String imageName = parts[parts.length - 1];
+                        Path filePath = Paths.get(embeddedDownloadLocation + "/" + imageName);
+
+                        try (InputStream in = response.getContent()) {
+                            Files.copy(in, filePath);
+                            attachmentPaths.add(filePath.toString());
+                            EntityUtils.consume(response);
+                            logger.info("Downloaded embedded image: " + imageName + " to " + filePath);
+                        } catch (IOException e) {
+                            logger.error("Failed to download embedded image: " + imageName, e);
+                        }
+                    } else {
+                        logger.error("No response received when trying to download embedded image: " + imageName);
+                    }
+                } catch (IOException e) {
+                    logger.error("Error while downloading embedded image for test step", e);
+                }
+            }
+        }
+
+        return attachmentPaths;
     }
 }
 ```
 
-### **Key Changes and Methods:**
+### **Explanation:**
 
-1. **`createRallyTestcase`**: Creates a Rally test case from a Jira test case JSON object, including folder hierarchy, tags, and status.
+1. **Initialization**:
+   - Configuration values like Jira base URL, API token, project key, and attachment download locations are initialized from the properties file.
 
-2. **`attachFilestoRallyTestcase`**: Attaches files to a Rally test case. The method uploads attachments and returns a list of attachment OIDs.
+2. **`getJiraNonMigratedTestcaseKeys`**:
+   - Retrieves a list of Jira test cases that have not been migrated yet, based on specific JQL filters.
 
-3. **`createRallyTestStep`**: Creates a Rally test step from a JSON object, ensuring all necessary fields are included.
+3. **`getJiraTestCaseDetails`**:
+   - Fetches details of a specific Jira test case using its key and returns the data as a `JSONObject`.
 
-4. **`migrateTestSteps`**: Handles the migration of test steps from Jira to Rally. It also processes attachments for each test step and uploads them to Rally.
+4. **`jiraAttachmentsDownload`**:
+   - Downloads attachments for a given test case or test step, supporting both file and embedded attachments.
 
-5. **`uploadAttachmentsToRally`**: Handles the uploading of attachment files to Rally and returns their references.
+5. **`downloadStepAttachments`**:
+   - This method downloads the attachments associated with a given `JiraTestStep`, handling both file attachments and embedded images.
 
-### **Assumptions:**
+6. **`getJiraResponse`**:
+   - A utility method to make HTTP GET requests to Jira and retrieve the response as a string.
 
-- The `JiraOperation` class has a method `downloadStepAttachments` that retrieves attachments for a Jira test step.
-- The `ConfigLoader` is used to load configuration values from the `rally_migration_config.properties` file.
+### **Key Points**:
+- **Attachment Handling**: The class handles both file and embedded attachments for test cases and test steps.
+- **Logging**: Comprehensive logging is provided for tracing operations and handling errors.
+- **Jira API Integration**: Uses the Jira REST API to fetch and manipulate data.
 
-This class should now fully support the migration of test steps from Jira to Rally, including handling attachments for both test cases and individual test steps. If you encounter any issues or have further requirements, feel free to ask!
+This implementation should now fully support the operations needed for migrating test cases and test steps from Jira to Rally, including downloading and handling attachments. If there are any specific modifications or enhancements needed, feel free to ask!
