@@ -1,100 +1,93 @@
 package com.optum.coe.automation.rally;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 public class RunnerClass {
+    private static final Logger logger = LogManager.getLogger();
 
-	// Logger Initialization for Runner Class
-	private static final Logger logger = LogManager.getLogger();
+    public static void main(String[] args) {
+        try {
+            Gson gson = new Gson();
+            JiraTestCase jiraTestCase = new JiraTestCase();
+            JiraOperation jiraOperation = new JiraOperation();
+            ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
 
-	// Main method
-	public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
-		
-	    /* Main method calls below functionalities from com.optum.coe.automation.rally package
-	     * 1. Get Jira non migrated testcase keys 
-	     * 2. Get Jira Testcase details for the given testcase key. It is an iterative process
-	     * 3. Create the testcase in Rally using the Jira testcase details
-	     * 4. Validate if the testcase is created successfully ; Future implementation is required. US7440061*/
-				
-		Gson gson=new Gson();
-		JiraTestCase jiraTestCase = new JiraTestCase();
-		JiraOperation jiraOperation = new JiraOperation();
-		JiraTestStep steps=new JiraTestStep();
-		ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-		for (int i = 0 ; i < testcaseKeys.size() ; i++) {
-			jiraTestCase.setKey(testcaseKeys.get(i));
-			logger.info("Processing " + jiraTestCase.getKey());
-			JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-			RallyOperation rallyOperation = new RallyOperation();
-			boolean rallyTestcaseCreationStatus= rallyOperation.createRallyTestcase(jiraTestcaseJson);
-			
-			String rallyTestcaseOID = rallyOperation.getRallyTestCaseOID();
-			
-			
-			
-					JsonArray stepsArray=jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");			
-					List<JiraTestStep> testSteps=new ArrayList<>();				
-					 for(JsonElement element : stepsArray) {
-						JiraTestStep step =gson.fromJson(element, JiraTestStep.class);
-						testSteps.add(step);
-						
-						rallyOperation.createTestStep(step);
-						}
-					/* boolean isDescending = true;
-					 for(int j=1; j<testSteps.size();j++) {
-						 if(testSteps.get(j-1).getIndex() <testSteps.get(j).getIndex()) {
-							 isDescending = false;
-							 break;
-						 }
-					 }
-					
-						 Collections.reverse(testSteps);
-					
-					 if(rallyTestcaseOID!=null) {
-						 rallyOperation.createTestStep(steps);
-					
-					 }*/
-					
-					 			
-			
-			/* Needs to be added calling methods for TestStep, Attachments, etc in future iterations. 
-			 * US7266086 - For Test Step
-			 * US7132986 - For Attachment ( Not Embedded )*/
-						
-			if (rallyTestcaseCreationStatus == true ) {
-				System.out.println("Rally Testcase Creation Status is true" );
-				// call the method to update the TestCase Migrated in Jira to "true". this method should go to Utils.Java Class
-				//Utils.updateTestCaseMigratedStatusinJira(true); // Yet to be implemented - US7382197
-			
-				
-			} else { 
-			    
-				logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey() + " is not created in rally");
-				return;
-			}
-			
-		}
-		
-		
-		
-		
+            String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+            String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+            RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
 
-	
+            for (String testcaseKey : testcaseKeys) {
+                boolean rallyTestcaseCreationStatus = false;
+                boolean rallyOverallTestStepAttachmentsStatus = false;
+                jiraTestCase.setKey(testcaseKey);
+                logger.info("Processing " + jiraTestCase.getKey());
+                JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+                RallyOperation rallyOperation = new RallyOperation();
+                String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
 
-	}
+                if (rallyTestcaseOID != null) {
+                    rallyTestcaseCreationStatus = true;
+                } else {
+                    logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                    break;
+                }
 
+                // Download attachments at the testcase level
+                List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+                if (fileAttachmentDownloadPathsTestcaseLevel != null) {
+                    logger.info("Attachment paths are found in the list.");
+                    List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+
+                    if (testcaseAttachmentOIDs.isEmpty()) {
+                        logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+                        return;
+                    }
+                } else {
+                    logger.info("No Attachment path found for Testcase level.");
+                }
+
+                // Handle test steps
+                JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+                List<JiraTestStep> testSteps = new ArrayList<>();
+
+                for (JsonElement element : stepsArray) {
+                    JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+                    testSteps.add(step);
+                }
+
+                rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi);
+
+                // Download and upload attachments for each test step
+                for (JiraTestStep step : testSteps) {
+                    List<String> stepAttachmentPaths = jiraOperation.downloadStepAttachments(step);
+                    List<String> embeddedImages = jiraOperation.downloadEmbeddedImages(step);
+                    stepAttachmentPaths.addAll(embeddedImages);
+
+                    if (!stepAttachmentPaths.isEmpty()) {
+                        rallyOperation.attachFilesToTestStep(rallyTestcaseOID, step.getIndex(), stepAttachmentPaths);
+                        Utils.deleteAttachmentFileFromLocal(stepAttachmentPaths);
+                    }
+                }
+
+                if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                    System.out.println("Rally Testcase Creation Status is true");
+                } else {
+                    logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error occurred during the migration process", e);
+        }
+    }
 }
