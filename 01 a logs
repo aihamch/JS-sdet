@@ -1,15 +1,13 @@
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import org.json.JSONObject;
+Jira Project Key CC2
+Max Chunk value - 1
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-09 19:30:22.725 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:30:23.648 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:30:23.653 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-09 19:30:23.657 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-09 19:30:24.106 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key _UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk are assigned from rally_migration_config.properties file
+2024-08-09 19:30:24.632 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error occurred creating test case in Rally.
+2024-08-09 19:30:24.632 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "JIRAUSER74201"
+2024-08-09 19:30:24.634 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
 
-public JsonObject getJiraTestCaseDetails(String testCaseKey) {
-    String jsonResponse = getJiraResponse(testCaseKey);
-    
-    // Create a JSONObject from the response
-    JSONObject jiraTestcaseJson = new JSONObject(jsonResponse);
-    
-    // Convert the JSONObject to a JsonObject using Gson
-    JsonObject gsonTestcaseJson = JsonParser.parseString(jiraTestcaseJson.toString()).getAsJsonObject();
-    
-    return gsonTestcaseJson;
-}
