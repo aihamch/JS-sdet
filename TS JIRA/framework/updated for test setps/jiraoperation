@@ -175,6 +175,12 @@ public class JiraOperation {
 
 			JSONObject jsonObject = new JSONObject(jsonResponse);
 			JSONArray stepsArray = jsonObject.getJSONArray("testSteps");
+			
+			   logger.info("URL used to fetch test steps: " + url);
+               logger.info("Number of teststeps retrieved: " + stepsArray.length());
+			
+			
+			
 
 			for (int i = 0; i < stepsArray.length(); i++) {
 				JSONObject stepJson = stepsArray.getJSONObject(i);
@@ -201,4 +207,5 @@ public class JiraOperation {
 
 		return testSteps;
 	}
+	
 }
