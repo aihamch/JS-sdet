@@ -300,14 +300,7 @@ public class Utils {
 		return filePaths;
 
 	}
-	public static String getJsonString(JsonObject jsonObject, String key, String defaultValue) {
-	    JsonElement element = jsonObject.get(key);
-	    if (element != null && !element.isJsonNull()) {
-	        return element.getAsString();
-	    } else {
-	        return defaultValue;
-	    }
-	}
+
 	public static List<String> downloadFileAttachmentFromTestStep(String jsonResponse, String apiToken,
 	        String testStepFileAttachmentLocationToBeSaved, String tC_Id, String baseURL) throws IOException {
 	    List<String> filePaths = new ArrayList<String>();
@@ -439,6 +432,35 @@ public class Utils {
 	    }
 	    return filePaths;
 	}
+	
+	
+    public static String getJsonString(JsonObject jsonObject, String key) {
+        JsonElement element = jsonObject.get(key);
+        if (element != null && !element.isJsonNull()) {
+            if (element.isJsonArray()) {
+                StringBuilder dataBuilder = new StringBuilder();
+                JsonArray dataArray = element.getAsJsonArray();
+                for (JsonElement jsonElement : dataArray) {
+                    if (dataBuilder.length() > 0) {
+                        dataBuilder.append(", ");
+                    }
+                    dataBuilder.append(jsonElement.getAsString());
+                }
+                return dataBuilder.toString();
+            } else {
+                return element.getAsString();
+            }
+        } else {
+            logger.warn("Key {} not found or is null in JsonObject", key);
+            return "";
+        }
+    }
+	
+	
+	
+	
+	
+	
 	// Delete File Attachments
 
 	public static void deleteAttachmentFileFromLocal(List<String> filePaths) {
@@ -456,42 +478,4 @@ public class Utils {
 
 	}
 
-	
-	
-	  public static String getJsonString(JsonObject jsonObject, String key) {
-	        JsonElement element = jsonObject.get(key);
-	        if (element != null && !element.isJsonNull()) {
-	            if (element.isJsonArray()) {
-	                StringBuilder dataBuilder = new StringBuilder();
-	                JsonArray dataArray = element.getAsJsonArray();
-	                for (JsonElement jsonElement : dataArray) {
-	                    if (dataBuilder.length() > 0) {
-	                        dataBuilder.append(", ");
-	                    }
-	                    dataBuilder.append(jsonElement.getAsString());
-	                }
-	                return dataBuilder.toString();
-	            } else {
-	                return element.getAsString();
-	            }
-	        } else {
-	            logger.warn("Key {} not found or is null in JsonObject", key);
-	            return ""; // Or some default value
-	        }
-	    }
-	}
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-
+}
