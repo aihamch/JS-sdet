@@ -29,16 +29,12 @@ import com.rallydev.rest.response.QueryResponse;
 
 public class RallyOperation {
 
-    // Class member variables initialized from the config file
     private String rallyBaseURL;
     private String rallyApiKey;
     private String rallyProjectKey;
     private String rallyUser;
-
-    // Logger Initialization
     private static final Logger logger = LogManager.getLogger();
 
-    // Constructor loading configuration values
     public RallyOperation() {
         rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
         rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
@@ -48,7 +44,6 @@ public class RallyOperation {
         logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL + "\nRally Project Reference " + rallyProjectKey);
     }
 
-    // Method to create a Rally Testcase from a Jira JSON object
     public String createRallyTestcase(JsonObject jiraJson) throws IOException {
         String rallyTestCaseOID = null;
         JsonObject rallyJson = new JsonObject();
@@ -56,7 +51,7 @@ public class RallyOperation {
 
         JsonObject testCase = new JsonObject();
 
-        // Safely retrieve and handle the 'name' property
+        // Safely retrieve the name element, with a fallback default name
         String name = Utils.getJsonString(jiraJson, "name");
         if (name.isEmpty()) {
             name = "Default Test Case Name - No TestCase name found in Jira";
@@ -65,7 +60,7 @@ public class RallyOperation {
 
         testCase.addProperty("Method", "Manual");
 
-        // Safely retrieve and handle the 'priority' property
+        // Safely retrieve the priority element, with a fallback default priority
         String priority = Utils.getJsonString(jiraJson, "priority");
         if (priority.equalsIgnoreCase("Normal")) {
             priority = "Useful";
@@ -76,11 +71,11 @@ public class RallyOperation {
 
         testCase.addProperty("Owner", "/user/" + rallyUser);
 
-        // Safely retrieve and handle the 'status' property
+        // Safely retrieve the status element, with a fallback ready status
         String status = Utils.getJsonString(jiraJson, "status");
         testCase.addProperty("Ready", status.equals("Ready"));
 
-        // Handle labels/tags from Jira
+        // Handle labels/tags
         JsonArray tagsArray = new JsonArray();
         if (jiraJson.has("labels")) {
             JsonArray labelsArray = jiraJson.getAsJsonArray("labels");
@@ -104,7 +99,7 @@ public class RallyOperation {
             testCase.add("Tags", tagsArray);
         }
 
-        // Handle folder creation in Rally
+        // Handle folder creation
         String folderPath = Utils.getJsonString(jiraJson, "folder");
         if (!folderPath.isEmpty()) {
             String[] folderHierarchy = folderPath.split("/");
@@ -121,7 +116,6 @@ public class RallyOperation {
         rallyJson.add("testCase", testCase);
         String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
 
-        // Create the Rally test case
         RallyRestApi restApi = null;
         try {
             restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
@@ -175,7 +169,6 @@ public class RallyOperation {
         return rallyTestCaseOID;
     }
 
-    // Method to attach files to Rally TestCase
     public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
         List<String> testcaseAttachmentOIDs = new ArrayList<>();
         RallyRestApi rallyApi = null;
@@ -205,7 +198,7 @@ public class RallyOperation {
         return testcaseAttachmentOIDs;
     }
 
-    // Method to upload files to Rally TestCase and return the Attachment OIDs
+    // Method to upload files to Rally Test Case and return the Attachment OIDs
     public List<String> uploadAttachmentsToTestCase(RallyRestApi rallyRestApi, String rallyTestCaseRef, List<String> filePaths) throws IOException {
         List<String> attachmentOIDs = new ArrayList<>();
         for (String filePath : filePaths) {
@@ -235,13 +228,12 @@ public class RallyOperation {
         }
     }
 
-    // Method to attach a file to a Rally Test Step
+    // Method to attach a file to a Rally test step
     private void attachFileToRallyTestStep(RallyRestApi rallyApi, String testStepRef, String filePath) throws IOException {
         attachFile(rallyApi, testStepRef, filePath, "testcasestep");
     }
 
     // Generic method to attach a file to a Rally object (e.g., testcase, testcasestep)
-    // Method to attach a file to a Rally object (can be a test step, test case, etc.)
     private String attachFile(RallyRestApi rallyApi, String rallyObjectRef, String filePath, String attachmentType) throws IOException {
         File file = new File(filePath);
         if (!file.exists()) {
@@ -275,7 +267,8 @@ public class RallyOperation {
                 logger.error(error);
             }
             return null;
-        }}
+        }
+    }
 
     // Method to attach files to Rally Test Step
     public void attachFilesToTestStep(String rallyTestCaseOID, int stepIndex, List<String> filePaths) {
@@ -309,7 +302,6 @@ public class RallyOperation {
         }
     }
 
-    // Method to attach file to Rally TestCase
     public String attachFileToRallyTestCase(RallyRestApi rallyRestApi, String rallyTestCaseRef, String filePath) throws IOException {
         String attachmentOID = null;
         File file = new File(filePath);
@@ -364,7 +356,6 @@ public class RallyOperation {
         return attachmentOID;
     }
 
-    // Method to upload attachments to Rally
     public List<String> uploadAttachmentsToRally(List<String> attachmentPaths, RallyRestApi rallyRestApi, String rallyTestCaseRef) {
         List<String> rallyAttachmentRefs = new ArrayList<>();
 
@@ -397,7 +388,7 @@ public class RallyOperation {
                 newTestStep.addProperty("TestData", step.getTestData());
 
                 // Handle attachments
-                List<String> attachmentPaths = JiraOperation.downloadStepAttachments(step);
+                List<String> attachmentPaths = JiraOperation.downloadStepAttachments(step); // assuming jiraOperation is an instance of JiraOperation class
                 List<String> rallyAttachmentRefs = uploadAttachmentsToRally(attachmentPaths, rallyRestApi, rallyTestCaseRef);
 
                 if (!rallyAttachmentRefs.isEmpty()) {
@@ -424,54 +415,6 @@ public class RallyOperation {
         }
     }
 
-    
- // Method to attach files to Rally Test Step
-    // Method to attach files to Rally Test Step and return the attachment OIDs
-    public List<String> attachFilestoRallyTestStep(String rallyTestStepOID, List<String> filePaths) {
-        List<String> testStepAttachmentOIDs = new ArrayList<>();
-        RallyRestApi rallyApi = null;
-        try {
-            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-            
-            for (String filePath : filePaths) {
-                try {
-                    String attachmentOID = attachFile(rallyApi, rallyTestStepOID, filePath, "testcasestep");
-                    if (attachmentOID != null) {
-                        testStepAttachmentOIDs.add(attachmentOID);
-                        logger.info("File " + filePath + " is attached to the test step OID " + rallyTestStepOID + " in Rally successfully");
-                    }
-                } catch (IOException e) {
-                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Error while attaching files to Rally TestStep", e);
-        } finally {
-            try {
-                if (rallyApi != null) {
-                    rallyApi.close();
-                }
-            } catch (IOException e) {
-                logger.error("Rally API resource is not closed due to IO exception.", e);
-            }
-        }
-        return testStepAttachmentOIDs;}
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    // Method to handle embedded images in Rally Test Steps
     public void handleEmbeddedImages(JiraTestStep step, String rallyTestCaseRef, int stepIndex) {
         List<String> embeddedImageUrls = step.getEmbeddedImageUrls();
         if (embeddedImageUrls == null || embeddedImageUrls.isEmpty()) {
@@ -486,7 +429,7 @@ public class RallyOperation {
 
             for (String imageUrl : embeddedImageUrls) {
                 if (imageUrl != null && !imageUrl.isEmpty()) {
-                    String filePath = Utils.downloadFileFromUrl(imageUrl, "C:attachments");
+                    String filePath = Utils.downloadFileFromUrl(imageUrl, "C:attachments");  // Assuming the download location is the same
                     if (filePath != null) {
                         attachFileToRallyTestStep(rallyApi, testStepRef, filePath);
                         logger.info("Embedded image " + imageUrl + " attached to the test step index " + stepIndex + " in Rally successfully");
