@@ -1,28 +1,11 @@
-public String createRallyTestStep(String rallyTestcaseOID, JsonObject jiraTestStepJson) {
-    String rallyTestStepOID = null;
-    try (RallyRestApi restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey)) {
-        restApi.setApplicationName("CreateRallyTestStepApp");
-
-        JsonObject newTestStep = new JsonObject();
-        newTestStep.addProperty("TestCase", rallyTestcaseOID);
-        newTestStep.addProperty("Index", jiraTestStepJson.get("index").getAsInt());
-        newTestStep.addProperty("Input", jiraTestStepJson.get("description").getAsString());
-        newTestStep.addProperty("ExpectedResult", jiraTestStepJson.get("expectedResult").getAsString());
-
-        CreateRequest createRequest = new CreateRequest("teststep", newTestStep);
-        CreateResponse createResponse = restApi.create(createRequest);
-
-        if (createResponse.wasSuccessful()) {
-            rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
-            logger.info("Successfully created Rally test step: " + rallyTestStepOID);
-        } else {
-            logger.error("Error occurred creating Rally test step:");
-            for (String error : createResponse.getErrors()) {
-                logger.error(error);
-            }
-        }
-    } catch (URISyntaxException | IOException e) {
-        logger.error("Exception while creating Rally test step", e);
-    }
-    return rallyTestStepOID;
-}
+2024-08-09 23:35:08.736 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-09 23:35:08.741 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 23:35:09.842 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 23:35:09.846 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-09 23:35:09.846 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-09 23:35:10.148 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-09 23:35:10.691 [main] WARN  com.optum.coe.automation.rally.Utils - Key testFolder not found or is null in JsonObject
+2024-08-09 23:35:10.691 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-09 23:35:11.074 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error occurred creating Rally test case:
+2024-08-09 23:35:11.074 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Could not convert: "Priority" must be a string : Value [ Normal ] for field [ string ] is invalid.  Valid values are: [ Useful, , Critical, Important ]
+2024-08-09 23:35:11.088 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
