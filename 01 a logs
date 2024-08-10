@@ -1,59 +1,117 @@
 package com.optum.coe.automation.rally;
 
-import com.google.gson.JsonObject;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class RunnerClass {
 
+    // Logger Initialization for Runner Class
     private static final Logger logger = LogManager.getLogger();
 
-    public static void main(String[] args) {
-        // Load the configuration values
-        String jiraBaseUri = ConfigLoader.getConfigValue("JIRA_BASE_URL");
-        String authToken = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
-        String projectRef = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
-        String attachmentDownloadLocation = ConfigLoader.getConfigValue("ATTACHMENT_DOWNLOAD_LOCATION");
+    // Main method
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
 
-        // Get the test case ID to process
-        String testCaseId = ConfigLoader.getConfigValue("JIRA_TEST_CASE_KEY");
+        /*
+         * Main method calls below functionalities from com.optum.coe.automation.rally
+         * package 1. Get Jira non migrated testcase keys 2. Get Jira Testcase details
+         * for the given testcase key. It is an iterative process 3. Create the testcase
+         * in Rally using the Jira testcase details 4. Validate if the testcase is
+         * created successfully ; Future implementation is required. US7440061
+         */
 
-        try {
-            // Initialize the operations classes
-            JiraOperation jiraOperation = new JiraOperation();
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+        for (int i = 0; i < testcaseKeys.size(); i++) {			
+            boolean rallyTestcaseCreationStatus = false;
+            boolean rallyOverallTestStepAttachmentsStatus = false;
+            jiraTestCase.setKey(testcaseKeys.get(i));
+            logger.info("Processing " + jiraTestCase.getKey());
+            JSONObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
             RallyOperation rallyOperation = new RallyOperation();
-
-            // Fetch the Jira test case JSON
-            JsonObject jiraTestCase = jiraOperation.getJiraTestCase(jiraBaseUri, testCaseId, authToken);
-
-            if (jiraTestCase == null) {
-                logger.error("Failed to retrieve test case from Jira.");
-                return;
+            
+            // Declaration of rallyTestcaseOID
+            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+            
+            // Validation for Testcase creation
+            if (rallyTestcaseOID != null ) {
+                rallyTestcaseCreationStatus = true;
+            } else {
+                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                break;	
             }
 
-            // Create the Rally test case
-            String rallyTestCaseOID = rallyOperation.createRallyTestcase(jiraTestCase);
-            if (rallyTestCaseOID == null) {
-                logger.error("Failed to create Rally test case.");
-                return;
+            // Download attachments
+            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+
+            // Upload test case attachments to Rally
+            if (fileAttachmentDownloadPathsTestcaseLevel != null) {
+                logger.info("Attachment paths are found in the list.");
+                List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                // Validation for Testcase file attachments 
+                if (!testcaseAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;	
+                } else {
+                    logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                    + " is not created in rally");
+                    return;
+                }
+
+            } else {
+                logger.info("No Attachment path found for Testcase level.");
             }
 
-            // Download and attach files to the Rally test case
-            List<String> attachmentPaths = jiraOperation.downloadTestAttachments(jiraBaseUri, testCaseId, authToken, attachmentDownloadLocation);
-            if (!attachmentPaths.isEmpty()) {
-                rallyOperation.attachFilestoRallyTestcase(rallyTestCaseOID, attachmentPaths);
+            // Process test steps
+            JSONArray testSteps = jiraTestcaseJson.getJSONObject("testScript").getJSONArray("steps");
+            for (int j = 0; j < testSteps.length(); j++) {
+                JSONObject testStep = testSteps.getJSONObject(j);
+                String rallyTestStepOID = rallyOperation.createRallyTestStep(rallyTestcaseOID, testStep);
+                
+                // Upload test step file attachments to Rally
+                if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                    List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestStep(rallyTestStepOID, fileAttachmentDownloadPathsTestStepLevel);
+                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+                    // Validation for TestStep file attachments
+                    if (!testStepAttachmentOIDs.isEmpty()) {
+                        rallyOverallTestStepAttachmentsStatus = true;	
+                    } else {
+                        logger.error("The Jira teststep attachments are not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                        + " is not created in rally");
+                        return;
+                    }
+                }
+
+                // Upload embedded test step attachments to Rally
+                if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                    List<String> embeddedTestStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestStep(rallyTestStepOID, embeddedAttachmentDownloadPathsTestStepLevel);
+                    Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
+                    // Validation for TestStep embedded attachments
+                    if (!embeddedTestStepAttachmentOIDs.isEmpty()) {
+                        rallyOverallTestStepAttachmentsStatus = true;	
+                    } else {
+                        logger.error("The Jira embedded teststep attachments are not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+                        + " is not created in rally");
+                        return;
+                    }
+                }
             }
 
-            // Fetch the test steps from Jira and migrate them to Rally
-            List<JiraTestStep> jiraTestSteps = jiraOperation.getTestSteps(jiraBaseUri, testCaseId, authToken);
-            if (jiraTestSteps != null && !jiraTestSteps.isEmpty()) {
-                rallyOperation.migrateTestSteps(rallyTestCaseOID, jiraTestSteps, rallyOperation.getRestApiInstance());
+            // Over all validation for Jira Testcase migration to Rally. US7440061: Create implementation for ValidateRallyTestcaseContent
+            if (rallyTestcaseCreationStatus == true && rallyOverallTestStepAttachmentsStatus == true ) {
+                /*
+                 * Needs to be added calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
+                 */
             }
-
-        } catch (Exception e) {
-            logger.error("Exception during migration process", e);
         }
     }
 }
