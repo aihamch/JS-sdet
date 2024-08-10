@@ -1,13 +1,17 @@
-// Method to attach files to Rally Test Step
-public void attachFilestoRallyTestStep(String rallyTestStepOID, List<String> filePaths) {
+// Method to attach files to Rally Test Step and return the attachment OIDs
+public List<String> attachFilestoRallyTestStep(String rallyTestStepOID, List<String> filePaths) {
+    List<String> testStepAttachmentOIDs = new ArrayList<>();
     RallyRestApi rallyApi = null;
     try {
         rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
         
         for (String filePath : filePaths) {
             try {
-                attachFileToRallyTestStep(rallyApi, rallyTestStepOID, filePath);
-                logger.info("File " + filePath + " is attached to the test step OID " + rallyTestStepOID + " in Rally successfully");
+                String attachmentOID = attachFileToRallyTestStep(rallyApi, rallyTestStepOID, filePath);
+                if (attachmentOID != null) {
+                    testStepAttachmentOIDs.add(attachmentOID);
+                    logger.info("File " + filePath + " is attached to the test step OID " + rallyTestStepOID + " in Rally successfully");
+                }
             } catch (IOException e) {
                 logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
             }
@@ -23,4 +27,5 @@ public void attachFilestoRallyTestStep(String rallyTestStepOID, List<String> fil
             logger.error("Rally API resource is not closed due to IO exception.", e);
         }
     }
+    return testStepAttachmentOIDs;
 }
