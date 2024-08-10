@@ -1,38 +1,17 @@
-  // New method to create a Rally test step using a Jira test step JSON object
-    public String createRallyTestStep(String rallyTestcaseOID, JsonObject gsonTestStepJson) {
-        RallyRestApi rallyRestApi = null;
-        String rallyTestStepOID = null;
-
-        try {
-            rallyRestApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-            JsonObject newTestStep = new JsonObject();
-
-            // Populate newTestStep with necessary fields from gsonTestStepJson
-            newTestStep.addProperty("TestCase", rallyTestcaseOID);
-            newTestStep.addProperty("StepIndex", gsonTestStepJson.get("index").getAsInt());
-            newTestStep.addProperty("Input", gsonTestStepJson.get("description").getAsString());
-            newTestStep.addProperty("ExpectedResult", gsonTestStepJson.get("expectedResult").getAsString());
-
-            // Create Rally TestStep
-            CreateRequest createStepRequest = new CreateRequest("TestCaseStep", newTestStep);
-            CreateResponse createStepResponse = rallyRestApi.create(createStepRequest);
-
-            if (createStepResponse.wasSuccessful()) {
-                rallyTestStepOID = createStepResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test step in Rally with OID: " + rallyTestStepOID);
-            } else {
-                logger.error("Error creating Rally test step. Errors: " + String.join(", ", createStepResponse.getErrors()));
-            }
-        } catch (Exception e) {
-            logger.error("Exception while creating Rally test step: ", e);
-        } finally {
-            if (rallyRestApi != null) {
-                try {
-                    rallyRestApi.close();
-                } catch (Exception e) {
-                    logger.error("Error closing Rally connection: ", e);
-                }
-            }
-        }
-        return rallyTestStepOID;
-    }
+2024-08-09 22:00:50.339 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-09 22:00:50.341 [main] VERBOSE com.optum.coe.automation.rally.JiraOperation - Below the values assigned from rally_migration_config.properties file. 
+Jira Base URL - https://jira.healthcareit.net
+Jira Project Key CC2
+Max Chunk value - 1
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-09 22:00:50.341 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 22:00:51.309 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 22:00:51.316 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-09 22:00:51.319 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-09 22:00:51.518 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-09 22:00:51.518 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Exception while creating Rally test case: 
+java.lang.NullPointerException: Cannot invoke "com.google.gson.JsonElement.getAsString()" because the return value of "com.google.gson.JsonObject.get(String)" is null
+	at com.optum.coe.automation.rally.RallyOperation.createRallyTestcase(RallyOperation.java:60) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:39) [classes/:?]
+2024-08-09 22:00:51.525 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
