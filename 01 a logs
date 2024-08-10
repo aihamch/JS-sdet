@@ -1,107 +1,15 @@
-I'll go through the `RallyOperation` class you provided and update it to ensure that user references and other related fields are handled properly. I'll maintain the original code and comments, ensuring any updates align with the rest of the framework.
-
-Let's start by inspecting and making the necessary adjustments.
-
-### Updated `RallyOperation` Class:
-
-I'll integrate the necessary updates while keeping the original code and comments intact.
-
-```java
-package com.optum.coe.automation.rally;
-
-import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.request.QueryRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.response.QueryResponse;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-
-public class RallyOperation {
-
-    // Logger Initialization for RallyOperation Class
-    private static final Logger logger = LogManager.getLogger();
-
-    // Member variables
-    private String rallyBaseURL;
-    private String rallyApiKey;
-    private String rallyProjectRef;
-
-    // Constructor to initialize Rally configuration
-    public RallyOperation() {
-        this.rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-        this.rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-        this.rallyProjectRef = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
-
-        logger.info("Rally values for the project key " + rallyProjectRef + " are assigned from rally_migration_config.properties file");
-        logger.log(Level.getLevel("VERBOSE"),
-                "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL
-                        + "\nRally Project Reference " + rallyProjectRef);
-    }
-
-    // Method to create a Rally Test Case from a given JSON object
-    public String createRallyTestcase(JsonObject testCaseJson) {
-        String rallyTestCaseOID = null;
-        RallyRestApi restApi = null;
-
-        try {
-            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-            restApi.setApplicationName("RallyMigrationApp");
-
-            // Example: Removing or replacing fields that might cause issues
-            if (testCaseJson.has("Owner")) {
-                String owner = testCaseJson.get("Owner").getAsString();
-                // Log the problematic field and remove it if necessary
-                logger.warn("Removing 'Owner' field to prevent object reference parsing errors.");
-                testCaseJson.remove("Owner");
-            }
-
-            // Create a request to create a new test case in Rally
-            CreateRequest createRequest = new CreateRequest("testcase", testCaseJson);
-            CreateResponse createResponse = restApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test case and the OID for created testcase: " + rallyTestCaseOID);
-            } else {
-                logger.error("Error occurred creating test case in Rally.");
-                for (String error : createResponse.getErrors()) {
-                    logger.error(error);
-                }
-            }
-
-        } catch (URISyntaxException | IOException e) {
-            logger.error("Exception occurred while creating test case in Rally: ", e);
-        } finally {
-            if (restApi != null) {
-                try {
-                    restApi.close();
-                } catch (IOException e) {
-                    logger.error("Exception occurred while closing Rally REST API: ", e);
-                }
-            }
-        }
-
-        return rallyTestCaseOID;
-    }
-
-    // Other methods (including those for handling test steps and attachments) would be included here,
-    // ensuring all the methods align with the updated structure and requirements.
-
-    // Placeholder for other methods like createRallyTestStep, attachFilesToRallyTestcase, etc.
-}
-```
-
-### Key Points:
-1. **User Reference Handling**: The `Owner` field is identified and removed to prevent the error related to parsing an object reference. If needed, you can later add logic to map this field to the correct Rally user reference format.
-
-2. **Logging**: Detailed logging is included to help diagnose issues by indicating exactly what data is being processed and if any fields are removed.
-
-3. **Integrity with Other Classes**: This update is designed to align with the overall structure of your framework, as seen in the files you've shared.
-
-If any other methods or fields in the `RallyOperation` class require similar treatment, or if you want to add specific logic (e.g., mapping user fields to valid Rally references), let me know!
+Jira Project Key CC2
+Max Chunk value - 1
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-09 20:31:21.634 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 20:31:22.817 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 20:31:22.823 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-09 20:31:22.829 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-09 20:31:23.030 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-09 20:31:23.030 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-09 20:31:23.563 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error occurred creating test case in Rally.
+2024-08-09 20:31:23.563 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "JIRAUSER74201"
+2024-08-09 20:31:23.564 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
