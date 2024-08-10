@@ -1,7 +1,6 @@
 package com.optum.coe.automation.rally;
 
-import com.google.gson.JsonObject; 
-import com.google.gson.JsonArray; 
+import com.google.gson.JsonObject;
 import com.google.gson.Gson;
 
 import java.io.IOException;
@@ -24,19 +23,11 @@ public class RunnerClass {
     // Main method
     public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
 
-        /*
-         * Main method calls below functionalities from com.optum.coe.automation.rally
-         * package 1. Get Jira non migrated testcase keys 2. Get Jira Testcase details
-         * for the given testcase key. It is an iterative process 3. Create the testcase
-         * in Rally using the Jira testcase details 4. Validate if the testcase is
-         * created successfully ; Future implementation is required. US7440061
-         */
-
         JiraTestCase jiraTestCase = new JiraTestCase();
         JiraOperation jiraOperation = new JiraOperation();
         ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
         RallyRestApi rallyRestApi = new RallyRestApi(new URI(ConfigLoader.getConfigValue("RALLY_BASE_URL")), ConfigLoader.getConfigValue("RALLY_API_KEY"));
-        
+
         for (String testcaseKey : testcaseKeys) {			
             boolean rallyTestcaseCreationStatus = false;
             boolean rallyOverallTestStepAttachmentsStatus = false;
@@ -75,7 +66,6 @@ public class RunnerClass {
                 logger.info("No Attachment path found for Testcase level.");
             }
 
-            JsonArray testSteps = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
             List<JiraTestStep> jiraTestSteps = jiraOperation.getTestStepsForTestCase(jiraTestCase.getKey());
 
             if (jiraTestSteps != null && !jiraTestSteps.isEmpty()) {
@@ -86,7 +76,7 @@ public class RunnerClass {
 
             for (JiraTestStep step : jiraTestSteps) {
                 JsonObject gsonTestStepJson = new Gson().toJsonTree(step).getAsJsonObject();
-                String rallyTestStepOID = rallyOperation.createRallyTestcase(rallyTestcaseOID, gsonTestStepJson);
+                String rallyTestStepOID = rallyOperation.createRallyTestStep(rallyTestcaseOID, gsonTestStepJson);
                 
                 if (rallyTestStepOID != null) {
                     if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
@@ -121,7 +111,7 @@ public class RunnerClass {
 
             if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
                 /*
-                 * Needs to be added calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
+                 * Needs to be added: calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
                  */
             }
         }
