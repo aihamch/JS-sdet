@@ -29,6 +29,8 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.rallydev.rest.RallyRestApi;
 import com.rallydev.rest.request.CreateRequest;
@@ -430,6 +432,50 @@ public class Utils {
 	    }
 	    return filePaths;
 	}
+	  public static String downloadFileFromUrl(String fileURL, String destinationFile) throws IOException {
+	        logger.debug("Attempting to download file from URL: " + fileURL + " to: " + destinationFile);
+	        URL url = new URL(fileURL);
+	        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+	        connection.setRequestMethod("GET");
+
+	        try (InputStream inputStream = connection.getInputStream()) {
+	            Path filePath = Paths.get(destinationFile);
+	            Files.copy(inputStream, filePath);
+	            logger.info("Downloaded file from URL: " + fileURL + " to: " + destinationFile);
+	            return filePath.toString();
+	        } catch (IOException e) {
+	            logger.error("Failed to download file from URL: " + fileURL, e);
+	            throw e;
+	        }
+	    }
+	
+    public static String getJsonString(JsonObject jsonObject, String key) {
+        JsonElement element = jsonObject.get(key);
+        if (element != null && !element.isJsonNull()) {
+            if (element.isJsonArray()) {
+                StringBuilder dataBuilder = new StringBuilder();
+                JsonArray dataArray = element.getAsJsonArray();
+                for (JsonElement jsonElement : dataArray) {
+                    if (dataBuilder.length() > 0) {
+                        dataBuilder.append(", ");
+                    }
+                    dataBuilder.append(jsonElement.getAsString());
+                }
+                return dataBuilder.toString();
+            } else {
+                return element.getAsString();
+            }
+        } else {
+            logger.warn("Key {} not found or is null in JsonObject", key);
+            return "";
+        }
+    }
+	
+	
+	
+	
+	
+	
 	// Delete File Attachments
 
 	public static void deleteAttachmentFileFromLocal(List<String> filePaths) {
