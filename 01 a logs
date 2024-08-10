@@ -1,28 +1,59 @@
- public String createRallyTestStep(String rallyTestcaseOID, JsonObject jiraTestStepJson) {
-        String rallyTestStepOID = null;
-        try (RallyRestApi restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey)) {
-            restApi.setApplicationName("CreateRallyTestStepApp");
+package com.optum.coe.automation.rally;
 
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestcaseOID);
-            newTestStep.addProperty("Index", jiraTestStepJson.get("index").getAsInt());
-            newTestStep.addProperty("Input", jiraTestStepJson.get("description").getAsString());
-            newTestStep.addProperty("ExpectedResult", jiraTestStepJson.get("expectedResult").getAsString());
+import com.google.gson.JsonObject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-            CreateRequest createRequest = new CreateRequest("teststep", newTestStep);
-            CreateResponse createResponse = restApi.create(createRequest);
+import java.util.List;
 
-            if (createResponse.wasSuccessful()) {
-                rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created Rally test step: " + rallyTestStepOID);
-            } else {
-                logger.error("Error occurred creating Rally test step:");
-                for (String error : createResponse.getErrors()) {
-                    logger.error(error);
-                }
+public class RunnerClass {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    public static void main(String[] args) {
+        // Load the configuration values
+        String jiraBaseUri = ConfigLoader.getConfigValue("JIRA_BASE_URL");
+        String authToken = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
+        String projectRef = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
+        String attachmentDownloadLocation = ConfigLoader.getConfigValue("ATTACHMENT_DOWNLOAD_LOCATION");
+
+        // Get the test case ID to process
+        String testCaseId = ConfigLoader.getConfigValue("JIRA_TEST_CASE_KEY");
+
+        try {
+            // Initialize the operations classes
+            JiraOperation jiraOperation = new JiraOperation();
+            RallyOperation rallyOperation = new RallyOperation();
+
+            // Fetch the Jira test case JSON
+            JsonObject jiraTestCase = jiraOperation.getJiraTestCase(jiraBaseUri, testCaseId, authToken);
+
+            if (jiraTestCase == null) {
+                logger.error("Failed to retrieve test case from Jira.");
+                return;
             }
-        } catch (URISyntaxException | IOException e) {
-            logger.error("Exception while creating Rally test step", e);
+
+            // Create the Rally test case
+            String rallyTestCaseOID = rallyOperation.createRallyTestcase(jiraTestCase);
+            if (rallyTestCaseOID == null) {
+                logger.error("Failed to create Rally test case.");
+                return;
+            }
+
+            // Download and attach files to the Rally test case
+            List<String> attachmentPaths = jiraOperation.downloadTestAttachments(jiraBaseUri, testCaseId, authToken, attachmentDownloadLocation);
+            if (!attachmentPaths.isEmpty()) {
+                rallyOperation.attachFilestoRallyTestcase(rallyTestCaseOID, attachmentPaths);
+            }
+
+            // Fetch the test steps from Jira and migrate them to Rally
+            List<JiraTestStep> jiraTestSteps = jiraOperation.getTestSteps(jiraBaseUri, testCaseId, authToken);
+            if (jiraTestSteps != null && !jiraTestSteps.isEmpty()) {
+                rallyOperation.migrateTestSteps(rallyTestCaseOID, jiraTestSteps, rallyOperation.getRestApiInstance());
+            }
+
+        } catch (Exception e) {
+            logger.error("Exception during migration process", e);
         }
-        return rallyTestStepOID;
     }
+}
