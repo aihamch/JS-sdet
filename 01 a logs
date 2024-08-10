@@ -1,47 +1,29 @@
-public String createRallyTestcase(JsonObject testCaseJson) {
-    String rallyTestCaseOID = null;
-    RallyRestApi restApi = null;
-
-    try {
-        restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-
-        // Example: Removing or replacing fields that might cause issues
-        if (testCaseJson.has("Owner")) {
-            String owner = testCaseJson.get("Owner").getAsString();
-            logger.warn("Removing 'Owner' field from the test case JSON to avoid parsing issues");
-            testCaseJson.remove("Owner");  // You can also map it to a proper Rally reference if available
-        }
-
-        // Example: Repeat for other fields if necessary (like "CreatedBy", etc.)
-        // if (testCaseJson.has("CreatedBy")) {
-        //    logger.warn("Removing 'CreatedBy' field from the test case JSON to avoid parsing issues");
-        //    testCaseJson.remove("CreatedBy");
-        // }
-
-        CreateRequest createRequest = new CreateRequest("testcase", testCaseJson);
-        CreateResponse createResponse = restApi.create(createRequest);
-
-        if (createResponse.wasSuccessful()) {
-            rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
-            logger.info("Successfully created test case and the OID for created testcase: " + rallyTestCaseOID);
-        } else {
-            logger.error("Error occurred creating test case in Rally.");
-            for (String error : createResponse.getErrors()) {
-                logger.error(error);
-            }
-        }
-
-    } catch (Exception e) {
-        logger.error("Exception occurred while creating test case in Rally: ", e);
-    } finally {
-        if (restApi != null) {
-            try {
-                restApi.close();
-            } catch (IOException e) {
-                logger.error("Exception occurred while closing Rally REST API: ", e);
-            }
-        }
-    }
-
-    return rallyTestCaseOID;
-}
+Jira Base URL - https://jira.healthcareit.net
+Jira Project Key CC2
+Max Chunk value - 1
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-09 19:33:52.154 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:33:53.121 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:33:53.127 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-09 19:33:53.130 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-09 19:33:53.369 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key _UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk are assigned from rally_migration_config.properties file
+2024-08-09 19:33:53.785 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error occurred creating test case in Rally.
+2024-08-09 19:33:53.785 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Cannot parse object reference from "JIRAUSER74201"
+2024-08-09 19:33:53.787 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
+2024-08-09 19:48:53.333 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-09 19:48:53.336 [main] VERBOSE com.optum.coe.automation.rally.JiraOperation - Below the values assigned from rally_migration_config.properties file. 
+Jira Base URL - https://jira.healthcareit.net
+Jira Project Key CC2
+Max Chunk value - 1
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-09 19:48:53.337 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:48:54.366 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-09 19:48:54.372 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
+2024-08-09 19:48:54.377 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
+2024-08-09 19:48:54.544 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
+2024-08-09 19:48:54.545 [main] VERBOSE com.optum.coe.automation.rally.RallyOperation - Below the values assigned from rally_migration_config.properties file. 
+Rally Base URL - https://rally1.rallydev.com
+Rally Project Reference 789325818991
+2024-08-09 19:48:54.936 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
