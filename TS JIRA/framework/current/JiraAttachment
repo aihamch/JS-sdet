@@ -1,0 +1,46 @@
+package com.optum.coe.automation.rally;
+
+public class JiraAttachment {
+    
+    private String id;
+    private String filename;
+    private String url;
+
+    public JiraAttachment(String id, String filename, String url) {
+        this.id = id;
+        this.filename = filename;
+        this.url = url;
+    }
+
+    // Getter and Setter for id
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    // Getter and Setter for filename
+    public String getFilename() {
+        return filename;
+    }
+
+    public void setFilename(String filename) {
+        this.filename = filename;
+    }
+
+    // Getter and Setter for url
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    @Override
+    public String toString() {
+        return "JiraAttachment [id=" + id + ", filename=" + filename + ", url=" + url + "]";
+    }
+}
