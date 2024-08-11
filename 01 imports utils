@@ -1,3 +1,79 @@
+
+
+
+public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, Map<Integer, List<String>> attachmentOIDsMap) {
+    Collections.reverse(jiraTestSteps);
+    String rallyBaseUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+
+    for (JiraTestStep step : jiraTestSteps) {
+        try {
+            JsonObject newTestStep = new JsonObject();
+            newTestStep.addProperty("TestCase", rallyTestCaseRef);
+            newTestStep.addProperty("StepIndex", step.getIndex());
+
+            // Get the step's description, expected result, and test data
+            String description = step.getDescription();
+            String expectedResult = step.getExpectedResult();
+            String testData = step.getTestData();
+
+            // Get the attachment URLs corresponding to this step
+            List<String> stepAttachmentOIDs = attachmentOIDsMap.get(step.getIndex());
+            if (stepAttachmentOIDs != null && !stepAttachmentOIDs.isEmpty()) {
+                StringBuilder attachmentLinks = new StringBuilder();
+
+                for (String attachmentOID : stepAttachmentOIDs) {
+                    String attachmentUrl = "[Attachment: " + rallyBaseUrl + "/slm/webservice/v2.0/attachment/" + attachmentOID + "]";
+                    attachmentLinks.append(attachmentUrl).append(" ");
+                }
+
+                // Append the attachment links to the step's description, expected result, or test data
+                description += "<br/>" + attachmentLinks.toString();
+            }
+
+            // Set the step's fields
+            newTestStep.addProperty("Input", description);
+            newTestStep.addProperty("ExpectedResult", expectedResult);
+            newTestStep.addProperty("TestData", testData);
+
+            CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
+            CreateResponse createResponse = rallyRestApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                String rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
+                logger.info("Successfully created test step: " + step.getDescription());
+            } else {
+                logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + Arrays.toString(createResponse.getErrors()));
+            }
+        } catch (Exception e) {
+            logger.error("Exception while creating test step: " + step.getDescription(), e);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, Map<Integer, List<String>> attachmentOIDsMap) {
     Collections.reverse(jiraTestSteps);
 
