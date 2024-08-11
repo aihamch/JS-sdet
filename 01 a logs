@@ -1,3 +1,6 @@
+Here’s the updated `RallyOperation` class with the necessary modifications to work with the updated `Utils` class:
+
+```java
 package com.optum.coe.automation.rally;
 
 import java.io.IOException;
@@ -8,6 +11,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.Level;
@@ -20,12 +24,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.rallydev.rest.RallyRestApi;
 import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.request.GetRequest;
 import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.response.GetResponse;
-import com.rallydev.rest.response.UpdateResponse;
-import com.rallydev.rest.request.UpdateRequest;
-import java.util.Collections;
 
 public class RallyOperation {
 
@@ -194,11 +193,13 @@ public class RallyOperation {
         attachment.addProperty("Artifact", "/testcase/" + testCaseId);
         attachment.addProperty("Content", attachmentContentRef);
         attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
-             attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
+        attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
         attachment.addProperty("ContentType", contentType);
         attachment.addProperty("Size", fileContent.length);
         CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-        CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+        CreateResponse attachmentResponse
+
+ = rallyApi.create(attachmentRequest);
 
         if (attachmentResponse.wasSuccessful()) {
             logger.info("Attachment created successfully for file: " + filePath);
@@ -254,21 +255,43 @@ public class RallyOperation {
                 String expectedResult = step.getExpectedResult();
                 String testData = step.getTestData();
                 String attachmentLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
+
                 // Attach embedded images to the relevant fields
                 if (description != null && !description.isEmpty()) {
-                    List<String> descriptionAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(step.getHtmlContent(), rallyRestApi, attachmentLocation, step.getIndex(), rallyBaseUrl, "description");
+                    List<String> descriptionAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(
+                        description, 
+                        ConfigLoader.getConfigValue("JIRA_API_TOKEN"), 
+                        attachmentLocation, 
+                        rallyTestCaseRef, 
+                        rallyBaseUrl, 
+                        "description"
+                    );
                     // Append the downloaded image paths to the description
                     description += Utils.constructAttachmentUrls(descriptionAttachmentPaths);
                 }
 
                 if (expectedResult != null && !expectedResult.isEmpty()) {
-                    List<String> expectedResultAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(step.getHtmlContent(), rallyRestApi, attachmentLocation, step.getIndex(), rallyBaseUrl, "expectedResult");
+                    List<String> expectedResultAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(
+                        expectedResult, 
+                        ConfigLoader.getConfigValue("JIRA_API_TOKEN"), 
+                        attachmentLocation, 
+                        rallyTestCaseRef, 
+                        rallyBaseUrl, 
+                        "expectedResult"
+                    );
                     // Append the downloaded image paths to the expected result
                     expectedResult += Utils.constructAttachmentUrls(expectedResultAttachmentPaths);
                 }
 
                 if (testData != null && !testData.isEmpty()) {
-                    List<String> testDataAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(step.getHtmlContent(), rallyRestApi, attachmentLocation, step.getIndex(), rallyBaseUrl, "testData");
+                    List<String> testDataAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(
+                        testData, 
+                        ConfigLoader.getConfigValue("JIRA_API_TOKEN"), 
+                        attachmentLocation, 
+                        rallyTestCaseRef, 
+                        rallyBaseUrl, 
+                        "testData"
+                    );
                     // Append the downloaded image paths to the test data
                     testData += Utils.constructAttachmentUrls(testDataAttachmentPaths);
                 }
@@ -291,7 +314,16 @@ public class RallyOperation {
                 logger.error("Exception while creating test step: " + step.getDescription(), e);
             }
         }
-    
     }
 
 }
+```
+
+### Summary of Changes:
+1. **Download and Process Embedded Attachments**: Updated the `migrateTestSteps` method to download embedded attachments from the `description`, `expectedResult`, and `testData` fields using the new `Utils.downloadTestStepEmbeddedAttachments` method.
+  
+2. **Updating Rally with Attachment URLs**: The downloaded attachment URLs are appended to the corresponding fields before the test step is created in Rally.
+
+### Final Steps:
+1. **Compile the code** to ensure that everything is functioning correctly.
+2. **Run your integration tests** to verify that images and attachments are correctly migrated and linked in Rally test steps.
