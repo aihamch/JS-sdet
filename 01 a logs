@@ -1,109 +1,65 @@
-    public String getHtmlContent() {
-        StringBuilder htmlContent = new StringBuilder();
-        if (description != null) {
-            htmlContent.append(description);
-        }
-        if (testData != null) {
-            htmlContent.append(testData);
-        }
-        if (expectedResult != null) {
-            htmlContent.append(expectedResult);
-        }
-        return htmlContent.toString();
-    }
+public class Utils {
 
+    // Logger Initialization for Utils Class
+    private static final Logger logger = LogManager.getLogger();
 
+    // Existing methods...
 
-public class JiraTestStep {
-    private String htmlContent;
+    // Updated method signature for downloadTestStepEmbeddedAttachments
+    public static List<String> downloadTestStepEmbeddedAttachments(
+            String fieldContent,
+            String apiToken,
+            String testStepAttachmentLocationToBeSaved,
+            String tC_Id,
+            String baseURL,
+            String columnName) throws IOException {
 
-    // Other fields and methods...
+        List<String> filePaths = new ArrayList<>();
 
-    public String getHtmlContent() {
-        return htmlContent;
-    }
-
-    public void setHtmlContent(String htmlContent) {
-        this.htmlContent = htmlContent;
-    }
-
-
-String attachmentLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
-
-
-    // Other methods...
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, Map<Integer, List<String>> attachmentOIDsMap) {
-    Collections.reverse(jiraTestSteps);
-
-    for (JiraTestStep step : jiraTestSteps) {
-        try {
-            // Extract HTML content from the step (assuming it's in the description)
-            String htmlContent = step.getDescription(); // Replace with "getTestData()" or "getExpectedResult()" as needed
-            
-            // Define the location where attachments will be saved
-            String attachmentLocation = "C:/path/to/your/attachments"; // Update with the actual path where you want to save attachments
-            
-            // Download the embedded attachments from the HTML content
-            List<String> descriptionAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(
-                htmlContent,
-                apiToken, // Assuming apiToken is defined elsewhere
-                attachmentLocation,
-                rallyTestCaseRef, // Assuming this is the test case ID
-                rallyBaseUrl, // Assuming rallyBaseUrl is defined elsewhere
-                "description" // Use "description", "testData", or "expectedResult" based on where the content is
-            );
-
-            // Construct Rally test step JSON object
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseRef);
-            newTestStep.addProperty("StepIndex", step.getIndex());
-            newTestStep.addProperty("Input", step.getDescription());
-            newTestStep.addProperty("ExpectedResult", step.getExpectedResult());
-            newTestStep.addProperty("TestData", step.getTestData());
-
-            // Construct attachment URLs and append to the respective fields
-            if (!descriptionAttachmentPaths.isEmpty()) {
-                newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + Utils.constructAttachmentUrls(descriptionAttachmentPaths));
+        // Ensure the download directory exists
+        Path path = Paths.get(testStepAttachmentLocationToBeSaved);
+        if (!Files.exists(path)) {
+            try {
+                Files.createDirectories(path);
+            } catch (IOException e) {
+                logger.error("Failed to create directories for embedded attachment download location.", e);
             }
-
-            CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
-            CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test step: " + step.getDescription());
-            } else {
-                logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + Arrays.toString(createResponse.getErrors()));
-            }
-        } catch (Exception e) {
-            logger.error("Exception while creating test step: " + step.getDescription(), e);
         }
+
+        // Parse the HTML content to find image URLs
+        Document doc = Jsoup.parse(fieldContent);
+        Elements imgElements = doc.select("img");
+
+        if (!imgElements.isEmpty()) {
+            int imageCount = 0;
+            for (Element img : imgElements) {
+                String imageUrl = img.attr("src");
+                if (!imageUrl.isEmpty()) {
+                    imageCount++;
+                    String extractUrl = imageUrl.substring(2);
+                    String absoluteUrl = baseURL + extractUrl;
+                    HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken);
+                    if (response != null) {
+                        try (InputStream in = response.getContent()) {
+                            Path filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + tC_Id + "_" + imageCount + "_EmbeddedFile_" + columnName + ".png");
+                            Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);  // Overwrite if file exists
+                            filePaths.add(filePath.toString());
+                            EntityUtils.consume(response);
+                            logger.info("File downloaded from Jira to testStepAttachmentLocation. File Name: " + filePath.getFileName());
+                        } catch (IOException e) {
+                            logger.error("Failed to download the file attachment from Jira for test step level", e);
+                        }
+                    } else {
+                        logger.error("Failed to download the file attachment from Jira for test step level. No Entity response found");
+                    }
+                }
+            }
+        } else {
+            logger.error("No valid argument is passed to the method. It should be either description OR testData OR expectedResult");
+        }
+
+        return filePaths;
     }
+
+    // Existing methods...
 }
-
-String attachmentLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
-
