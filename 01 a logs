@@ -1,11 +1,84 @@
-2024-08-09 23:35:08.736 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
-2024-08-09 23:35:08.741 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non migrated testcase keys from Jira https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
-2024-08-09 23:35:09.842 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
-2024-08-09 23:35:09.846 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Key retrieved: CC2-T5
-2024-08-09 23:35:09.846 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Processing CC2-T5
-2024-08-09 23:35:10.148 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Rally values for the project key 789325818991 are assigned from rally_migration_config.properties file
-2024-08-09 23:35:10.691 [main] WARN  com.optum.coe.automation.rally.Utils - Key testFolder not found or is null in JsonObject
-2024-08-09 23:35:10.691 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
-2024-08-09 23:35:11.074 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error occurred creating Rally test case:
-2024-08-09 23:35:11.074 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Could not convert: "Priority" must be a string : Value [ Normal ] for field [ string ] is invalid.  Valid values are: [ Useful, , Critical, Important ]
-2024-08-09 23:35:11.088 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
+
+public class RunnerClass {
+
+	// Logger Initialization for Runner Class
+	private static final Logger logger = LogManager.getLogger();
+
+	// Main method
+	public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+
+		/*
+		 * Main method calls below functionalities from com.optum.coe.automation.rally
+		 * package 1. Get Jira non migrated testcase keys 2. Get Jira Testcase details
+		 * for the given testcase key. It is an iterative process 3. Create the testcase
+		 * in Rally using the Jira testcase details 4. Validate if the testcase is
+		 * created successfully ; Future implementation is required. US7440061
+		 */
+
+		JiraTestCase jiraTestCase = new JiraTestCase();
+		JiraOperation jiraOperation = new JiraOperation();
+		ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+		for (int i = 0; i < testcaseKeys.size(); i++) {			
+			boolean rallyTestcaseCreationStatus = false;
+			boolean rallyOverallTestStepAttachmentsStatus = false;
+			jiraTestCase.setKey(testcaseKeys.get(i));
+			logger.info("Processing " + jiraTestCase.getKey());
+			JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+			RallyOperation rallyOperation = new RallyOperation();
+			List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+			List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+			List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.downloadEmbeddedImages(JiraTestStep step);
+			String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+			// Validation for Testcase creation
+			if (rallyTestcaseOID != null ) {
+				rallyTestcaseCreationStatus = true;
+			} else {
+				logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+				break;	
+			}
+			
+			if (fileAttachmentDownloadPathsTestcaseLevel != null) {
+				logger.info("Attachment paths are found in the list.");
+				List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+				Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+				// Validation for Testcase file attachments 
+				if (!testcaseAttachmentOIDs.isEmpty()) {
+					rallyOverallTestStepAttachmentsStatus = true;	
+				} else {
+					logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+					+ " is not created in rally");
+					return;
+				}
+				
+			} else {
+				logger.info("No Attachment path found for Testcase level.");
+			}
+			
+			// Test Step creation and Test Step Attachments implementation place holder.
+			
+		
+			// Over all validation for Jira Testcase migration to Rally. US7440061: Create implementation for ValidateRallyTestcaseContent
+		if (rallyTestcaseCreationStatus == true && rallyOverallTestStepAttachmentsStatus == true ) {
+
+				/*
+				 * Needs to be added calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
+				 */
+		} 
+
+
+			
+		}
+
+	}
+
+}
