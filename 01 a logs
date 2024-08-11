@@ -27,6 +27,10 @@ public class JiraTestStep {
         this.htmlContent = htmlContent;
     }
 
+
+String attachmentLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
+
+
     // Other methods...
 }
 
