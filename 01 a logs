@@ -1,15 +1,61 @@
-Exception in thread "main" java.lang.IllegalArgumentException: Illegal character in path at index 70: https://jira.healthcareit.net../rest/tests/1.0/attachment/image/500125\"
-	at java.base/java.net.URI.create(URI.java:906)
-	at org.apache.http.client.methods.HttpGet.<init>(HttpGet.java:66)
-	at com.optum.coe.automation.rally.Utils.getJiraResponse(Utils.java:51)
-	at com.optum.coe.automation.rally.Utils.downloadTestStepEmbeddedAttachments(Utils.java:332)
-	at com.optum.coe.automation.rally.JiraOperation.jiraAttachmentsDownload(JiraOperation.java:178)
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:46)
-Caused by: java.net.URISyntaxException: Illegal character in path at index 70: https://jira.healthcareit.net../rest/tests/1.0/attachment/image/500125\"
-	at java.base/java.net.URI$Parser.fail(URI.java:2976)
-	at java.base/java.net.URI$Parser.checkChars(URI.java:3147)
-	at java.base/java.net.URI$Parser.parseHierarchical(URI.java:3229)
-	at java.base/java.net.URI$Parser.parse(URI.java:3177)
-	at java.base/java.net.URI.<init>(URI.java:623)
-	at java.base/java.net.URI.create(URI.java:904)
-	... 5 more
+public static List<String> downloadTestStepEmbeddedAttachments(String jsonResponse, String apiToken,
+        String testStepAttachmentLocationToBeSaved, String tC_Id, String baseURL, String columnName)
+        throws IOException {
+    List<String> filePaths = new ArrayList<>();
+    JSONObject jsonObject = new JSONObject(jsonResponse);
+    JSONArray stepsArray = jsonObject.getJSONObject("testScript").getJSONArray("steps");
+    Path path = Paths.get(testStepAttachmentLocationToBeSaved);
+    if (!Files.exists(path)) {
+        try {
+            Files.createDirectories(path);
+        } catch (IOException e) {
+            logger.error("Failed to create directories for embedded attachment download location.", e);
+        }
+    }
+
+    for (int i = 0; i < stepsArray.length(); i++) {
+        JSONObject stepObject = stepsArray.getJSONObject(i);
+        int index = stepObject.getInt("index");
+        int stepNumber = index + 1;
+        if (stepObject.has(columnName)) {
+            String htmlContent = stepObject.getString(columnName);
+            Document doc = Jsoup.parse(htmlContent);
+            Elements imgElements = doc.select("img");
+            if (!imgElements.isEmpty()) {
+                int imageCount = 0;
+                for (Element img : imgElements) {
+                    String imageUrl = img.attr("src");
+                    if (!imageUrl.isEmpty()) {
+                        // Clean and correct the URL
+                        imageUrl = imageUrl.trim();  // Remove any leading/trailing whitespace
+                        imageUrl = imageUrl.replaceAll("\\.\\./", "");  // Remove any double dots in the path
+                        if (imageUrl.contains("\"")) {
+                            imageUrl = imageUrl.replace("\"", "");  // Remove any illegal characters like double quotes
+                        }
+
+                        imageCount++;
+                        String extractUrl = imageUrl.substring(2);
+                        String absoluteUrl = baseURL + extractUrl;
+                        HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken);
+                        if (response != null) {
+                            try (InputStream in = response.getContent()) {
+                                Path filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
+                                Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);  // Overwrite if file exists
+                                filePaths.add(filePath.toString());
+                                EntityUtils.consume(response);
+                                logger.info("File downloaded from Jira to testStepAttachmentLocation. File Name: " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
+                            } catch (IOException e) {
+                                logger.error("Failed to download the file attachment " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + " from Jira for test step level", e);
+                            }
+                        } else {
+                            logger.error("Failed to download the file attachment " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + " from Jira for test step level. No Entity response found");
+                        }
+                    }
+                }
+            }
+        } else {
+            logger.error("No valid argument is passed to the method. It should be either description OR testData OR expectedResult");
+        }
+    }
+    return filePaths;
+}
