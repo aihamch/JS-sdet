@@ -7,29 +7,35 @@ public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTes
             newTestStep.addProperty("TestCase", rallyTestCaseRef);
             newTestStep.addProperty("StepIndex", step.getIndex());
 
-            // Get the original step data
+            // Get the step's description, expected result, and test data
             String description = step.getDescription();
             String expectedResult = step.getExpectedResult();
             String testData = step.getTestData();
 
-            // Prepare a block of text for all attachments
-            StringBuilder attachmentsBlock = new StringBuilder("\n\n**Attachments:**\n");
+            // Get the attachment URLs corresponding to this step
             List<String> stepAttachmentOIDs = attachmentOIDsMap.get(step.getIndex());
             if (stepAttachmentOIDs != null && !stepAttachmentOIDs.isEmpty()) {
+                StringBuilder attachmentLinks = new StringBuilder();
+
                 for (String attachmentOID : stepAttachmentOIDs) {
-                    attachmentsBlock.append("- [Attachment: ").append(attachmentOID).append("]\n");
+                    String attachmentUrl = "[Attachment: " + rallyRestApi.getWsapiUrl() + "/attachment/" + attachmentOID + "]";
+                    attachmentLinks.append(attachmentUrl).append(" ");
                 }
+
+                // Append the attachment links to the step's description, expected result, or test data
+                description += "<br/>" + attachmentLinks.toString();
             }
 
-            // Append the attachments block to the step data
-            newTestStep.addProperty("Input", description + attachmentsBlock.toString());
-            newTestStep.addProperty("ExpectedResult", expectedResult + attachmentsBlock.toString());
-            newTestStep.addProperty("TestData", testData + attachmentsBlock.toString());
+            // Set the step's fields
+            newTestStep.addProperty("Input", description);
+            newTestStep.addProperty("ExpectedResult", expectedResult);
+            newTestStep.addProperty("TestData", testData);
 
             CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
             CreateResponse createResponse = rallyRestApi.create(createRequest);
 
             if (createResponse.wasSuccessful()) {
+                String rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
                 logger.info("Successfully created test step: " + step.getDescription());
             } else {
                 logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + Arrays.toString(createResponse.getErrors()));
