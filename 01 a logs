@@ -1,5 +1,10 @@
-// Fetch Jira response
-String jiraApiEndpoint = ConfigLoader.getConfigValue("JIRA_API_ENDPOINT");
-logger.info("Jira API Endpoint: " + jiraApiEndpoint);  // Add this line to log the endpoint
-String jiraApiToken = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
-String jiraResponse = jiraOperation.fetchJiraNonMigratedTestcases(jiraApiEndpoint, jiraApiToken);
+2024-08-11 19:27:03.641 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-11 19:27:03.643 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira API endpoint is null or empty.
+2024-08-11 19:27:03.643 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira response is null or empty.
+2024-08-11 19:27:14.666 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-11 19:27:14.668 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira API endpoint is null or empty.
+2024-08-11 19:27:14.668 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira response is null or empty.
+2024-08-11 19:45:18.818 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-11 19:45:18.821 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Jira API Endpoint: null
+2024-08-11 19:45:18.821 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira API endpoint is null or empty.
+2024-08-11 19:45:18.821 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira response is null or empty.
