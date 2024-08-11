@@ -1,84 +1,160 @@
+To address the issue where the methods `fileAttachmentDownloadPathsTestStepLevel` and `embeddedAttachmentDownloadPathsTestStepLevel` are not used correctly and ensure that they are handled the same way as `fileAttachmentDownloadPathsTestcaseLevel`, I'll make the following adjustments:
+
+### Step 1: Update `RunnerClass`
+- Ensure that `fileAttachmentDownloadPathsTestStepLevel` and `embeddedAttachmentDownloadPathsTestStepLevel` are handled in a similar manner as `fileAttachmentDownloadPathsTestcaseLevel`.
+
+### Step 2: Ensure Proper Handling in `JiraOperation`
+- Update the `jiraAttachmentsDownload` method to return the correct data in a consistent manner.
+
+### Updated `RunnerClass.java`
+
+```java
 package com.optum.coe.automation.rally;
+
+import com.google.gson.JsonObject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import com.google.gson.JsonObject;
 
 public class RunnerClass {
 
-	// Logger Initialization for Runner Class
-	private static final Logger logger = LogManager.getLogger();
+    // Logger Initialization for Runner Class
+    private static final Logger logger = LogManager.getLogger();
 
-	// Main method
-	public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+    // Main method
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
 
-		/*
-		 * Main method calls below functionalities from com.optum.coe.automation.rally
-		 * package 1. Get Jira non migrated testcase keys 2. Get Jira Testcase details
-		 * for the given testcase key. It is an iterative process 3. Create the testcase
-		 * in Rally using the Jira testcase details 4. Validate if the testcase is
-		 * created successfully ; Future implementation is required. US7440061
-		 */
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+        for (String key : testcaseKeys) {
+            boolean rallyTestcaseCreationStatus = false;
+            boolean rallyOverallTestStepAttachmentsStatus = false;
+            jiraTestCase.setKey(key);
+            logger.info("Processing " + jiraTestCase.getKey());
+            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            RallyOperation rallyOperation = new RallyOperation();
 
-		JiraTestCase jiraTestCase = new JiraTestCase();
-		JiraOperation jiraOperation = new JiraOperation();
-		ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-		for (int i = 0; i < testcaseKeys.size(); i++) {			
-			boolean rallyTestcaseCreationStatus = false;
-			boolean rallyOverallTestStepAttachmentsStatus = false;
-			jiraTestCase.setKey(testcaseKeys.get(i));
-			logger.info("Processing " + jiraTestCase.getKey());
-			JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-			RallyOperation rallyOperation = new RallyOperation();
-			List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-			List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-			List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.downloadEmbeddedImages(JiraTestStep step);
-			String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
-			// Validation for Testcase creation
-			if (rallyTestcaseOID != null ) {
-				rallyTestcaseCreationStatus = true;
-			} else {
-				logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
-				break;	
-			}
-			
-			if (fileAttachmentDownloadPathsTestcaseLevel != null) {
-				logger.info("Attachment paths are found in the list.");
-				List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-				Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-				// Validation for Testcase file attachments 
-				if (!testcaseAttachmentOIDs.isEmpty()) {
-					rallyOverallTestStepAttachmentsStatus = true;	
-				} else {
-					logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
-					+ " is not created in rally");
-					return;
-				}
-				
-			} else {
-				logger.info("No Attachment path found for Testcase level.");
-			}
-			
-			// Test Step creation and Test Step Attachments implementation place holder.
-			
-		
-			// Over all validation for Jira Testcase migration to Rally. US7440061: Create implementation for ValidateRallyTestcaseContent
-		if (rallyTestcaseCreationStatus == true && rallyOverallTestStepAttachmentsStatus == true ) {
+            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
 
-				/*
-				 * Needs to be added calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
-				 */
-		} 
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
 
+            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
 
-			
-		}
+            if (rallyTestcaseOID != null) {
+                rallyTestcaseCreationStatus = true;
+            } else {
+                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                break;
+            }
 
-	}
+            if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
+                logger.info("Attachment paths are found in the list.");
+                List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                if (!testcaseAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                } else {
+                    logger.error("The Jira testcase is not created in Rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in Rally.");
+                    return;
+                }
+            } else {
+                logger.info("No Attachment path found for Testcase level.");
+            }
 
+            // Handle Test Step File Attachments
+            if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step file attachments paths are found in the list.");
+                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+                if (!testStepAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                } else {
+                    logger.error("The Jira test step file attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
+                    return;
+                }
+            } else {
+                logger.info("No Attachment path found for Test Step file level.");
+            }
+
+            // Handle Test Step Embedded Attachments
+            if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step embedded attachments paths are found in the list.");
+                List<String> embeddedAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, embeddedAttachmentDownloadPathsTestStepLevel);
+                Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
+                if (!embeddedAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                } else {
+                    logger.error("The Jira test step embedded attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
+                    return;
+                }
+            } else {
+                logger.info("No Attachment path found for Test Step embedded level.");
+            }
+
+            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                // Call method to update "Testcase Migrated" and "Test Folder Migrated" check boxes in Jira
+            }
+        }
+    }
 }
+```
+
+### Updated `JiraOperation.java` Methods
+
+Make sure the `jiraAttachmentsDownload` method returns the correct list of file paths:
+
+```java
+public List<String> jiraAttachmentsDownload(String testcaseKey, String testType, String attachmentType) {
+    List<String> fileAttachmentDownloadPaths = null;
+    String testAttachmentUrl = null;
+    if (testType.equals("testcase")) {
+        testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey + "/attachments";
+        logger.info("URL String for testcase attachments: " + testAttachmentUrl);
+    } else if (testType.equals("teststep")) {
+        testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey;
+        logger.info("URL String for teststep attachments: " + testAttachmentUrl);
+    } else {
+        logger.error("Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
+        return null;
+    }
+
+    HttpEntity response = Utils.getJiraResponse(testAttachmentUrl, jiraApiKey);
+    if (response != null) {
+        String result = null;
+        try {
+            result = EntityUtils.toString(response);
+            if (result.trim().isEmpty() || result.equals("{}") || result.equals("[]")) {
+                logger.info("No Attachment URL found for the testcase key " + testcaseKey);
+            } else {
+                logger.info("Attachment URL is found for the testcase key " + testcaseKey + "; JSON body: " + result);
+                Map<String, String> testMap = Utils.pharseJsonGetAttachmentUrlAndName(result);
+                if (testType.equals("testcase")) {
+                    fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromJiraTestCase(testMap,
+                            tcFileAttachmentDownloadLocation, jiraApiKey, testcaseKey);
+                } else if (testType.equals("teststep")) {
+                    fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromTestStep(result, jiraApiKey,
+                            tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL);
+                }
+            }
+        } catch (ParseException | IOException e) {
+            logger.error("Error while parsing the Json response ", e);
+        }
+    } else {
+        logger.error("Response is NULL while retrieving attachments from JIRA. Returning NULL");
+    }
+    return fileAttachmentDownloadPaths;
+}
+```
+
+### Explanation:
+- **Consistency**: The updated `RunnerClass` ensures that `fileAttachmentDownloadPathsTestStepLevel` and `embeddedAttachmentDownloadPathsTestStepLevel` are treated the same way as `fileAttachmentDownloadPathsTestcaseLevel`.
+- **JiraOperation Method**: The `jiraAttachmentsDownload` method in `JiraOperation` is now capable of downloading both test case and test step attachments, returning the list of file paths.
+
+This setup should resolve the mismatches and ensure that attachments are handled correctly throughout the process. Let me know if any further adjustments are needed!
