@@ -1,5 +1,78 @@
-Exception in thread "main" java.lang.NullPointerException: Cannot invoke "org.apache.http.client.methods.CloseableHttpResponse.getEntity()" because "response" is null
-	at com.optum.coe.automation.rally.Utils.getJiraResponse(Utils.java:61)
-	at com.optum.coe.automation.rally.Utils.downloadTestStepEmbeddedAttachments(Utils.java:355)
-	at com.optum.coe.automation.rally.JiraOperation.jiraAttachmentsDownload(JiraOperation.java:178)
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:46)
+The `NullPointerException` you're encountering is because the `response` object in the `getJiraResponse` method is null, which means that the HTTP request didn't execute successfully, and as a result, the `response` is not set.
+
+### Steps to Diagnose and Resolve:
+
+1. **Check the `getJiraResponse` Method**:
+   - Ensure that the `response` object is not null before trying to access its entity.
+   - Add logging to capture the response status and any errors.
+
+Here’s how you can modify the `getJiraResponse` method to handle this:
+
+```java
+public static HttpEntity getJiraResponse(String url, String apiKey) {
+    CloseableHttpClient connection = HttpClients.createDefault();
+    HttpGet request = new HttpGet(url);
+    request.setHeader("Authorization", "Bearer " + apiKey);
+    CloseableHttpResponse response = null;
+    try {
+        response = connection.execute(request);
+        int statusCode = response.getStatusLine().getStatusCode();
+        if (statusCode >= 200 && statusCode < 300) {
+            HttpEntity entity = response.getEntity();
+            if (entity != null) {
+                logger.info("Successfully returned HttpEntity response for the URL " + url);
+                return entity;
+            } else {
+                logger.error("Received empty response entity for the URL: " + url);
+            }
+        } else {
+            logger.error("Failed to fetch the response from the URL: " + url + ". HTTP Status Code: " + statusCode);
+        }
+    } catch (ClientProtocolException e) {
+        logger.error("ClientProtocolException occurred in Jira connection while connecting to " + url, e);
+    } catch (IOException e) {
+        logger.error("IOException occurred in Jira connection while connecting to " + url, e);
+    } finally {
+        try {
+            if (response != null) {
+                response.close();
+            }
+            connection.close();
+        } catch (IOException e) {
+            logger.error("Error occurred while closing resources.", e);
+        }
+    }
+    return null; // Return null if the response or entity was not obtained successfully
+}
+```
+
+### Key Points:
+- **Check HTTP Status Code**: The method now checks if the response status code is in the 200 range (successful response).
+- **Log Errors**: Errors are logged if the response is not successful or if the entity is null.
+- **Close Resources**: Resources are closed in the `finally` block to ensure no resource leaks.
+
+2. **Handle the Null Case in `downloadTestStepEmbeddedAttachments`**:
+   - Since the `getJiraResponse` method might return `null`, make sure to handle that case in the `downloadTestStepEmbeddedAttachments` method to avoid further `NullPointerException`s.
+
+Here’s how you might adjust `downloadTestStepEmbeddedAttachments` to handle null entities:
+
+```java
+HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken);
+if (response != null) {
+    try (InputStream in = response.getContent()) {
+        Path filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
+        Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);  // Overwrite if file exists
+        filePaths.add(filePath.toString());
+        EntityUtils.consume(response);
+        logger.info("File downloaded from Jira to testStepAttachmentLocation. File Name: " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
+    } catch (IOException e) {
+        logger.error("Failed to download the file attachment " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + " from Jira for test step level", e);
+    }
+} else {
+    logger.error("Failed to download the file attachment from Jira. No Entity response found for URL: " + absoluteUrl);
+}
+```
+
+### Summary:
+- The issue likely arises when the `getJiraResponse` method encounters an issue with the HTTP request and returns null, leading to a `NullPointerException` later when you try to access the `response` object.
+- By checking for null and logging the issue, you can better understand what might be going wrong with the HTTP request and take corrective action.
