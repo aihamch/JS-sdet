@@ -1,7 +1,35 @@
-Exception in thread "main" java.lang.NullPointerException: Cannot invoke "String.length()" because "this.input" is null
-	at java.base/java.net.URI$Parser.parse(URI.java:3167)
-	at java.base/java.net.URI.<init>(URI.java:623)
-	at java.base/java.net.URI.create(URI.java:904)
-	at org.apache.http.client.methods.HttpGet.<init>(HttpGet.java:66)
-	at com.optum.coe.automation.rally.JiraOperation.fetchJiraNonMigratedTestcases(JiraOperation.java:56)
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:37)
+public String fetchJiraNonMigratedTestcases(String jiraApiEndpoint, String jiraApiToken) {
+    String jiraResponse = null;
+
+    // Validate the endpoint URL
+    if (jiraApiEndpoint == null || jiraApiEndpoint.trim().isEmpty()) {
+        logger.error("The Jira API endpoint is null or empty.");
+        return null;
+    }
+
+    try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+        URI uri = URI.create(jiraApiEndpoint.trim());
+        HttpGet request = new HttpGet(uri);
+        request.addHeader("Authorization", "Bearer " + jiraApiToken);
+
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            if (response.getStatusLine().getStatusCode() == 200) {
+                HttpEntity entity = response.getEntity();
+                if (entity != null) {
+                    jiraResponse = EntityUtils.toString(entity);
+                    logger.info("Successfully fetched Jira response: " + jiraResponse);
+                } else {
+                    logger.warn("No content returned in Jira response.");
+                }
+            } else {
+                logger.error("Failed to fetch Jira response. HTTP error code: " + response.getStatusLine().getStatusCode());
+            }
+        }
+    } catch (IOException e) {
+        logger.error("Error occurred while fetching non-migrated test cases from Jira.", e);
+    } catch (IllegalArgumentException e) {
+        logger.error("The Jira API endpoint is improperly formatted: " + jiraApiEndpoint, e);
+    }
+
+    return jiraResponse;
+}
