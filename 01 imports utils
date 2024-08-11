@@ -1,6 +1,47 @@
-2024-08-11 19:27:03.641 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
-2024-08-11 19:27:03.643 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira API endpoint is null or empty.
-2024-08-11 19:27:03.643 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira response is null or empty.
-2024-08-11 19:27:14.666 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
-2024-08-11 19:27:14.668 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira API endpoint is null or empty.
-2024-08-11 19:27:14.668 [main] ERROR com.optum.coe.automation.rally.JiraOperation - The Jira response is null or empty.
+The logs indicate that the `JIRA_API_ENDPOINT` is being retrieved as `null`. This issue likely originates from one of the following reasons:
+
+1. **Incorrect Key in Configuration File:** The key `JIRA_API_ENDPOINT` might be missing or incorrectly specified in your `rally_migration_config.properties` file.
+   
+2. **Incorrect Path or Access to Configuration File:** The configuration file might not be correctly loaded, or there could be an issue accessing it.
+
+Here's how you can troubleshoot this:
+
+### 1. Verify the Configuration File
+Open the `rally_migration_config.properties` file and check if the `JIRA_API_ENDPOINT` key is present and correctly spelled. It should look something like this:
+
+```properties
+JIRA_API_ENDPOINT=https://your-jira-instance/api/endpoint
+```
+
+### 2. Check the Configuration Loading
+Ensure that the `ConfigLoader.getConfigValue("JIRA_API_ENDPOINT")` method is correctly loading the value from the file. You can add additional logging in the `ConfigLoader` class to confirm that the file is being loaded properly.
+
+### 3. Add Logging in ConfigLoader
+Add logging in your `ConfigLoader` class to verify whether the properties file is being read correctly:
+
+```java
+public static String getConfigValue(String key) {
+    String value = properties.getProperty(key);
+    if (value == null) {
+        logger.error("Config key " + key + " is missing or has a null value.");
+    } else {
+        logger.info("Config key " + key + " loaded with value: " + value);
+    }
+    return value;
+}
+```
+
+### 4. Test with a Hardcoded Value (Optional)
+To confirm that the issue is with loading the config file, you can temporarily hardcode the `JIRA_API_ENDPOINT` in your code:
+
+```java
+String jiraApiEndpoint = "https://your-jira-instance/api/endpoint";
+logger.info("Hardcoded Jira API Endpoint: " + jiraApiEndpoint);
+```
+
+If the hardcoded value works, the issue is likely in how the configuration is being loaded.
+
+### 5. Ensure Proper File Loading
+Make sure the path to the `rally_migration_config.properties` file is correctly set, and that the file is accessible to your application at runtime.
+
+By following these steps, you should be able to identify why the `JIRA_API_ENDPOINT` is being retrieved as `null` and correct the issue.
