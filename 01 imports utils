@@ -1,6 +1,3 @@
-
-
-
 public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, Map<Integer, List<String>> attachmentOIDsMap) {
     Collections.reverse(jiraTestSteps);
     String rallyBaseUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
@@ -16,90 +13,23 @@ public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTes
             String expectedResult = step.getExpectedResult();
             String testData = step.getTestData();
 
-            // Get the attachment URLs corresponding to this step
-            List<String> stepAttachmentOIDs = attachmentOIDsMap.get(step.getIndex());
-            if (stepAttachmentOIDs != null && !stepAttachmentOIDs.isEmpty()) {
-                StringBuilder attachmentLinks = new StringBuilder();
-
-                for (String attachmentOID : stepAttachmentOIDs) {
-                    String attachmentUrl = "[Attachment: " + rallyBaseUrl + "/slm/webservice/v2.0/attachment/" + attachmentOID + "]";
-                    attachmentLinks.append(attachmentUrl).append(" ");
-                }
-
-                // Append the attachment links to the step's description, expected result, or test data
-                description += "<br/>" + attachmentLinks.toString();
+            // Attach embedded images to the relevant fields
+            if (description != null && !description.isEmpty()) {
+                List<String> descriptionAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(step.getHtmlContent(), rallyRestApi, attachmentLocation, step.getIndex(), rallyBaseUrl, "description");
+                // Append the downloaded image paths to the description
+                description += Utils.constructAttachmentUrls(descriptionAttachmentPaths);
             }
 
-            // Set the step's fields
-            newTestStep.addProperty("Input", description);
-            newTestStep.addProperty("ExpectedResult", expectedResult);
-            newTestStep.addProperty("TestData", testData);
-
-            CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
-            CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test step: " + step.getDescription());
-            } else {
-                logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + Arrays.toString(createResponse.getErrors()));
+            if (expectedResult != null && !expectedResult.isEmpty()) {
+                List<String> expectedResultAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(step.getHtmlContent(), rallyRestApi, attachmentLocation, step.getIndex(), rallyBaseUrl, "expectedResult");
+                // Append the downloaded image paths to the expected result
+                expectedResult += Utils.constructAttachmentUrls(expectedResultAttachmentPaths);
             }
-        } catch (Exception e) {
-            logger.error("Exception while creating test step: " + step.getDescription(), e);
-        }
-    }
-}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, Map<Integer, List<String>> attachmentOIDsMap) {
-    Collections.reverse(jiraTestSteps);
-
-    for (JiraTestStep step : jiraTestSteps) {
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseRef);
-            newTestStep.addProperty("StepIndex", step.getIndex());
-
-            // Get the step's description, expected result, and test data
-            String description = step.getDescription();
-            String expectedResult = step.getExpectedResult();
-            String testData = step.getTestData();
-
-            // Get the attachment URLs corresponding to this step
-            List<String> stepAttachmentOIDs = attachmentOIDsMap.get(step.getIndex());
-            if (stepAttachmentOIDs != null && !stepAttachmentOIDs.isEmpty()) {
-                StringBuilder attachmentLinks = new StringBuilder();
-
-                for (String attachmentOID : stepAttachmentOIDs) {
-                    String attachmentUrl = "[Attachment: " + rallyRestApi.getWsapiUrl() + "/attachment/" + attachmentOID + "]";
-                    attachmentLinks.append(attachmentUrl).append(" ");
-                }
-
-                // Append the attachment links to the step's description, expected result, or test data
-                description += "<br/>" + attachmentLinks.toString();
+            if (testData != null && !testData.isEmpty()) {
+                List<String> testDataAttachmentPaths = Utils.downloadTestStepEmbeddedAttachments(step.getHtmlContent(), rallyRestApi, attachmentLocation, step.getIndex(), rallyBaseUrl, "testData");
+                // Append the downloaded image paths to the test data
+                testData += Utils.constructAttachmentUrls(testDataAttachmentPaths);
             }
 
             // Set the step's fields
