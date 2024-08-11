@@ -1,108 +1,128 @@
-Given that all attachments were successfully uploaded to the test case level and no test steps were created, the primary issues seem to be:
+package com.optum.coe.automation.rally;
 
-1. **Misalignment Between Attachment Levels:** The attachments meant for test steps were uploaded to the test case level instead.
-2. **Failure in Creating Test Steps:** The test steps themselves were not created, which could be due to improper handling of the step data or payload issues.
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.rallydev.rest.RallyRestApi;
+import java.net.URI;
 
-### Steps to Address the Issues
+public class RunnerClass {
 
-#### 1. **Ensure Attachments Are Uploaded to Test Steps:**
+    // Logger Initialization for Runner Class
+    private static final Logger logger = LogManager.getLogger();
 
-The attachment handling should differentiate between those meant for the test case level and those meant for test steps. If you intended to move attachments from the test case level to test steps, you need to:
-- Identify which attachments belong to which test steps.
-- Modify the code to reassign attachments from the test case to the corresponding test steps after they are created.
+    // Main method
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+        Gson gson = new Gson();
+        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
 
-#### 2. **Fix Test Step Creation Failures:**
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
 
-There could be a problem in how the test step data is being processed or sent to Rally. Here's how you can approach fixing this:
+        for (String key : testcaseKeys) {
+            boolean rallyTestcaseCreationStatus = false;
+            boolean rallyOverallTestStepAttachmentsStatus = false;
+            jiraTestCase.setKey(key);
+            logger.info("Processing " + jiraTestCase.getKey());
+            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            RallyOperation rallyOperation = new RallyOperation();
 
-### Updated `RallyOperation` Class
+            // Download attachments from Jira for the TestCase level and TestStep level
+            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
 
-Here is how you could update your `RallyOperation` class to handle both the creation of test steps and the correct assignment of attachments:
+            // Create Rally TestCase
+            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
 
-```java
-public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, Map<Integer, List<String>> stepAttachmentOIDsMap) {
-    // Reverse the order of test steps to maintain the correct sequence
-    Collections.reverse(jiraTestSteps);
+            if (rallyTestcaseOID != null) {
+                rallyTestcaseCreationStatus = true;
+            } else {
+                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                break;
+            }
 
-    for (JiraTestStep step : jiraTestSteps) {
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseRef);
-            newTestStep.addProperty("StepIndex", step.getIndex());
-            newTestStep.addProperty("Input", sanitize(step.getDescription()));
-            newTestStep.addProperty("ExpectedResult", sanitize(step.getExpectedResult()));
-            newTestStep.addProperty("TestData", sanitize(step.getTestData()));
+            // List to store all attachment OIDs for referencing in TestSteps
+            List<String> testcaseAttachmentOIDs = new ArrayList<>();
 
-            CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
-            CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test step: " + step.getDescription());
-
-                // Move corresponding attachments to the created test step
-                List<String> attachmentOIDs = stepAttachmentOIDsMap.get(step.getIndex());
-                if (attachmentOIDs != null) {
-                    moveAttachmentsToTestStep(rallyTestStepOID, attachmentOIDs, rallyRestApi);
+            // Attach files at the TestCase level
+            if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
+                logger.info("Attachment paths are found for the TestCase level.");
+                testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                if (!testcaseAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                } else {
+                    logger.error("The attachments for TestCase key " + jiraTestCase.getKey() + " are not uploaded to Rally.");
+                    return;
                 }
             } else {
-                logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + Arrays.toString(createResponse.getErrors()));
+                logger.info("No Attachment path found for TestCase level.");
             }
-        } catch (Exception e) {
-            logger.error("Exception while creating test step: " + step.getDescription(), e);
+
+            // Handle Test Step File Attachments and Embedded Attachments
+            List<String> allTestStepAttachmentPaths = new ArrayList<>();
+            if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step file attachments paths are found.");
+                allTestStepAttachmentPaths.addAll(fileAttachmentDownloadPathsTestStepLevel);
+            } else {
+                logger.info("No file attachment paths found for Test Step level.");
+            }
+
+            if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step embedded attachments paths are found.");
+                allTestStepAttachmentPaths.addAll(embeddedAttachmentDownloadPathsTestStepLevel);
+            } else {
+                logger.info("No embedded attachment paths found for Test Step level.");
+            }
+
+            // Upload all TestStep-related attachments to TestCase level and collect their OIDs
+            if (!allTestStepAttachmentPaths.isEmpty()) {
+                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, allTestStepAttachmentPaths);
+                Utils.deleteAttachmentFileFromLocal(allTestStepAttachmentPaths);
+                if (!testStepAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                    testcaseAttachmentOIDs.addAll(testStepAttachmentOIDs);
+                } else {
+                    logger.error("Test Step attachments are not created in Rally for TestCase key " + jiraTestCase.getKey());
+                    return;
+                }
+            }
+
+            // Retrieve the steps and migrate them
+            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+            List<JiraTestStep> testSteps = new ArrayList<>();
+
+            for (JsonElement element : stepsArray) {
+                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+                testSteps.add(step);
+            }
+
+            // Migrate Test Steps to Rally
+            rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, testcaseAttachmentOIDs);
+
+            // Logging the overall result
+            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                logger.info("Rally TestCase creation and TestStep attachment upload completed successfully for key: " + jiraTestCase.getKey());
+            } else {
+                logger.error("Rally TestCase creation or TestStep attachment upload failed for key: " + jiraTestCase.getKey());
+            }
+
+            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                // Call method to update "TestCase Migrated" and "Test Folder Migrated" check boxes in Jira
+               // jiraOperation.updateJiraTestCaseStatus(jiraTestCase.getKey());
+            }
         }
     }
 }
-
-private String sanitize(String input) {
-    return input == null ? "" : input.replaceAll("<[^>]*>", ""); // Strip out HTML tags, or customize this to handle HTML content
-}
-```
-
-### Updated `RunnerClass`
-
-Update the `RunnerClass` to properly manage and map attachments to the correct test steps:
-
-```java
-for (String key : testcaseKeys) {
-    boolean rallyTestcaseCreationStatus = false;
-    boolean rallyOverallTestStepAttachmentsStatus = false;
-
-    // Get test case and step attachments
-    List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-    
-    // Process test steps and map attachments
-    JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-    List<JiraTestStep> testSteps = new ArrayList<>();
-    Map<Integer, List<String>> stepAttachmentOIDsMap = new HashMap<>();
-
-    for (JsonElement element : stepsArray) {
-        JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
-        testSteps.add(step);
-
-        // Link attachments to the step
-        List<String> stepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, getAttachmentsForStep(step));
-        stepAttachmentOIDsMap.put(step.getIndex(), stepAttachmentOIDs);
-    }
-
-    rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, stepAttachmentOIDsMap);
-}
-
-private List<String> getAttachmentsForStep(JiraTestStep step) {
-    // Implement this method to get the correct attachment paths for each step
-    // This might involve filtering based on file paths or other criteria
-}
-```
-
-### Key Considerations:
-
-1. **Attachment Mapping:**
-   - Ensure that the attachments are correctly mapped to the respective test steps before invoking the creation logic. This may require parsing the step data to determine which attachments belong where.
-
-2. **Sanitization and Payload Management:**
-   - Use the `sanitize()` method to clean up any HTML or special characters in the test steps that could be causing issues.
-
-3. **Error Handling:**
-   - Add detailed logging to understand why test steps might be failing, including logging the full payload being sent to Rally.
-
-By implementing these changes, the attachments should be correctly assigned to their respective test steps, and the test steps should be successfully created in Rally.
