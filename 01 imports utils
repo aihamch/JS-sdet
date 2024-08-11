@@ -7,7 +7,8 @@ private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> att
             JsonObject updateAttachment = new JsonObject();
             updateAttachment.addProperty("Artifact", rallyTestStepOID);
 
-            UpdateRequest updateRequest = new UpdateRequest("Attachment", attachmentOID, updateAttachment);
+            // UpdateRequest constructor takes the ref (including the OID) and the JSON object with updated data
+            UpdateRequest updateRequest = new UpdateRequest("/attachment/" + attachmentOID, updateAttachment);
             UpdateResponse updateResponse = rallyRestApi.update(updateRequest);
 
             if (updateResponse.wasSuccessful()) {
