@@ -1,75 +1,5 @@
-  public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi) {
-        Collections.reverse(jiraTestSteps);
-
-        for (JiraTestStep step : jiraTestSteps) {
-            try {
-                JsonObject newTestStep = new JsonObject();
-                newTestStep.addProperty("TestCase", rallyTestCaseRef);
-                newTestStep.addProperty("StepIndex", step.getIndex());
-                newTestStep.addProperty("Input", step.getDescription());
-                newTestStep.addProperty("ExpectedResult", step.getExpectedResult());
-                newTestStep.addProperty("TestData", step.getTestData());
-
-                CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
-                CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-                if (createResponse.wasSuccessful()) {
-                    logger.info("Successfully created test step: " + step.getDescription());
-                } else {
-                    logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + createResponse.getErrors());
-                }
-            } catch (Exception e) {
-                logger.error("Exception while creating test step: " + step.getDescription(), e);
-            }
-        }
-    }
-
-
-To address the issue where step file attachments and embedded attachments are being uploaded to the test case level instead of their corresponding test steps, you can implement a process to move these attachments after they are uploaded.
-
-Here's a general approach to achieve this:
-
-1. **Upload Attachments at the Test Case Level:** Continue uploading the attachments at the test case level as you are doing now.
-
-2. **Retrieve the Uploaded Attachments:** After uploading, retrieve the details (like OID) of the attachments uploaded at the test case level.
-
-3. **Move Attachments to Corresponding Test Steps:** Iterate through the test steps and move the corresponding attachments from the test case level to the specific test step.
-
-### Implementation Steps
-
-1. **Modify the `migrateTestSteps` Method:**
-   Add functionality to move attachments to the test step level after they are uploaded at the test case level.
-
-```java
-public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, List<String> testCaseAttachmentOIDs) {
-    Collections.reverse(jiraTestSteps);
-
-    for (JiraTestStep step : jiraTestSteps) {
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseRef);
-            newTestStep.addProperty("StepIndex", step.getIndex());
-            newTestStep.addProperty("Input", step.getDescription());
-            newTestStep.addProperty("ExpectedResult", step.getExpectedResult());
-            newTestStep.addProperty("TestData", step.getTestData());
-
-            CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
-            CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test step: " + step.getDescription());
-                
-                // Move the corresponding attachments to this test step
-                moveAttachmentsToTestStep(rallyTestStepOID, testCaseAttachmentOIDs, rallyRestApi);
-            } else {
-                logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + createResponse.getErrors());
-            }
-        } catch (Exception e) {
-            logger.error("Exception while creating test step: " + step.getDescription(), e);
-        }
-    }
-}
+import com.rallydev.rest.request.UpdateRequest;
+import com.rallydev.rest.response.UpdateResponse;
 
 private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
     for (String attachmentOID : attachmentOIDs) {
@@ -77,8 +7,8 @@ private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> att
             JsonObject updateAttachment = new JsonObject();
             updateAttachment.addProperty("Artifact", rallyTestStepOID);
 
-            CreateRequest updateRequest = new CreateRequest("Attachment", updateAttachment, attachmentOID);
-            CreateResponse updateResponse = rallyRestApi.update(updateRequest);
+            UpdateRequest updateRequest = new UpdateRequest("Attachment", attachmentOID, updateAttachment);
+            UpdateResponse updateResponse = rallyRestApi.update(updateRequest);
 
             if (updateResponse.wasSuccessful()) {
                 logger.info("Successfully moved attachment OID " + attachmentOID + " to test step " + rallyTestStepOID);
@@ -90,38 +20,3 @@ private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> att
         }
     }
 }
-```
-
-2. **Pass Attachment OIDs to `migrateTestSteps`:**
-   Ensure that the attachment OIDs collected after uploading at the test case level are passed to the `migrateTestSteps` method.
-
-```java
-rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, testcaseAttachmentOIDs);
-```
-
-3. **Update Attachment Handling in Runner Class:**
-   Modify the Runner class to collect the OIDs of uploaded attachments and then pass them to the `migrateTestSteps` method.
-
-### Example Runner Class Changes:
-
-```java
-// Handle Test Step File Attachments
-if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-    logger.info("Test Step file attachments paths are found in the list.");
-    List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
-    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
-    if (!testStepAttachmentOIDs.isEmpty()) {
-        rallyOverallTestStepAttachmentsStatus = true;
-    } else {
-        logger.error("The Jira test step file attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
-        return;
-    }
-}
-
-// Similar code for embedded attachments...
-
-// Pass the collected attachment OIDs to migrateTestSteps method
-rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, testStepAttachmentOIDs);
-```
-
-This approach ensures that the attachments are first uploaded to the test case level and then moved to the appropriate test step.
