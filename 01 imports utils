@@ -1,6 +1,21 @@
-Exception in thread "main" java.lang.NullPointerException: Cannot invoke "String.length()" because "s" is null
-	at java.base/java.io.StringReader.<init>(StringReader.java:51)
-	at org.json.JSONTokener.<init>(JSONTokener.java:70)
-	at org.json.JSONArray.<init>(JSONArray.java:142)
-	at com.optum.coe.automation.rally.JiraOperation.getJiraNonMigratedTestcaseKeys(JiraOperation.java:80)
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:33)
+public List<String> getJiraNonMigratedTestcaseKeys(String jiraResponse) {
+    List<String> testcaseKeys = new ArrayList<>();
+
+    if (jiraResponse == null || jiraResponse.isEmpty()) {
+        logger.error("The Jira response is null or empty.");
+        return testcaseKeys;  // Return an empty list to avoid further processing
+    }
+
+    try {
+        JSONArray jArrayResponse = new JSONArray(jiraResponse);
+        for (int i = 0; i < jArrayResponse.length(); i++) {
+            JSONObject jsonObject = jArrayResponse.getJSONObject(i);
+            String key = jsonObject.getString("key");
+            testcaseKeys.add(key);
+        }
+    } catch (Exception e) {
+        logger.error("Error occurred while parsing Jira response to get non-migrated testcase keys.", e);
+    }
+
+    return testcaseKeys;
+}
