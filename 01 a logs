@@ -104,3 +104,6 @@ public void migrateTestSteps(String rallyTestCaseRef, List<JiraTestStep> jiraTes
         }
     }
 }
+
+String attachmentLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
+
