@@ -1,67 +1,9 @@
-private void moveAttachmentsToTestStep(String rallyTestStepFullUrl, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
-    String rallyTestStepOID = extractOID(rallyTestStepFullUrl);
-    if (rallyTestStepOID == null) {
-        logger.error("Failed to extract OID from the test step URL: " + rallyTestStepFullUrl);
-        return;
-    }
-
-    if (!checkObjectExists("testcasestep", rallyTestStepOID, rallyRestApi)) {
-        logger.error("Test step with OID " + rallyTestStepOID + " does not exist in Rally.");
-        return;
-    }
-
-    for (String attachmentFullUrl : attachmentOIDs) {
-        try {
-            String attachmentOID = extractOID(attachmentFullUrl);
-            if (attachmentOID == null) {
-                logger.error("Failed to extract OID from the attachment URL: " + attachmentFullUrl);
-                continue;
-            }
-
-            if (!checkObjectExists("attachment", attachmentOID, rallyRestApi)) {
-                logger.error("Attachment with OID " + attachmentOID + " does not exist in Rally.");
-                continue;
-            }
-
-            GetRequest getRequest = new GetRequest("/attachment/" + attachmentOID);
-            GetResponse getResponse = rallyRestApi.get(getRequest);
-
-            if (getResponse.wasSuccessful()) {
-                JsonObject attachmentDetails = getResponse.getObject();
-                String attachmentName = attachmentDetails.get("Name").getAsString();
-                String attachmentDescription = attachmentDetails.get("Description").getAsString();
-
-                // Download the attachment content
-                String attachmentContentRef = attachmentDetails.getAsJsonObject("Content").get("_ref").getAsString();
-                GetRequest contentRequest = new GetRequest(attachmentContentRef);
-                GetResponse contentResponse = rallyRestApi.get(contentRequest);
-
-                if (contentResponse.wasSuccessful()) {
-                    String content = contentResponse.getObject().get("Content").getAsString();
-
-                    // Create a new attachment for the test step
-                    JsonObject newAttachment = new JsonObject();
-                    newAttachment.addProperty("Artifact", rallyTestStepOID);
-                    newAttachment.addProperty("Name", attachmentName);
-                    newAttachment.addProperty("Description", attachmentDescription);
-                    newAttachment.addProperty("Content", content);
-
-                    CreateRequest createRequest = new CreateRequest("attachment", newAttachment);
-                    CreateResponse createResponse = rallyRestApi.create(createRequest);
-
-                    if (createResponse.wasSuccessful()) {
-                        logger.info("Successfully created new attachment for test step OID " + rallyTestStepOID);
-                    } else {
-                        logger.error("Failed to create new attachment for test step OID " + rallyTestStepOID + ". Error: " + Arrays.toString(createResponse.getErrors()));
-                    }
-                } else {
-                    logger.error("Failed to retrieve content for attachment OID " + attachmentOID + ". Error: " + Arrays.toString(contentResponse.getErrors()));
-                }
-            } else {
-                logger.error("Failed to retrieve attachment OID " + attachmentOID + " for updating. Error: " + Arrays.toString(getResponse.getErrors()));
-            }
-        } catch (Exception e) {
-            logger.error("Exception while moving attachment OID " + attachmentOID + " to test step " + rallyTestStepOID, e);
-        }
-    }
+{
+"TestcaseStep": {
+    "TestCase": "testcase/{{testcaseOID}}",
+    "StepIndex": 1,
+    "Input" : "Test Thina Input for Step1",
+    "ExpectedResult" : "This is the expected result with screen shot <img src='https://rally1.rallydev.com/slm/attachment/{{attachmentOID}}/content'/>"
+ 
+}
 }
