@@ -227,6 +227,11 @@ private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCa
 
 
 
+         try {
+        // Create the test case in Rally
+        CreateRequest createRequest = new CreateRequest("testcase", testCase);
+        CreateResponse createResponse = restApi.create(createRequest);
+
         if (createResponse.wasSuccessful()) {
             String testCaseRef = createResponse.getObject().get("_ref").getAsString();
             System.out.println("Successfully created test case: " + testCaseRef);
@@ -243,3 +248,4 @@ private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCa
         // Release resources
         restApi.close();
     }
+}
