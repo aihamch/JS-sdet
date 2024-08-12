@@ -1,3 +1,35 @@
+
+Exception in thread "main" java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500125
+	at java.base/java.net.URL.<init>(URL.java:674)
+	at java.base/java.net.URL.<init>(URL.java:569)
+	at java.base/java.net.URL.<init>(URL.java:516)
+	at FoldersTestCase2.downloadFile(FoldersTestCase2.java:494)
+	at FoldersTestCase2.downloadEmbeddedAttachments(FoldersTestCase2.java:486)
+	at FoldersTestCase2.migrateTestStepAttachments(FoldersTestCase2.java:442)
+	at FoldersTestCase2.main(FoldersTestCase2.java:218)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
