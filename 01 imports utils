@@ -1,6 +1,4 @@
-Here is the full updated code with the changes to handle the relative URLs properly, and with the modifications applied to the `downloadFile`, `downloadEmbeddedAttachments`, and `migrateTestStepAttachments` methods:
 
-### Full Updated Code:
 
 ```java
 import com.google.gson.GsonBuilder;
@@ -552,10 +550,4 @@ class FoldersTestCase2 {
         }
     }
 }
-```
 
-### Summary of Changes:
-- **Base URL Handling**: The code now properly handles relative URLs by appending the base Jira URL to any URLs that don’t already include a protocol.
-- **Method Calls**: The `migrateTestStepAttachments` method is invoked after the test steps have been migrated to handle the download, upload, and linkage of attachments.
-
-This updated code should now handle the complete process without errors related to malformed URLs.
