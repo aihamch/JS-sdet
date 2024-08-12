@@ -1,161 +1,115 @@
-Let's address these issues one by one.
+The `MalformedURLException` occurs because the URL provided is incomplete and doesn't include a protocol (e.g., `http://` or `https://`). The URL you are trying to download, `../rest/tests/1.0/attachment/image/500125`, is a relative path and not a complete URL.
 
-### 1. **`attachment.getId()` Not Defined in `JiraAttachment` Class:**
+To resolve this, you need to construct the full URL by appending the base URL of your Jira instance.
 
-The `JiraAttachment` class should have a method `getId()` that returns the ID of the attachment. I’ll add this method to the `JiraAttachment` class if it's missing.
+Here’s how you can modify the `downloadFile` and `downloadEmbeddedAttachments` methods to handle this situation:
 
-Here’s an example of how the `JiraAttachment` class might look with the `getId()` method:
+### Modified `downloadFile` Method:
 
 ```java
-package com.optum.coe.automation.rally;
-
-public class JiraAttachment {
-
-    private String id;
-    private String url;
-    private String fileName;
-    private long fileSize;
-
-    // Constructor, getters, and setters
-
-    public JiraAttachment(String id, String url, String fileName, long fileSize) {
-        this.id = id;
-        this.url = url;
-        this.fileName = fileName;
-        this.fileSize = fileSize;
+private static File downloadFile(String baseUrl, String fileUrl, String fileName) throws IOException {
+    // Construct the full URL if the provided URL is relative
+    if (!fileUrl.startsWith("http://") && !fileUrl.startsWith("https://")) {
+        if (fileUrl.startsWith("../")) {
+            fileUrl = baseUrl + fileUrl.substring(2); // Handle relative paths that start with ../
+        } else {
+            fileUrl = baseUrl + fileUrl; // Handle other relative paths
+        }
     }
 
-    public String getId() {
-        return id;
+    File file = new File("Attachments/" + fileName);
+    try (InputStream in = new URL(fileUrl).openStream();
+         FileOutputStream out = new FileOutputStream(file)) {
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        while ((bytesRead = in.read(buffer)) != -1) {
+            out.write(buffer, 0, bytesRead);
+        }
     }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
-
-    public long getFileSize() {
-        return fileSize;
-    }
-
-    public void setFileSize(long fileSize) {
-        this.fileSize = fileSize;
-    }
+    return file;
 }
 ```
 
-### 2. **`Utils.downloadFileFromURL` Method is Undefined:**
-
-If `downloadFileFromURL` is not defined in your `Utils` class, we’ll need to implement this method. The method should download a file from a given URL and save it to a specified location.
-
-Here’s an example implementation:
+### Modified `downloadEmbeddedAttachments` Method:
 
 ```java
-package com.optum.coe.automation.rally;
+private static List<File> downloadEmbeddedAttachments(String content, String baseUrl) throws IOException {
+    List<File> downloadedFiles = new ArrayList<>();
+    // Use regex to extract URLs of embedded images or other attachments
+    Pattern pattern = Pattern.compile("src\\s*=\\s*\"([^\"]+)\"");
+    Matcher matcher = pattern.matcher(content);
 
-import java.io.BufferedInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URL;
-import java.nio.file.Paths;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-public class Utils {
-
-    private static final Logger logger = LogManager.getLogger();
-
-    // Method to download a file from a URL and save it to the specified location
-    public static String downloadFileFromURL(URL url, String destinationDir) throws IOException {
-        String fileName = Paths.get(url.getPath()).getFileName().toString();
-        String destinationFilePath = Paths.get(destinationDir, fileName).toString();
-
-        try (BufferedInputStream in = new BufferedInputStream(url.openStream());
-             FileOutputStream fileOutputStream = new FileOutputStream(destinationFilePath)) {
-
-            byte dataBuffer[] = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
-                fileOutputStream.write(dataBuffer, 0, bytesRead);
-            }
-
-            logger.info("Downloaded file: " + fileName + " to " + destinationFilePath);
-        } catch (IOException e) {
-            logger.error("Failed to download file from URL: " + url, e);
-            throw e;
-        }
-
-        return destinationFilePath;
+    while (matcher.find()) {
+        String url = matcher.group(1);
+        String fileName = url.substring(url.lastIndexOf('/') + 1);
+        File file = downloadFile(baseUrl, url, fileName);
+        downloadedFiles.add(file);
     }
+    return downloadedFiles;
 }
 ```
 
-### Updated `JiraOperation` Class with Adjustments:
+### Update the Call in `migrateTestStepAttachments`:
+
+You need to pass the base URL to the `downloadEmbeddedAttachments` and `downloadFile` methods. Update your call to `downloadEmbeddedAttachments` in the `migrateTestStepAttachments` method:
 
 ```java
-package com.optum.coe.automation.rally;
+private static void migrateTestStepAttachments(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef) throws IOException {
+    // Ensure the Attachments folder exists
+    File attachmentFolder = new File("Attachments");
+    if (!attachmentFolder.exists()) {
+        attachmentFolder.mkdir();
+    }
 
-import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
+    JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+    if (testScript != null) {
+        JsonArray steps = testScript.getAsJsonArray("steps");
+        if (steps != null) {
+            String baseUrl = "https://jira.healthcareit.net"; // Set your base Jira URL here
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+            for (JsonElement stepElement : steps) {
+                JsonObject step = stepElement.getAsJsonObject();
 
-public class JiraOperation {
+                // Handle embedded attachments (images, etc.)
+                String description = step.get("description").getAsString();
+                List<File> downloadedAttachments = downloadEmbeddedAttachments(description, baseUrl);
 
-    private static final Logger logger = LogManager.getLogger();
+                // Handle file attachments (if any)
+                JsonArray attachmentArray = step.getAsJsonArray("attachments");
+                if (attachmentArray != null) {
+                    for (JsonElement attachmentElement : attachmentArray) {
+                        JsonObject attachmentObj = attachmentElement.getAsJsonObject();
+                        String fileUrl = attachmentObj.get("content").getAsString(); // Assuming 'content' holds the URL
+                        String fileName = attachmentObj.get("filename").getAsString();
 
-    // Method to download attachments for Jira Test Steps
-    public static List<String> downloadStepAttachments(JiraTestStep step) {
-        List<String> attachmentPaths = new ArrayList<>();
-        List<JiraAttachment> attachments = step.getAttachments();
+                        // Download the attachment
+                        File file = downloadFile(baseUrl, fileUrl, fileName);
+                        downloadedAttachments.add(file);
+                    }
+                }
 
-        if (attachments == null || attachments.isEmpty()) {
-            logger.warn("No attachments found for the test step.");
-            return attachmentPaths;
-        }
+                // Upload attachments to Rally test case level
+                for (File file : downloadedAttachments) {
+                    String attachmentRef = uploadAttachmentToRally(file, restApi, testCaseRef);
 
-        for (JiraAttachment attachment : attachments) {
-            String downloadUrl = attachment.getUrl();
-            if (downloadUrl == null || downloadUrl.isEmpty()) {
-                logger.warn("Download URL is null or empty for attachment: " + attachment.getId());
-                continue;
+                    // Now link this attachment to the specific test step
+                    if (attachmentRef != null) {
+                        linkAttachmentToTestStep(restApi, testCaseRef, step.get("index").getAsInt(), attachmentRef);
+                    }
+
+                    // Cleanup - delete the file after uploading
+                    if (file.exists()) {
+                        file.delete();
+                    }
+                }
             }
-
-            try {
-                String downloadedFilePath = Utils.downloadFileFromURL(new URL(downloadUrl), ConfigLoader.getConfigValue("TestStep_File_Attachment_Location"));
-                attachmentPaths.add(downloadedFilePath);
-            } catch (IOException e) {
-                logger.error("Failed to download attachment: " + attachment.getId(), e);
-            }
         }
-
-        return attachmentPaths;
     }
 }
 ```
 
 ### Summary:
-- **`JiraAttachment` Class**: Added the `getId()` method.
-- **`Utils` Class**: Implemented the `downloadFileFromURL` method to handle file downloads from a URL.
-- **`JiraOperation` Class**: Updated to use the new `downloadFileFromURL` method and handle attachments correctly.
+- **Base URL Handling**: The code now correctly constructs the full URL by appending the base Jira URL to the relative paths.
+- **Flexible URL Handling**: The code handles both absolute and relative URLs, making it adaptable to various cases.
 
-These changes should resolve the issues you're encountering. If there are any more errors or issues, feel free to share them!
+This should resolve the `MalformedURLException` and allow the code to properly download and process the attachments.
