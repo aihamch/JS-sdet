@@ -1,45 +1,47 @@
-Pretty Response: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
-Invalid folder name encountered: ''
-Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
-Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083883
-Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901
-Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431
-Transformed JSON: {
-  "projectRef": "789325818991",
-  "TestFolder": {
-    "_rallyAPIMajor": "2",
-    "_rallyAPIMinor": "0",
-    "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431",
-    "_refObjectUUID": "f94b7703-4801-4f19-ac41-59512b0a4a28",
-    "_objectVersion": "1",
-    "_refObjectName": "CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For",
-    "Name": "CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For",
-    "Parent": {
-      "_rallyAPIMajor": "2",
-      "_rallyAPIMinor": "0",
-      "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901",
-      "_refObjectUUID": "3d736c02-dbe5-4cad-ad44-5cd4c451ebf0",
-      "_objectVersion": "1",
-      "_refObjectName": "ConnectCenter - FY22 iteration 21",
-      "Name": "ConnectCenter - FY22 iteration 21",
-      "_type": "TestFolder"
-    },
-    "_type": "TestFolder"
-  },
-  "testCase": {
-    "Name": "Guerkin1 - Eligibility inquiry response does not contain Dependent Information",
-    "Method": "Manual",
-    "Priority": "Useful",
-    "Owner": "/user/783605835347",
-    "Ready": false,
-    "Tags": [
-      {
-        "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/tag/798000675535"
-      }
-    ]
-  }
+private static void migrateTestSteps(JsonObject jiraJson, String rallyTestCaseRef, RallyRestApi restApi) throws IOException {
+    JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+    if (testScript != null) {
+        JsonArray stepsArray = testScript.getAsJsonArray("steps");
+        if (stepsArray != null) {
+            for (JsonElement stepElement : stepsArray) {
+                JsonObject stepObject = stepElement.getAsJsonObject();
+                JsonObject rallyTestStep = new JsonObject();
+                
+                rallyTestStep.addProperty("TestCase", rallyTestCaseRef);
+                
+                // Add null checks for each field
+                if (stepObject.get("testData") != null && !stepObject.get("testData").isJsonNull()) {
+                    rallyTestStep.addProperty("Input", stepObject.get("testData").getAsString());
+                } else {
+                    rallyTestStep.addProperty("Input", ""); // Default value or skip
+                }
+                
+                if (stepObject.get("expectedResult") != null && !stepObject.get("expectedResult").isJsonNull()) {
+                    rallyTestStep.addProperty("ExpectedResult", stepObject.get("expectedResult").getAsString());
+                } else {
+                    rallyTestStep.addProperty("ExpectedResult", ""); // Default value or skip
+                }
+                
+                if (stepObject.get("description") != null && !stepObject.get("description").isJsonNull()) {
+                    rallyTestStep.addProperty("Description", stepObject.get("description").getAsString());
+                } else {
+                    rallyTestStep.addProperty("Description", "No Description"); // Default value or skip
+                }
+
+                rallyTestStep.addProperty("StepIndex", stepObject.get("index").getAsInt() + 1);
+
+                CreateRequest createStepRequest = new CreateRequest("testcasestep", rallyTestStep);
+                CreateResponse createStepResponse = restApi.create(createStepRequest);
+
+                if (createStepResponse.wasSuccessful()) {
+                    System.out.println("Successfully created test step: " + createStepResponse.getObject().get("_ref").getAsString());
+                } else {
+                    System.out.println("Error occurred creating test step:");
+                    for (String error : createStepResponse.getErrors()) {
+                        System.out.println(error);
+                    }
+                }
+            }
+        }
+    }
 }
-Successfully created test case: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799046666255
-Exception in thread "main" java.lang.NullPointerException: Cannot invoke "com.google.gson.JsonElement.getAsString()" because the return value of "com.google.gson.JsonObject.get(String)" is null
-	at FoldersTestCase2.migrateTestSteps(FoldersTestCase2.java:196)
-	at FoldersTestCase2.main(FoldersTestCase2.java:178)
