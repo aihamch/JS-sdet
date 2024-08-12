@@ -1,20 +1,23 @@
-2024-08-11 20:36:34.730 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key RALLY_BASE_URL loaded with value: https://rally1.rallydev.com
-2024-08-11 20:36:34.734 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key RALLY_API_KEY loaded with value: _UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_BASE_URL loaded with value: https://jira.healthcareit.net
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_API_TOKEN loaded with value: NjkzMzI2MjUyMTAxOjheeHwL8gYnhul3HZo2HojKKY1R
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_PROJECT_KEY loaded with value: CC2
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key MAX_VALUE_CHUNK loaded with value: 1
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key TEST_CASE_FILE_ATTACHMENT_LOCATION loaded with value: C:attachments
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key TEST_STEP_FILE_ATTACHMENT_LOCATION loaded with value: C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
-2024-08-11 20:36:34.783 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_API_ENDPOINT loaded with value: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
-2024-08-11 20:36:34.784 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Jira API Endpoint: https://jira.healthcareit.net/rest/atm/1.0/testcase/CC2-T5
-2024-08-11 20:36:34.784 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_API_TOKEN loaded with value: NjkzMzI2MjUyMTAxOjheeHwL8gYnhul3HZo2HojKKY1R
-2024-08-11 20:36:35.453 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Successfully fetched Jira response: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
-2024-08-11 20:36:35.456 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Error occurred while parsing Jira response to get non-migrated testcase keys.
-org.json.JSONException: A JSONArray text must start with '[' at 1 [character 2 line 1]
-	at org.json.JSONTokener.syntaxError(JSONTokener.java:503) ~[json-20240303.jar:?]
-	at org.json.JSONArray.<init>(JSONArray.java:89) ~[json-20240303.jar:?]
-	at org.json.JSONArray.<init>(JSONArray.java:142) ~[json-20240303.jar:?]
-	at com.optum.coe.automation.rally.JiraOperation.getJiraNonMigratedTestcaseKeys(JiraOperation.java:98) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:41) [classes/:?]
+public List<String> getJiraNonMigratedTestcaseKeys(String jiraResponse) {
+    List<String> testcaseKeys = new ArrayList<>();
+
+    if (jiraResponse == null || jiraResponse.isEmpty()) {
+        logger.error("The Jira response is null or empty.");
+        return testcaseKeys;  // Return an empty list to avoid further processing
+    }
+
+    try {
+        JSONObject jsonObject = new JSONObject(jiraResponse);
+        // Assuming you want to extract the "key" field from the JSON object
+        if (jsonObject.has("key")) {
+            String key = jsonObject.getString("key");
+            testcaseKeys.add(key);
+        } else {
+            logger.warn("No 'key' field found in the Jira response.");
+        }
+    } catch (Exception e) {
+        logger.error("Error occurred while parsing Jira response to get non-migrated testcase keys.", e);
+    }
+
+    return testcaseKeys;
+}
