@@ -1,27 +1,11 @@
+You should add the `sanitizeJsonString` method as a private method within the `RallyOperation` class. This method can then be called from within the `migrateTestSteps` method to sanitize the JSON strings before they are processed.
+
+Here's how your `RallyOperation` class would look with the `sanitizeJsonString` method added:
+
+```java
 package com.optum.coe.automation.rally;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
+// Imports...
 
 public class RallyOperation {
 
@@ -45,195 +29,18 @@ public class RallyOperation {
     }
 
     // Method to create a Rally Test Case from Jira JSON
-    public String createRallyTestcase(JsonObject jiraJson) {
-        String rallyTestCaseOID = null;
-        JsonObject rallyJson = new JsonObject();
-        rallyJson.addProperty("projectRef", rallyProjectKey);
+    // (Other methods...)
 
-        JsonObject testCase = new JsonObject();
-        JsonElement nameElement = jiraJson.get("name");
-        testCase.addProperty("Name", nameElement != null && !nameElement.isJsonNull() ? nameElement.getAsString() : "Default Test Case Name");
-
-        testCase.addProperty("Method", "Manual");
-        JsonElement priorityElement = jiraJson.get("priority");
-        testCase.addProperty("Priority", priorityElement != null && !priorityElement.isJsonNull() ? (priorityElement.getAsString().equalsIgnoreCase("Normal") ? "Useful" : priorityElement.getAsString()) : "Default Priority");
-        testCase.addProperty("Owner", "/user/" + rallyUser);
-        JsonElement statusElement = jiraJson.get("status");
-        testCase.addProperty("Ready", statusElement != null && !statusElement.isJsonNull() && statusElement.getAsString().equals("Ready"));
-
-        // Add default tags (customize as needed)
-        JsonArray tagsArray = new JsonArray();
-        JsonObject tagObject = new JsonObject();
-        tagObject.addProperty("_ref", "/tag/56011614555");
-        tagObject.addProperty("Name", "Billing and Eligibility");
-        tagsArray.add(tagObject);
-        testCase.add("Tags", tagsArray);
-
-        // Get folder hierarchy from Jira and create or retrieve corresponding folder in Rally
-        String folderPath = jiraJson.get("folder").getAsString();
-        String[] folderHierarchy = folderPath.split("/");
-        JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey, rallyBaseURL, rallyApiKey);
-        if (testFolder == null) {
-            logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
-            return rallyTestCaseOID;
-        }
-        rallyJson.add("TestFolder", testFolder);
-        rallyJson.add("testCase", testCase);
-
-        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
-        RallyRestApi restApi = null;
+    // Method to sanitize JSON strings
+    private String sanitizeJsonString(String jsonString) {
         try {
-            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-            restApi.setApplicationName("CreateTestCaseApp");
-
-            JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
-            JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
-            JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
-
-            JsonObject newTestCase = new JsonObject();
-            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
-            newTestCase.addProperty("Project", rallyProjectKey);
-            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
-            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
-            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
-            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
-
-            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
-            if (tagsArrayFromJson != null) {
-                JsonArray newTagsArray = new JsonArray();
-                for (JsonElement tagElement : tagsArrayFromJson) {
-                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
-                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
-                    JsonObject newTagObject = new JsonObject();
-                    newTagObject.addProperty("_ref", tagRef);
-                    newTagsArray.add(newTagObject);
-                }
-                newTestCase.add("Tags", newTagsArray);
-            }
-
-            String testFolderRef = testFolderData.get("_ref").getAsString();
-            newTestCase.addProperty("TestFolder", testFolderRef);
-
-            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
-            CreateResponse createResponse = restApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
-                logger.info("Successfully created test case: " + rallyTestCaseOID);
-            } else {
-                logger.error("Error occurred creating test case");
-                for (String error : createResponse.getErrors()) {
-                    logger.error(error);
-                }
-            }
-        } catch (URISyntaxException | IOException e) {
-            logger.error("Error in createRallyTestcase method.", e);
-        } finally {
-            try {
-                if (restApi != null) restApi.close();
-            } catch (IOException e) {
-                logger.error("Error closing Rally API", e);
-            }
-        }
-        return rallyTestCaseOID;
-    }
-
-    // Method to attach files to Rally Test Case
-    public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
-        List<String> testcaseAttachmentOIDs = new ArrayList<>();
-        RallyRestApi rallyApi = null;
-        try {
-            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-            for (String filePath : filePaths) {
-                try {
-                    String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
-                    if (attachmentOID != null) {
-                        testcaseAttachmentOIDs.add(attachmentOID);
-                        logger.info("File " + filePath + " attached successfully to test case: " + rallyTestCaseOID);
-                    }
-                } catch (IOException e) {
-                    logger.error("Error attaching file: " + filePath, e);
-                }
-            }
-        } catch (URISyntaxException e) {
-            logger.error("Rally Base URL has syntax error.", e);
-        } finally {
-            try {
-                if (rallyApi != null) rallyApi.close();
-            } catch (IOException e) {
-                logger.error("Error closing Rally API", e);
-            }
-        }
-        return testcaseAttachmentOIDs;
-    }
-
-    // Method to attach a single file to a Rally Test Case
-    public String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
-        byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
-        String encodedContent = Base64.getEncoder().encodeToString(fileContent);
-
-        String contentType = getContentType(filePath);
-
-        // Create the AttachmentContent
-        JsonObject attachmentContent = new JsonObject();
-        attachmentContent.addProperty("Content", encodedContent);
-        CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
-        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
-        if (!attachmentContentResponse.wasSuccessful()) {
-            logger.error("Error creating AttachmentContent for file: " + filePath + ". Errors: " + Arrays.toString(attachmentContentResponse.getErrors()));
-            return null;
-        }
-        String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
-
-        // Create the Attachment
-        JsonObject attachment = new JsonObject();
-        attachment.addProperty("Artifact", "/testcase/" + testCaseId);
-        attachment.addProperty("Content", attachmentContentRef);
-        attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
-        attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
-        attachment.addProperty("ContentType", contentType);
-        attachment.addProperty("Size", fileContent.length);
-        CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-        CreateResponse attachmentResponse
-
- = rallyApi.create(attachmentRequest);
-
-        if (attachmentResponse.wasSuccessful()) {
-            logger.info("Attachment created successfully for file: " + filePath);
-            return attachmentResponse.getObject().get("_ref").getAsString();
-        } else {
-            logger.error("Error creating Attachment for file: " + filePath + ". Errors: " + Arrays.toString(attachmentResponse.getErrors()));
-            return null;
-        }
-    }
-
-    // Helper method to determine the content type based on file extension
-    private String getContentType(String filePath) {
-        String extension = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
-        switch (extension) {
-            case ".png":
-                return "image/png";
-            case ".txt":
-                return "text/plain";
-            case ".jpeg":
-            case ".jpg":
-                return "image/jpeg";
-            case ".xml":
-                return "application/xml";
-            case ".gif":
-                return "image/gif";
-            case ".doc":
-                return "application/msword";
-            case ".docx":
-                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            case ".xls":
-                return "application/vnd.ms-excel";
-            case ".xlsx":
-                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-            case ".zip":
-                return "application/zip";
-            default:
-                return "application/octet-stream";
+            // Attempt to parse the string to ensure it's valid JSON
+            JsonParser.parseString(jsonString);
+            return jsonString;
+        } catch (Exception e) {
+            // If parsing fails, log a warning and sanitize the string
+            logger.warn("Invalid JSON detected, sanitizing: " + jsonString, e);
+            return "{}";  // or return a sanitized version of jsonString
         }
     }
 
@@ -248,9 +55,9 @@ public class RallyOperation {
                 newTestStep.addProperty("StepIndex", step.getIndex());
 
                 // Get the step's description, expected result, and test data
-                String description = step.getDescription();
-                String expectedResult = step.getExpectedResult();
-                String testData = step.getTestData();
+                String description = sanitizeJsonString(step.getDescription());
+                String expectedResult = sanitizeJsonString(step.getExpectedResult());
+                String testData = sanitizeJsonString(step.getTestData());
                 String attachmentLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
 
                 // Attach embedded images to the relevant fields
@@ -263,7 +70,6 @@ public class RallyOperation {
                         rallyBaseUrl, 
                         "description"
                     );
-                    // Append the downloaded image paths to the description
                     description += Utils.constructAttachmentUrls(descriptionAttachmentPaths);
                 }
 
@@ -276,7 +82,6 @@ public class RallyOperation {
                         rallyBaseUrl, 
                         "expectedResult"
                     );
-                    // Append the downloaded image paths to the expected result
                     expectedResult += Utils.constructAttachmentUrls(expectedResultAttachmentPaths);
                 }
 
@@ -289,7 +94,6 @@ public class RallyOperation {
                         rallyBaseUrl, 
                         "testData"
                     );
-                    // Append the downloaded image paths to the test data
                     testData += Utils.constructAttachmentUrls(testDataAttachmentPaths);
                 }
 
@@ -313,4 +117,12 @@ public class RallyOperation {
         }
     }
 
+    // Other methods...
 }
+```
+
+### Summary:
+- **Place**: The `sanitizeJsonString` method is added as a private method within the `RallyOperation` class, just like other utility methods.
+- **Usage**: It’s then called in the `migrateTestSteps` method to sanitize the `description`, `expectedResult`, and `testData` before further processing.
+
+This method will help in preventing JSON parsing errors by ensuring that only valid JSON strings are processed.
