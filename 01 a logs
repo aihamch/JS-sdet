@@ -1,45 +1,56 @@
-Cannot parse object reference from "iVBORw0KGgoAAAANSUhEUgAAAok
-Attachment JSON: {"Artifact":"https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799053222805","Content":"iVBORw0KGgoA",Name":"500134","ContentType":"application/octet-stream","Size":26714}
-Error occurred creating attachment:
-Cannot parse object reference from "iVBORw0KGgoAAAANSUhEUgAAAwgAAAE7CAIAAAD2FjFqAA"
-
-
-private static String uploadAttachmentToRally(File file, RallyRestApi restApi, String testCaseRef) throws IOException {
-    if (file == null || !file.exists() || testCaseRef == null || testCaseRef.isEmpty()) {
-        System.out.println("Invalid file or test case reference provided for attachment upload.");
-        return null;
+private static void migrateTestStepAttachments(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef, String baseUrl, String authToken) throws IOException {
+    // Ensure the Attachments folder exists
+    File attachmentFolder = new File("Attachments");
+    if (!attachmentFolder.exists()) {
+        attachmentFolder.mkdir();
     }
 
-    // Convert file to Base64-encoded content
-    byte[] fileContent = java.nio.file.Files.readAllBytes(file.toPath());
-    String base64Content = Base64.getEncoder().encodeToString(fileContent);
+    JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+    if (testScript != null) {
+        JsonArray steps = testScript.getAsJsonArray("steps");
+        if (steps != null) {
+            for (JsonElement stepElement : steps) {
+                JsonObject step = stepElement.getAsJsonObject();
 
-    // Ensure the Base64 content is not truncated and is complete
-    if (base64Content == null || base64Content.isEmpty()) {
-        System.out.println("Failed to encode the file to Base64.");
-        return null;
-    }
+                // Handle embedded attachments (images, etc.)
+                String description = "";
+                if (step.has("description") && !step.get("description").isJsonNull()) {
+                    description = step.get("description").getAsString();
+                }
+                List<File> downloadedAttachments = downloadEmbeddedAttachments(description, baseUrl, authToken);
 
-    JsonObject attachment = new JsonObject();
-    attachment.addProperty("Artifact", testCaseRef);
-    attachment.addProperty("Content", base64Content);  // Full Base64 string
-    attachment.addProperty("Name", file.getName());
-    attachment.addProperty("ContentType", "application/octet-stream");
-    attachment.addProperty("Size", fileContent.length);
+                // Handle file attachments (if any)
+                JsonArray attachmentArray = step.getAsJsonArray("attachments");
+                if (attachmentArray != null) {
+                    for (JsonElement attachmentElement : attachmentArray) {
+                        JsonObject attachmentObj = attachmentElement.getAsJsonObject();
+                        String fileUrl = attachmentObj.has("content") ? attachmentObj.get("content").getAsString() : "";
+                        String fileName = attachmentObj.has("filename") ? attachmentObj.get("filename").getAsString() : "";
 
-    // Debug: Print out the attachment JSON object to verify the content
-    System.out.println("Attachment JSON: " + attachment.toString());
+                        if (!fileUrl.isEmpty() && !fileName.isEmpty()) {
+                            // Download the attachment
+                            File file = downloadFile(baseUrl, fileUrl, fileName, authToken);
+                            downloadedAttachments.add(file);
+                        }
+                    }
+                }
 
-    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
+                // Upload attachments to Rally test case level
+                for (File file : downloadedAttachments) {
+                    // Step 1: Upload the attachment to the test case level
+                    String attachmentRef = uploadAttachmentToRally(file, restApi, testCaseRef);
 
-    if (attachmentResponse.wasSuccessful()) {
-        return attachmentResponse.getObject().get("_ref").getAsString();
-    } else {
-        System.out.println("Error occurred creating attachment:");
-        for (String error : attachmentResponse.getErrors()) {
-            System.out.println(error);
+                    // Step 2: Link this attachment to the specific test step
+                    if (attachmentRef != null) {
+                        linkAttachmentToTestStep(restApi, testCaseRef, step.get("index").getAsInt(), attachmentRef);
+                    }
+
+                    // Cleanup - delete the file after uploading
+                    if (file.exists()) {
+                        file.delete();
+                    }
+                }
+            }
         }
-        return null;
     }
 }
