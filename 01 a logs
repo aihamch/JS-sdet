@@ -1,1 +1,72 @@
-logger.info("Moving attachment OID: " + attachmentOID + " to test step OID: " + rallyTestStepOID);
+private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
+    for (String attachmentOID : attachmentOIDs) {
+        try {
+            // Extract the OID from the full URL if necessary
+            String extractedAttachmentOID = extractOID(attachmentOID);
+
+            // Fetch the existing attachment details
+            GetRequest getRequest = new GetRequest("/attachment/" + extractedAttachmentOID);
+            GetResponse getResponse = rallyRestApi.get(getRequest);
+            
+            if (getResponse.wasSuccessful()) {
+                JsonObject attachmentDetails = getResponse.getObject();
+                
+                // Update the Artifact field to point to the new Test Step
+                attachmentDetails.addProperty("Artifact", rallyTestStepOID);
+                
+                // Create an UpdateRequest with the updated details
+                UpdateRequest updateRequest = new UpdateRequest("/attachment/" + extractedAttachmentOID, attachmentDetails);
+                UpdateResponse updateResponse = rallyRestApi.update(updateRequest);
+
+                if (updateResponse.wasSuccessful()) {
+                    logger.info("Successfully moved attachment OID " + extractedAttachmentOID + " to test step " + rallyTestStepOID);
+                }
+// Method to extract the OID from the full URL
+private String extractOID(String fullUrl) {
+    // The OID is the last part of the URL after the last '/'
+    if (fullUrl != null && fullUrl.contains("/")) {
+        return fullUrl.substring(fullUrl.lastIndexOf('/') + 1);
+    } else {
+        logger.error("Invalid URL format: " + fullUrl);
+        return null;
+    }
+}
+
+// Updated method to move attachments to test step
+private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
+    for (String attachmentFullUrl : attachmentOIDs) {
+        try {
+            // Extract the OID from the full URL
+            String attachmentOID = extractOID(attachmentFullUrl);
+            if (attachmentOID == null) {
+                logger.error("Failed to extract OID from the attachment URL: " + attachmentFullUrl);
+                continue;
+            }
+
+            // Fetch the existing attachment details
+            GetRequest getRequest = new GetRequest("/attachment/" + attachmentOID);
+            GetResponse getResponse = rallyRestApi.get(getRequest);
+            
+            if (getResponse.wasSuccessful()) {
+                JsonObject attachmentDetails = getResponse.getObject();
+                
+                // Update the Artifact field to point to the new Test Step
+                attachmentDetails.addProperty("Artifact", rallyTestStepOID);
+                
+                // Create an UpdateRequest with the updated details
+                UpdateRequest updateRequest = new UpdateRequest("/attachment/" + attachmentOID, attachmentDetails);
+                UpdateResponse updateResponse = rallyRestApi.update(updateRequest);
+
+                if (updateResponse.wasSuccessful()) {
+                    logger.info("Successfully moved attachment OID " + attachmentOID + " to test step " + rallyTestStepOID);
+                } else {
+                    logger.error("Failed to move attachment OID " + attachmentOID + " to test step " + rallyTestStepOID + ". Error: " + Arrays.toString(updateResponse.getErrors()));
+                }
+            } else {
+                logger.error("Failed to retrieve attachment OID " + attachmentOID + " for updating. Error: " + Arrays.toString(getResponse.getErrors()));
+            }
+        } catch (Exception e) {
+            logger.error("Exception while moving attachment OID " + attachmentFullUrl + " to test step " + rallyTestStepOID, e);
+        }
+    }
+}
