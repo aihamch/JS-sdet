@@ -1,3 +1,21 @@
+public static void main(String[] args) throws Exception {
+    // Initialize Rally API
+    RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_YourAPIKeyHere_");
+    restApi.setApplicationName("AttachmentUploadTest");
+
+    try {
+        // Test case reference (you can replace this with your actual test case reference)
+        String testCaseRef = "https://rally1.rallydev.com/slm/webservice/v2.0/testcase/123456789";
+
+        // Call the method to test attachment upload
+        testSimpleAttachmentUpload(restApi, testCaseRef);
+
+    } finally {
+        // Clean up and close the API connection
+        restApi.close();
+    }
+}
+
 private static void testSimpleAttachmentUpload(RallyRestApi restApi, String testCaseRef) throws IOException {
     // Create a small text file for testing
     File testFile = new File("Attachments/TestAttachment.txt");
@@ -20,5 +38,38 @@ private static void testSimpleAttachmentUpload(RallyRestApi restApi, String test
     // Clean up the test file
     if (testFile.exists()) {
         testFile.delete();
+    }
+}
+
+// Method to upload attachment to Rally
+private static String uploadAttachmentToRally(File file, RallyRestApi restApi, String testCaseRef) throws IOException {
+    if (file == null || !file.exists() || testCaseRef == null || testCaseRef.isEmpty()) {
+        System.out.println("Invalid file or test case reference provided for attachment upload.");
+        return null;
+    }
+
+    // Convert file to Base64-encoded content
+    byte[] fileContent = java.nio.file.Files.readAllBytes(file.toPath());
+    String base64Content = Base64.getEncoder().encodeToString(fileContent);
+
+    JsonObject attachment = new JsonObject();
+    attachment.addProperty("Artifact", testCaseRef);
+    attachment.addProperty("Content", base64Content);
+    attachment.addProperty("Name", file.getName());
+    attachment.addProperty("ContentType", "text/plain");
+    attachment.addProperty("Size", fileContent.length);
+
+    System.out.println("Attachment JSON: " + attachment.toString());
+
+    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
+
+    if (attachmentResponse.wasSuccessful()) {
+        return attachmentResponse.getObject().get("_ref").getAsString();
+    } else {
+        System.out.println("Error occurred creating attachment:");
+        System.out.println("Response Errors: " + Arrays.toString(attachmentResponse.getErrors()));
+        System.out.println("Response Warnings: " + Arrays.toString(attachmentResponse.getWarnings()));
+        return null;
     }
 }
