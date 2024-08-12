@@ -1,347 +1,56 @@
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.util.Fetch;
-import com.rallydev.rest.util.QueryFilter;
-
-import java.io.IOException;
-import java.net.URI;
-
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-
-class FoldersTestCase2 {
-
-    public static void main(String[] args) throws Exception {
-        String testCaseId = "RHPQA-T82";
-        String jiraBaseUri = "https://jira.healthcareit.net/";
-        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
-        String projectRef = "789325818991";
-
-        // Send the GET request to JIRA using HttpClient
-        HttpClient client = HttpClients.createDefault();
-        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
-        request.setHeader("Authorization", "Bearer " + authToken);
-        request.setHeader("Accept", "application/json");
-
-        HttpResponse response = client.execute(request);
-        String responseBody = EntityUtils.toString(response.getEntity());
-
-        System.out.println("Pretty Response: " + responseBody);
-
-        // Parse the JIRA response
-        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
-
-        // Create the Rally JSON object
-        JsonObject rallyJson = new JsonObject();
-        rallyJson.addProperty("projectRef", projectRef);
-
-        // Create a new test case
-        JsonObject testCase = new JsonObject();
-
-        // Add name
-        JsonElement nameElement = jiraJson.get("name");
-        if (nameElement != null && !nameElement.isJsonNull()) {
-            testCase.addProperty("Name", nameElement.getAsString());
-        } else {
-            testCase.addProperty("Name", "Default Test Case Name"); // default value
-        }
-
-        // Add method
-        testCase.addProperty("Method", "Manual"); // Assuming a default value
-
-        // Add priority
-        JsonElement priorityElement = jiraJson.get("priority");
-        if (priorityElement != null && !priorityElement.isJsonNull()) {
-            String priority = priorityElement.getAsString();
-            if (priority.equalsIgnoreCase("Requires Triage")) {
-                testCase.addProperty("Priority", "Useful");
-            } else {
-                testCase.addProperty("Priority", priority);
-            }
-        } else {
-            testCase.addProperty("Priority", "Default Priority"); // default value
-        }
-
-        // Add owner
-        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
-
-        // Add status
-        JsonElement statusElement = jiraJson.get("status");
-        if (statusElement != null && !statusElement.isJsonNull()) {
-            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
-        } else {
-            testCase.addProperty("Ready", false); // default value
-        }
-
-        // Initialize Rally API
-        RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
-        restApi.setApplicationName("CreateTestCaseApp");
-
-        // Add Tags dynamically from JIRA labels
-        JsonArray labelsArray = jiraJson.getAsJsonArray("labels");
-        JsonArray tagsArray = new JsonArray();
-        if (labelsArray != null) {
-            for (JsonElement label : labelsArray) {
-                JsonObject tagObject = findOrCreateTag(restApi, label.getAsString());
-                if (tagObject != null) {
-                    JsonObject tagRefObject = new JsonObject();
-                    tagRefObject.addProperty("_ref", tagObject.get("_ref").getAsString());
-                    tagsArray.add(tagRefObject);
-                }
-            }
-        }
-        testCase.add("Tags", tagsArray);
-
-        // Get folder hierarchy from JIRA response
-        String folderPath = jiraJson.get("folder").getAsString();
-        String[] folderHierarchy = folderPath.split("/");
-
-        // Create TestFolder based on folder hierarchy
-        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
-        if (testFolder == null) {
-            System.out.println("Failed to create or retrieve TestFolder.");
-            return; // Exit the method or handle accordingly
-        }
-        // Add TestFolder to the test case
-        rallyJson.add("TestFolder", testFolder);
-
-        // Add the testCase object to the rallyJson
-        rallyJson.add("testCase", testCase);
-
-        // Save the transformed JSON to a variable
-        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
-
-        // Print the transformed JSON string
-        System.out.println("Transformed JSON: " + rallyJsonString);
-
-        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
-
-        // Extract values from JSON:
-        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
-        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
-
-        String rallyTestCaseRef = null;
-        try {
-            // Create a new test case
-            JsonObject newTestCase = new JsonObject();
-            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
-            newTestCase.addProperty("Project", projectRef);
-            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
-            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
-            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
-            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
-
-            // Add Tags to the test case from the JSON file
-            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
-            if (tagsArrayFromJson != null) {
-                JsonArray newTagsArray = new JsonArray();
-                for (JsonElement tagElement : tagsArrayFromJson) {
-                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
-                    JsonObject newTagObject = new JsonObject();
-                    newTagObject.addProperty("_ref", tagObjectFromJson.get("_ref").getAsString());
-                    newTagsArray.add(newTagObject);
-                }
-                newTestCase.add("Tags", newTagsArray);
-            }
-
-            // Add TestFolder to the test case from the JSON file
-            String testFolderRef = testFolderData.get("_ref").getAsString();
-            newTestCase.addProperty("TestFolder", testFolderRef);
-
-            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
-            CreateResponse createResponse = restApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                rallyTestCaseRef = createResponse.getObject().get("_ref").getAsString();
-                System.out.println("Successfully created test case: " + rallyTestCaseRef);
-            } else {
-                System.out.println("Error occurred creating test case:");
-                for (String error : createResponse.getErrors()) {
-                    System.out.println(error);
-                }
-            }
-        } finally {
-            // Release resources
-            restApi.close();
-        }
-
-        // Step 3: Migrate test steps from Jira to Rally
-        if (rallyTestCaseRef != null) {
-            migrateTestSteps(jiraJson, rallyTestCaseRef, restApi);
-        }
-    }
-
-    private static void migrateTestSteps(JsonObject jiraJson, String rallyTestCaseRef, RallyRestApi restApi) throws IOException {
-        JsonObject testScript = jiraJson.getAsJsonObject("testScript");
-        if (testScript != null) {
-            JsonArray stepsArray = testScript.getAsJsonArray("steps");
-            if (stepsArray != null) {
-                for (JsonElement stepElement : stepsArray) {
-                    JsonObject stepObject = stepElement.getAsJsonObject();
-                    JsonObject rallyTestStep = new JsonObject();
-                    
-                    rallyTestStep.addProperty("TestCase", rallyTestCaseRef);
-                    rallyTestStep.addProperty("Input", stepObject.get("testData").getAsString());
-                    rallyTestStep.addProperty("ExpectedResult", stepObject.get("expectedResult").getAsString());
-                    rallyTestStep.addProperty("Description", stepObject.get("description").getAsString());
-
-                    // Create the test step in Rally
-                    CreateRequest createStepRequest = new CreateRequest("testcasestep", rallyTestStep);
-                    CreateResponse createStepResponse = restApi.create(createStepRequest);
-
-                    if (createStepResponse.wasSuccessful()) {
-                        System.out.println("Successfully created test step: " + createStepResponse.getObject().get("_ref").getAsString());
-                    } else {
-                        System.out.println("Error occurred creating test step:");
-                        for (String error : createStepResponse.getErrors()) {
-                            System.out.println(error);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) throws IOException {
-        // Check if the tag already exists
-        QueryRequest tagRequest = new QueryRequest("Tag");
-        tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
-        QueryResponse tagResponse = restApi.query(tagRequest);
-
-        if (tagResponse.getResults().size() > 0) {
-            return tagResponse.getResults().get(0).getAsJsonObject();
-        }
-
-        // If the tag doesn't exist, create it
-        JsonObject newTag = new JsonObject();
-        newTag.addProperty("Name", tagName);
-
-        CreateRequest createTagRequest = new CreateRequest("Tag", newTag);
-        CreateResponse createTagResponse = restApi.create(createTagRequest);
-
-        if (createTagResponse.wasSuccessful()) {
-            return createTagResponse.getObject();
-        } else {
-            System.out.println("Error occurred creating tag:");
-            for (String error : createTagResponse.getErrors()) {
-                System.out.println(error);
-            }
-            return null;
-        }
-    }
-
-    private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
-        JsonObject lastFolder = null;
-        String lastFolderRef = null;
-
-        RallyRestApi restApi = null;
-        try {
-            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
-            restApi.setApplicationName("CreateTestCaseApp");
-
-            for (int i = 0; i < folderHierarchy.length; i++) {
-                String folderName = folderHierarchy[i];
-                if (folderName == null || folderName.trim().isEmpty()) {
-                    System.out.println("Invalid folder name encountered: '" + folderName + "'");
-                    continue;
-                }
-
-                // If it's the top-level folder, ensure it is created as a parent folder
-                if (i == 0) {
-                    // Check if the folder exists as a parent folder
-                    QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
-                    parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
-                    parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
-
-                    QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
-
-                    if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
-                        // Folder exists as a parent folder
-                        lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
-                        lastFolderRef = lastFolder.get("_ref").getAsString();
-                        System.out.println("Parent folder already exists: " + lastFolderRef);
-                    } else {
-                        // Folder does not exist as a parent folder, create it
-                        JsonObject newFolder = new JsonObject();
-                        newFolder.addProperty("Name", folderName.trim());
-                        newFolder.addProperty("Project", projectRef);
-
-                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                        if (createFolderResponse.wasSuccessful()) {
-                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                            newFolder.addProperty("_ref", lastFolderRef);
-                            lastFolder = newFolder;
-                            System.out.println("Successfully created parent folder: " + lastFolderRef);
-                        } else {
-                            System.out.println("Error occurred creating parent folder:");
-                            for (String error : createFolderResponse.getErrors()) {
-                                System.out.println(error);
-                            }
-                            break;
-                        }
-                    }
-                } else {
-                    // For subfolders, check and create under the last folder
-                    QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
-                    subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", lastFolderRef)));
-                    subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
-
-                    QueryResponse subQueryResponse = restApi.query(subFolderExistenceRequest);
-
-                    if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
-                        // Folder exists as a subfolder
-                        lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
-                        lastFolderRef = lastFolder.get("_ref").getAsString();
-                        System.out.println("Subfolder already exists: " + lastFolderRef);
-                    } else {
-                        // Folder does not exist, create it as a subfolder
-                        JsonObject newFolder = new JsonObject();
-                        newFolder.addProperty("Name", folderName.trim());
-                        newFolder.addProperty("Project", projectRef);
-                        newFolder.addProperty("Parent", lastFolderRef);
-
-                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                        if (createFolderResponse.wasSuccessful()) {
-                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                            newFolder.addProperty("_ref", lastFolderRef);
-                            lastFolder = newFolder;
-                            System.out.println("Successfully created subfolder: " + lastFolderRef);
-                        } else {
-                            System.out.println("Error occurred creating subfolder:");
-                            for (String error : createFolderResponse.getErrors()) {
-                                System.out.println(error);
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            return lastFolder;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        } finally {
-            if (restApi != null) {
-                try {
-                    restApi.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
+log4j:WARN No appenders could be found for logger (org.apache.http.client.protocol.RequestAddCookies).
+log4j:WARN Please initialize the log4j system properly.
+log4j:WARN See http://logging.apache.org/log4j/1.2/faq.html#noconfig for more info.
+Pretty Response: {"owner":"JIRAUSER27269","updatedBy":"JIRAUSER153779","customFields":{"Exceeds approval threshold?":"No","PXDX_COVERAGE Licensing":"None","Automated Test Coverage":"Not Yet Reviewed","Included in Remediation Plan":"No","Customer Project Status":"Green","Approval: Clinical Requirements":"No","Original issue key":"RHPQA-6490","Fully Loaded Estimate?":"No","Migrate Test to Rally":true,"Temporary Access":"No","Source":"RelayEx Formatting & Reports","Data-Database-Change":"No database changes","Approval: Rule Writer":"No","Roadmap":"Yes","Defect Type":"TBD","Approval: Developer":"No","Deployed to Production":"No","Approval: Tester":"No"},"keyNumber":82,"updatedOn":"2024-07-30T15:00:31.956Z","precondition":"","priority":"Requires Triage","majorVersion":1,"createdOn":"2021-06-28T19:27:29.013Z","objective":"<p>GIVEN the user tests a receive recv802419.110284148.SOL_ed file (can pull from production and edit to remove PHI)<br/>\nWHEN the receive file is processed by dropping it in: qh-bnaaereap001/opt/emf/MVSREMIT<br/>\nAnd navigate to Job logs (EMF) and open using the latest time and date<br/>\nAnd verify the following scripts completed successfully with no abends: csprl010 &amp; csprl020<br/>\nTHEN obtain the Sequence Number from the REPORTE file<br/>\nAnd search using the sequence number on standardized Payor report claim data page<br/>\nAnd view REPORTE<br/>\nThen Verify the file gets split to REPORTE and parses correctly.</p>","labels":["gateway","Regression","PayerReceiveArchive"],"projectKey":"RHPQA","folder":"/Imported from Zephyr Scale","latestVersion":true,"createdBy":"JIRAUSER14916","testScript":{"id":266730,"type":"STEP_BY_STEP","steps":[{"testData":"","expectedResult":"<p>Payor Claim data should be available with Report ID as <span class=\"caps\">REPORTE</span></p>","index":5,"description":"<p>Go to Payor reports&gt;Standardized payor Claim data and search using sequence number</p>","id":1393365},{"testData":"","expectedResult":"<p>The sequence number is fetched.</p>","index":4,"description":"<p>Obtain the Sequence Number from the csprl010 job log</p>","id":1393364},{"testData":"","expectedResult":"<p>Will see completed successfully at the end of each job scripts</p>","index":3,"description":"<p>Verify that Payer Report Job-Log(PR) from script csprl010 completed successfully with no abend</p>","id":1393363},{"testData":"","expectedResult":"<p>Check the directory /opt/report/data/ in qh-bnaaereap001 , the processed <span class=\"caps\">REPORTE</span> file should be in this directory</p>","index":2,"description":"<p>The <span class=\"caps\">FILE</span> will process through standard reports and split to <span class=\"caps\">REPORTD</span></p>","id":1393362},{"testData":"","expectedResult":"<p>The receive is processed and disppears from the /opt/emf/<span class=\"caps\">MVSREMIT</span> directory</p>","index":1,"description":"<p>Drop the receive file into /opt/emf/<span class=\"caps\">MVSREMIT</span> for processing</p>","id":1393361},{"testData":"","expectedResult":"<p>The file pulled from production or downloaded from developer&#8217;s home directory successfully.</p>","index":0,"description":"<p>A receive receiverecv800022.110496311.SOL_out file is pulled from production for testing</p>","id":1393360}]},"issueLinks":["M22-432"],"name":"Regression testing to verify if REPORTE is processed correctly","parameters":{"variables":[],"entries":[]},"key":"RHPQA-T82","status":"Done"}
+Invalid folder name encountered: ''
+Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/797595325377
+Transformed JSON: {
+  "projectRef": "789325818991",
+  "TestFolder": {
+    "_rallyAPIMajor": "2",
+    "_rallyAPIMinor": "0",
+    "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/797595325377",
+    "_refObjectUUID": "6ad53227-6bcb-4b4f-947d-1327f41ceb48",
+    "_objectVersion": "1",
+    "_refObjectName": "Imported from Zephyr Scale",
+    "Name": "Imported from Zephyr Scale",
+    "_type": "TestFolder"
+  },
+  "testCase": {
+    "Name": "Regression testing to verify if REPORTE is processed correctly",
+    "Method": "Manual",
+    "Priority": "Useful",
+    "Owner": "/user/775698509283",
+    "Ready": false,
+    "Tags": [
+      {
+        "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/tag/501842842372"
+      },
+      {
+        "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/tag/51944118033"
+      },
+      {
+        "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/tag/797872196355"
+      }
+    ]
+  }
 }
+Successfully created test case: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799045633593
+Exception in thread "main" java.lang.IllegalStateException: Connection manager has been shut down
+	at org.apache.http.util.Asserts.check(Asserts.java:34)
+	at org.apache.http.impl.conn.BasicClientConnectionManager.assertNotShutdown(BasicClientConnectionManager.java:153)
+	at org.apache.http.impl.conn.BasicClientConnectionManager.getConnection(BasicClientConnectionManager.java:159)
+	at org.apache.http.impl.conn.BasicClientConnectionManager$1.getConnection(BasicClientConnectionManager.java:145)
+	at org.apache.http.impl.client.DefaultRequestDirector.execute(DefaultRequestDirector.java:417)
+	at org.apache.http.impl.client.AbstractHttpClient.doExecute(AbstractHttpClient.java:835)
+	at org.apache.http.impl.client.CloseableHttpClient.execute(CloseableHttpClient.java:72)
+	at org.apache.http.impl.client.CloseableHttpClient.execute(CloseableHttpClient.java:56)
+	at org.apache.http.impl.client.DecompressingHttpClient.execute(DecompressingHttpClient.java:164)
+	at org.apache.http.impl.client.DecompressingHttpClient.execute(DecompressingHttpClient.java:123)
+	at com.rallydev.rest.client.HttpClient.executeRequest(HttpClient.java:157)
+	at com.rallydev.rest.client.HttpClient.doRequest(HttpClient.java:145)
+	at com.rallydev.rest.client.ApiKeyClient.doRequest(ApiKeyClient.java:37)
+	at com.rallydev.rest.client.HttpClient.doPost(HttpClient.java:179)
+	at com.rallydev.rest.RallyRestApi.create(RallyRestApi.java:125)
+	at FoldersTestCase2.migrateTestSteps(FoldersTestCase2.java:201)
+	at FoldersTestCase2.main(FoldersTestCase2.java:181)
