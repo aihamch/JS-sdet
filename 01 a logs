@@ -166,7 +166,10 @@ public class FoldersTestCase2 {
         return content.replaceAll("<img[^>]*>", "").trim();
     }
 
-    private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCaseRef, int stepIndex, String attachmentRef) throws IOException {
+  import com.rallydev.rest.request.UpdateRequest;
+import com.rallydev.rest.response.UpdateResponse;
+
+private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCaseRef, int stepIndex, String attachmentRef) throws IOException {
     // Query for the specific test step using the testCaseRef and stepIndex
     QueryRequest stepRequest = new QueryRequest("TestCaseStep");
     stepRequest.setQueryFilter(new QueryFilter("TestCase", "=", testCaseRef)
@@ -189,12 +192,19 @@ public class FoldersTestCase2 {
 
         stepObj.add("Attachments", attachmentsArray);
 
-        // Use the update method on RallyRestApi to update the TestCaseStep
-        restApi.update(stepRef, stepObj);
+        // Use the UpdateRequest to update the TestCaseStep
+        UpdateRequest updateStepRequest = new UpdateRequest(stepRef, stepObj);
+        UpdateResponse updateResponse = restApi.update(updateStepRequest);
+
+        if (updateResponse.wasSuccessful()) {
+            System.out.println("Successfully linked attachment to test step: " + stepIndex);
+        } else {
+            System.out.println("Error occurred updating test step:");
+            for (String error : updateResponse.getErrors()) {
+                System.out.println(error);
+            }
+        }
     } else {
         System.out.println("Test step not found or error occurred.");
     }
-}
-
-
 }
