@@ -48,3 +48,8 @@
             }
         }
     }
+
+   private static String removeEmbeddedImages(String content) {
+        return content.replaceAll("<img[^>]*>", "").trim();
+    }
+}
