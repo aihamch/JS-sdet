@@ -166,6 +166,35 @@ public class FoldersTestCase2 {
         return content.replaceAll("<img[^>]*>", "").trim();
     }
 
-    // Other methods from your original code...
+    private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCaseRef, int stepIndex, String attachmentRef) throws IOException {
+    // Query for the specific test step using the testCaseRef and stepIndex
+    QueryRequest stepRequest = new QueryRequest("TestCaseStep");
+    stepRequest.setQueryFilter(new QueryFilter("TestCase", "=", testCaseRef)
+            .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
+
+    QueryResponse stepResponse = restApi.query(stepRequest);
+
+    if (stepResponse.wasSuccessful() && stepResponse.getTotalResultCount() > 0) {
+        JsonObject stepObj = stepResponse.getResults().get(0).getAsJsonObject();
+        String stepRef = stepObj.get("_ref").getAsString();
+
+        // Add the attachment reference to the test step's attachments array
+        JsonArray attachmentsArray = stepObj.getAsJsonArray("Attachments");
+        if (attachmentsArray == null) {
+            attachmentsArray = new JsonArray();
+        }
+        JsonObject attachmentLink = new JsonObject();
+        attachmentLink.addProperty("_ref", attachmentRef);
+        attachmentsArray.add(attachmentLink);
+
+        stepObj.add("Attachments", attachmentsArray);
+
+        // Use the update method on RallyRestApi to update the TestCaseStep
+        restApi.update(stepRef, stepObj);
+    } else {
+        System.out.println("Test step not found or error occurred.");
+    }
+}
+
 
 }
