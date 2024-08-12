@@ -1,7 +1,29 @@
-Exception in thread "main" java.lang.NullPointerException
-	at java.base/java.util.Objects.requireNonNull(Objects.java:209)
-	at java.base/sun.nio.fs.WindowsFileSystem.getPath(WindowsFileSystem.java:216)
-	at java.base/java.nio.file.Path.of(Path.java:147)
-	at java.base/java.nio.file.Paths.get(Paths.java:69)
-	at com.optum.coe.automation.rally.RallyOperation.createAttachmentContent(RallyOperation.java:437)
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:117)
+for (JiraTestStep step : testSteps) {
+    // Retrieve the attachments list and check if it's null or empty
+    List<JiraAttachment> attachments = step.getAttachments();
+
+    if (attachments != null && !attachments.isEmpty()) {
+        for (JiraAttachment attachment : attachments) {
+            String filePath = attachment.getUrl(); // Assuming `getUrl()` returns the path to the file
+
+            // Ensure the file path is not null or empty
+            if (filePath != null && !filePath.isEmpty()) {
+                String attachmentContentOID = rallyOperation.createAttachmentContent(rallyRestApi, filePath);
+                
+                if (attachmentContentOID != null) {
+                    String stepOID = rallyOperation.createTestcaseStepWithAttachment(rallyRestApi, rallyTestcaseOID, step, attachmentContentOID);
+                    
+                    if (stepOID == null) {
+                        logger.error("Failed to create TestcaseStep for step index " + step.getIndex());
+                    }
+                } else {
+                    logger.error("Failed to create attachment content for step index " + step.getIndex());
+                }
+            } else {
+                logger.warn("File path is null or empty for attachment in step index " + step.getIndex());
+            }
+        }
+    } else {
+        logger.info("No attachments found for step index " + step.getIndex());
+    }
+}
