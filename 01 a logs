@@ -1,50 +1,50 @@
-// Inside the main migration method
+    private static void migrateTestSteps(RallyRestApi restApi, String testCaseRef, JsonObject jiraJson) throws IOException {
+        JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+        if (testScript != null) {
+            JsonArray steps = testScript.getAsJsonArray("steps");
+            if (steps != null) {
+                List<JsonObject> stepList = new ArrayList<>();
+                for (JsonElement stepElement : steps) {
+                    JsonObject step = stepElement.getAsJsonObject();
+                    JsonObject rallyStep = new JsonObject();
 
-// Retrieve the test steps array from Jira
-JsonArray jiraTestSteps = jiraJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+                    rallyStep.addProperty("TestCase", testCaseRef);
+                    rallyStep.addProperty("StepIndex", step.get("index").getAsInt());
 
-if (jiraTestSteps != null && jiraTestSteps.size() > 0) {
-    // Sort test steps by the 'index' property to maintain order
-    List<JsonObject> sortedTestSteps = new ArrayList<>();
-    for (JsonElement stepElement : jiraTestSteps) {
-        sortedTestSteps.add(stepElement.getAsJsonObject());
-    }
-    sortedTestSteps.sort(Comparator.comparingInt(step -> step.get("index").getAsInt()));
+                    // Migrate the description without embedded images
+                    String description = step.get("description").getAsString();
+                    description = removeEmbeddedImages(description);
+                    rallyStep.addProperty("Input", description);
 
-    for (JsonObject step : sortedTestSteps) {
-        JsonObject newTestStep = new JsonObject();
+                    // Migrate the expected result without embedded images
+                    String expectedResult = step.get("expectedResult").getAsString();
+                    expectedResult = removeEmbeddedImages(expectedResult);
+                    rallyStep.addProperty("ExpectedResult", expectedResult);
 
-        // Add description
-        String description = step.get("description").getAsString().replaceAll("<img[^>]*>", ""); // Remove <img> tags
-        newTestStep.addProperty("Input", description);
+                    // Migrate the test data
+                    String testData = step.get("testData").getAsString();
+                    rallyStep.addProperty("ValidationInput", testData);
 
-        // Add test data
-        String testData = step.get("testData").getAsString().replaceAll("<img[^>]*>", ""); // Remove <img> tags
-        newTestStep.addProperty("ExpectedResult", testData);
+                    stepList.add(rallyStep);
+                }
 
-        // Add expected result
-        String expectedResult = step.get("expectedResult").getAsString().replaceAll("<img[^>]*>", ""); // Remove <img> tags
-        newTestStep.addProperty("ExpectedResult", expectedResult);
+                // Sort steps by StepIndex to ensure correct order
+                stepList.sort((step1, step2) -> step1.get("StepIndex").getAsInt() - step2.get("StepIndex").getAsInt());
 
-        // Add index
-        newTestStep.addProperty("StepIndex", step.get("index").getAsInt());
+                // Create each step in Rally
+                for (JsonObject rallyStep : stepList) {
+                    CreateRequest createStepRequest = new CreateRequest("testcasestep", rallyStep);
+                    CreateResponse createStepResponse = restApi.create(createStepRequest);
 
-        // Add Test Case reference
-        newTestStep.addProperty("TestCase", testCaseRef);
-
-        // Create test step in Rally
-        CreateRequest stepCreateRequest = new CreateRequest("teststep", newTestStep);
-        CreateResponse stepCreateResponse = restApi.create(stepCreateRequest);
-
-        if (stepCreateResponse.wasSuccessful()) {
-            System.out.println("Successfully created test step: " + stepCreateResponse.getObject().get("_ref").getAsString());
-        } else {
-            System.out.println("Error occurred creating test step:");
-            for (String error : stepCreateResponse.getErrors()) {
-                System.out.println(error);
+                    if (createStepResponse.wasSuccessful()) {
+                        System.out.println("Successfully created test step: " + rallyStep.get("StepIndex").getAsInt());
+                    } else {
+                        System.out.println("Error occurred creating test step:");
+                        for (String error : createStepResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                    }
+                }
             }
         }
     }
-} else {
-    System.out.println("No test steps found in Jira response.");
-}
