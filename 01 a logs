@@ -228,6 +228,32 @@ public class RunnerClass {
 }
 ```
 
+
+
+
+
+
+
+
+
+
+
+for (JiraTestStep step : testSteps) {
+    for (JiraAttachment attachment : step.getAttachments()) {
+        String filePath = attachment.getUrl(); // Assuming `getUrl()` returns the path to the file
+        String attachmentContentOID = rallyOperation.createAttachmentContent(rallyRestApi, filePath);
+        if (attachmentContentOID != null) {
+            String stepOID = rallyOperation.createTestcaseStepWithAttachment(rallyRestApi, rallyTestcaseOID, step, attachmentContentOID);
+            if (stepOID == null) {
+                logger.error("Failed to create TestcaseStep for step index " + step.getIndex());
+            }
+        } else {
+            logger.error("Failed to create attachment content for step index " + step.getIndex());
+        }
+    }
+}
+
+
 ### Summary of Changes:
 1. **RallyOperation Class**: Added methods `createTestcaseStepWithAttachment` and `createAttachmentContent` to handle the creation of `TestcaseStep` and uploading attachments.
    
