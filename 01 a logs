@@ -1,21 +1,4 @@
 
-i found out using postman that this is the way to create testcasetesp attachments i want to update the logic in my framework accordingly 
-
-{
-"TestcaseStep": {
-    "TestCase": "testcase/{{testcaseOID}}",
-    "StepIndex": 1,
-    "Input" : "Test Thina Input for Step1",
-    "ExpectedResult" : "This is the expected result with screen shot <img src='https://rally1.rallydev.com/slm/attachment/{{attachmentOID}}/content'/>"
- 
-}
-}
-
-using https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/create to create those testsep attachments 
-
-
-
-
 package com.optum.coe.automation.rally;
 
 import java.io.IOException;
