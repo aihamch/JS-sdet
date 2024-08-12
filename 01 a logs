@@ -1,56 +1,24 @@
-private static void migrateTestStepAttachments(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef, String baseUrl, String authToken) throws IOException {
-    // Ensure the Attachments folder exists
-    File attachmentFolder = new File("Attachments");
-    if (!attachmentFolder.exists()) {
-        attachmentFolder.mkdir();
+private static void testSimpleAttachmentUpload(RallyRestApi restApi, String testCaseRef) throws IOException {
+    // Create a small text file for testing
+    File testFile = new File("Attachments/TestAttachment.txt");
+    if (!testFile.exists()) {
+        try (FileWriter writer = new FileWriter(testFile)) {
+            writer.write("This is a test file for Rally attachment upload.");
+        }
     }
 
-    JsonObject testScript = jiraJson.getAsJsonObject("testScript");
-    if (testScript != null) {
-        JsonArray steps = testScript.getAsJsonArray("steps");
-        if (steps != null) {
-            for (JsonElement stepElement : steps) {
-                JsonObject step = stepElement.getAsJsonObject();
+    // Upload the test file to the test case level
+    String attachmentRef = uploadAttachmentToRally(testFile, restApi, testCaseRef);
 
-                // Handle embedded attachments (images, etc.)
-                String description = "";
-                if (step.has("description") && !step.get("description").isJsonNull()) {
-                    description = step.get("description").getAsString();
-                }
-                List<File> downloadedAttachments = downloadEmbeddedAttachments(description, baseUrl, authToken);
+    // Check if the upload was successful
+    if (attachmentRef != null) {
+        System.out.println("Successfully uploaded test file to test case level.");
+    } else {
+        System.out.println("Failed to upload test file to test case level.");
+    }
 
-                // Handle file attachments (if any)
-                JsonArray attachmentArray = step.getAsJsonArray("attachments");
-                if (attachmentArray != null) {
-                    for (JsonElement attachmentElement : attachmentArray) {
-                        JsonObject attachmentObj = attachmentElement.getAsJsonObject();
-                        String fileUrl = attachmentObj.has("content") ? attachmentObj.get("content").getAsString() : "";
-                        String fileName = attachmentObj.has("filename") ? attachmentObj.get("filename").getAsString() : "";
-
-                        if (!fileUrl.isEmpty() && !fileName.isEmpty()) {
-                            // Download the attachment
-                            File file = downloadFile(baseUrl, fileUrl, fileName, authToken);
-                            downloadedAttachments.add(file);
-                        }
-                    }
-                }
-
-                // Upload attachments to Rally test case level
-                for (File file : downloadedAttachments) {
-                    // Step 1: Upload the attachment to the test case level
-                    String attachmentRef = uploadAttachmentToRally(file, restApi, testCaseRef);
-
-                    // Step 2: Link this attachment to the specific test step
-                    if (attachmentRef != null) {
-                        linkAttachmentToTestStep(restApi, testCaseRef, step.get("index").getAsInt(), attachmentRef);
-                    }
-
-                    // Cleanup - delete the file after uploading
-                    if (file.exists()) {
-                        file.delete();
-                    }
-                }
-            }
-        }
+    // Clean up the test file
+    if (testFile.exists()) {
+        testFile.delete();
     }
 }
