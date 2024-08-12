@@ -1,22 +1,76 @@
-Attachment JSON: {"Artifact":"https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799084766769","Content":"This is a test file for Rally attachment upload.","Name":"TestAttachment.txt","ContentType":"text/plain","Size":48}
-Error occurred creating attachment:
-Response Errors: [Cannot parse object reference from "This is a test file for Rally attachment upload."]
-Response Warnings: [It is no longer necessary to append ".js" to WSAPI resources.]
-Failed to upload attachment.
-Exception in thread "main" java.lang.IllegalStateException: Connection manager has been shut down
-	at org.apache.http.util.Asserts.check(Asserts.java:34)
-	at org.apache.http.impl.conn.BasicClientConnectionManager.assertNotShutdown(BasicClientConnectionManager.java:153)
-	at org.apache.http.impl.conn.BasicClientConnectionManager.getConnection(BasicClientConnectionManager.java:159)
-	at org.apache.http.impl.conn.BasicClientConnectionManager$1.getConnection(BasicClientConnectionManager.java:145)
-	at org.apache.http.impl.client.DefaultRequestDirector.execute(DefaultRequestDirector.java:417)
-	at org.apache.http.impl.client.AbstractHttpClient.doExecute(AbstractHttpClient.java:835)
-	at org.apache.http.impl.client.CloseableHttpClient.execute(CloseableHttpClient.java:72)
-	at org.apache.http.impl.client.CloseableHttpClient.execute(CloseableHttpClient.java:56)
-	at org.apache.http.impl.client.DecompressingHttpClient.execute(DecompressingHttpClient.java:164)
-	at org.apache.http.impl.client.DecompressingHttpClient.execute(DecompressingHttpClient.java:123)
-	at com.rallydev.rest.client.HttpClient.executeRequest(HttpClient.java:157)
-	at com.rallydev.rest.client.HttpClient.doRequest(HttpClient.java:145)
-	at com.rallydev.rest.client.ApiKeyClient.doRequest(ApiKeyClient.java:37)
-	at com.rallydev.rest.client.HttpClient.doPost(HttpClient.java:179)
-	at com.rallydev.rest.RallyRestApi.create(RallyRestApi.java:125)
-	at FoldersTestCase2.main(FoldersTestCase2.java:243)
+The error you are encountering suggests that the Rally API is attempting to interpret the `Content` field as an object reference, which is not the correct behavior. Since this problem persists even with various approaches, it indicates that the Rally API expects a very specific format for the attachment content that hasn't been satisfied yet.
+
+Given that we've tried multiple common approaches without success, it's worth trying a more traditional method of encoding the content, similar to how file uploads typically work with REST APIs. Let's revisit the approach and consider that the content might need to be uploaded as binary data (Base64-encoded) in a multipart form data format, which is common in REST APIs for file uploads. However, Rally's API doesn't use traditional multipart file upload; it expects the attachment content in a Base64-encoded format directly within the JSON payload.
+
+### Key Points:
+1. **Base64 Encoding Required**: Rally expects the file content to be Base64-encoded.
+2. **Correct `Size` Property**: The `Size` property should represent the original file size in bytes, not the length of the Base64 string.
+
+### Implementing a Correct Base64-encoded Upload:
+Let's revert to using Base64 encoding, ensuring that everything is correctly set up:
+
+```java
+private static String uploadBase64AttachmentToRally(RallyRestApi restApi, String testCaseRef) throws IOException {
+    // Content to be uploaded
+    String testContent = "This is a test file for Rally attachment upload.";
+    byte[] fileContent = testContent.getBytes(); // Get the file content as bytes
+    String base64Content = Base64.getEncoder().encodeToString(fileContent); // Base64 encode the content
+
+    JsonObject attachment = new JsonObject();
+    attachment.addProperty("Artifact", testCaseRef); // Correctly set the reference to the test case
+    attachment.addProperty("Content", base64Content); // Base64 encoded content
+    attachment.addProperty("Name", "TestAttachment.txt"); // The name of the file
+    attachment.addProperty("ContentType", "text/plain"); // MIME type of the file
+    attachment.addProperty("Size", fileContent.length);  // Actual size in bytes of the file content
+
+    // Debug: Print the attachment JSON object
+    System.out.println("Attachment JSON: " + attachment.toString());
+
+    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
+
+    if (attachmentResponse.wasSuccessful()) {
+        return attachmentResponse.getObject().get("_ref").getAsString();
+    } else {
+        // Debugging output
+        System.out.println("Error occurred creating attachment:");
+        System.out.println("Response Errors: " + Arrays.toString(attachmentResponse.getErrors()));
+        System.out.println("Response Warnings: " + Arrays.toString(attachmentResponse.getWarnings()));
+        return null;
+    }
+}
+```
+
+### How to Call This:
+
+Replace your existing code with this example and test it in your `main` method:
+
+```java
+public static void main(String[] args) throws Exception {
+    RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_YourAPIKeyHere_");
+    restApi.setApplicationName("AttachmentUploadTest");
+
+    try {
+        String testCaseRef = "https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799084766769"; // Your test case reference
+
+        // Call the method with Base64 encoded content
+        String attachmentRef = uploadBase64AttachmentToRally(restApi, testCaseRef);
+
+        if (attachmentRef != null) {
+            System.out.println("Successfully uploaded attachment: " + attachmentRef);
+        } else {
+            System.out.println("Failed to upload attachment.");
+        }
+    } finally {
+        restApi.close();
+    }
+}
+```
+
+### Summary:
+- **Base64 Encoding**: Ensure that the file content is Base64-encoded.
+- **File Size**: Use the original file size in bytes, not the length of the Base64 string.
+- **Debugging**: Keep an eye on the error messages, and print out the entire JSON payload being sent.
+
+### Contact Rally Support:
+If this still does not resolve the issue, it is likely that there's a specific requirement or issue with Rally's API that isn't well-documented. In this case, contacting Rally's support for clarification or known issues with attachment uploads is advisable. They may have encountered this issue before and could provide a specific solution or workaround.
