@@ -6,80 +6,23 @@ import com.google.gson.JsonParser;
 import com.rallydev.rest.RallyRestApi;
 import com.rallydev.rest.request.CreateRequest;
 import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.request.UpdateRequest;
 import com.rallydev.rest.response.CreateResponse;
 import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.response.UpdateResponse;
 import com.rallydev.rest.util.Fetch;
 import com.rallydev.rest.util.QueryFilter;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.util.QueryFilter;
-import com.rallydev.rest.request.QueryRequest;
-import com.rallydev.rest.response.QueryResponse;
-import com.rallydev.rest.request.UpdateRequest;
-import com.rallydev.rest.response.UpdateResponse;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.io.IOException;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.net.URL;
-//import org.apache.commons.io.FileUtils;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.util.Fetch;
-import com.rallydev.rest.util.QueryFilter;
-
-import java.io.IOException;
-import java.net.URI;
-
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.util.Fetch;
-import com.rallydev.rest.util.QueryFilter;
-
-import java.io.IOException;
-import java.net.URI;
-
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
@@ -226,26 +169,6 @@ class FoldersTestCase2 {
 
             CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
             CreateResponse createResponse = restApi.create(createRequest);
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
 
             if (createResponse.wasSuccessful()) {
                 String testCaseRef = createResponse.getObject().get("_ref").getAsString();
@@ -253,6 +176,10 @@ class FoldersTestCase2 {
 
                 // Now migrate the test steps
                 migrateTestSteps(jiraJson, restApi, testCaseRef);
+
+                // Now migrate the test step attachments
+                migrateTestStepAttachments(jiraJson, restApi, testCaseRef);
+
             } else {
                 System.out.println("Error occurred creating test case:");
                 for (String error : createResponse.getErrors()) {
@@ -264,20 +191,6 @@ class FoldersTestCase2 {
             restApi.close();
         }
     }
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 
     private static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) throws IOException {
         // Check if the tag already exists
@@ -306,25 +219,6 @@ class FoldersTestCase2 {
             return null;
         }
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 
     private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
         JsonObject lastFolder = null;
@@ -433,7 +327,6 @@ class FoldersTestCase2 {
         }
     }
 
-
     private static void migrateTestSteps(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef) throws IOException {
         // Get test steps from Jira response
         JsonObject testScript = jiraJson.getAsJsonObject("testScript");
@@ -488,6 +381,7 @@ class FoldersTestCase2 {
             }
         }
     }
+
     private static String removeEmbeddedImages(String content) {
         return content.replaceAll("<img[^>]*>", "").trim();
     }
@@ -637,6 +531,4 @@ class FoldersTestCase2 {
             System.out.println("Test step not found or error occurred.");
         }
     }
-    
-   
 }
