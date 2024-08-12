@@ -1,35 +1,4 @@
-private static String uploadAttachmentToRally(File file, RallyRestApi restApi, String testCaseRef) throws IOException {
-    if (file == null || !file.exists() || testCaseRef == null || testCaseRef.isEmpty()) {
-        System.out.println("Invalid file or test case reference provided for attachment upload.");
-        return null;
-    }
-
-    JsonObject attachment = new JsonObject();
-
-    // Convert file to Base64-encoded content
-    byte[] fileContent = java.nio.file.Files.readAllBytes(file.toPath());
-    String base64Content = Base64.getEncoder().encodeToString(fileContent);
-
-    // Construct the attachment JSON object
-    attachment.addProperty("Artifact", testCaseRef);
-    attachment.addProperty("Content", base64Content);
-    attachment.addProperty("Name", file.getName());
-    attachment.addProperty("ContentType", "application/octet-stream");
-    attachment.addProperty("Size", fileContent.length);
-
-    // Debug: Print out the attachment JSON object
-    System.out.println("Attachment JSON: " + attachment.toString());
-
-    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
-
-    if (attachmentResponse.wasSuccessful()) {
-        return attachmentResponse.getObject().get("_ref").getAsString();
-    } else {
-        System.out.println("Error occurred creating attachment:");
-        for (String error : attachmentResponse.getErrors()) {
-            System.out.println(error);
-        }
-        return null;
-    }
-}
+Cannot parse object reference from "iVBORw0KGgoAAAANSUhEUgAAAok
+Attachment JSON: {"Artifact":"https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799053222805","Content":"iVBORw0KGgoA",Name":"500134","ContentType":"application/octet-stream","Size":26714}
+Error occurred creating attachment:
+Cannot parse object reference from "iVBORw0KGgoAAAANSUhEUgAAAwgAAAE7CAIAAAD2FjFqAA"
