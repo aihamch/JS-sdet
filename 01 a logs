@@ -226,7 +226,12 @@ private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCa
 
 
 
- // Now migrate the test step attachments
+
+        if (createResponse.wasSuccessful()) {
+            String testCaseRef = createResponse.getObject().get("_ref").getAsString();
+            System.out.println("Successfully created test case: " + testCaseRef);
+
+            // Now migrate the test step attachments
             migrateTestStepAttachments(jiraJson, restApi, testCaseRef);
         } else {
             System.out.println("Error occurred creating test case:");
@@ -238,4 +243,3 @@ private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCa
         // Release resources
         restApi.close();
     }
-}
