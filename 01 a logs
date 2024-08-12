@@ -1,32 +1,249 @@
-	private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
- 	    for (String attachmentOID : attachmentOIDs) {
- 	        try {
- 	            // Fetch the existing attachment details
- 	            GetRequest getRequest = new GetRequest("/attachment/" + attachmentOID);
- 	            GetResponse getResponse = rallyRestApi.get(getRequest);
- 	            
- 	            if (getResponse.wasSuccessful()) {
- 	                JsonObject attachmentDetails = getResponse.getObject();
- 	                
- 	                // Update the Artifact field to point to the new Test Step
- 	                attachmentDetails.addProperty("Artifact", rallyTestStepOID);
- 	                
- 	                // Create an UpdateRequest with the updated details
- 	                UpdateRequest updateRequest = new UpdateRequest("/attachment/" + attachmentOID, attachmentDetails);
- 	                UpdateResponse updateResponse = rallyRestApi.update(updateRequest);
+The `embedAttachmentInTestStep` method was not explicitly added in the code snippets provided earlier. I misunderstood your request, and I apologize for that oversight. I'll now add the `embedAttachmentInTestStep` method to the relevant class.
 
- 	                if (updateResponse.wasSuccessful()) {
- 	                    logger.info("Successfully moved attachment OID " + attachmentOID + " to test step " + rallyTestStepOID);
- 	                } else {
- 	                    logger.error("Failed to move attachment OID " + attachmentOID + " to test step " + rallyTestStepOID + ". Error: " + Arrays.toString(updateResponse.getErrors()));
- 	                }
- 	            } else {
- 	                logger.error("Failed to retrieve attachment OID " + attachmentOID + " for updating. Error: " + Arrays.toString(getResponse.getErrors()));
- 	            }
- 	        } catch (Exception e) {
- 	            logger.error("Exception while moving attachment OID " + attachmentOID + " to test step " + rallyTestStepOID, e);
- 	        }
- 	    }
+This method will handle the embedding of attachments into test steps, assuming that you need to take the attachments downloaded and embed them into the test steps in Rally.
+
+### Add `embedAttachmentInTestStep` Method in `RallyOperation` Class:
+
+```java
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
+
+public class RallyOperation {
+
+    private String rallyBaseURL;
+    private String rallyApiKey;
+    private String rallyProjectKey;
+    private String rallyUser;
+
+    private static final Logger logger = LogManager.getLogger();
+
+    public RallyOperation() {
+        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
+        rallyUser = ConfigLoader.getConfigValue("RALLY_USER_REF");
+        logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
+    }
+
+    // Method to move attachments to a test step
+    private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
+        for (String attachmentOID : attachmentOIDs) {
+            try {
+                JsonObject attachmentDetails = new JsonObject();
+                attachmentDetails.addProperty("TestCaseStep", rallyTestStepOID);
+
+                CreateRequest createRequest = new CreateRequest("/attachment/" + attachmentOID, attachmentDetails);
+                CreateResponse createResponse = rallyRestApi.create(createRequest);
+
+                if (createResponse.wasSuccessful()) {
+                    logger.info("Successfully moved attachment OID " + attachmentOID + " to test step " + rallyTestStepOID);
+                } else {
+                    logger.error("Failed to move attachment OID " + attachmentOID + " to test step " + rallyTestStepOID + ". Error: " + createResponse.getErrors());
+                }
+            } catch (Exception e) {
+                logger.error("Exception while moving attachment OID " + attachmentOID + " to test step " + rallyTestStepOID, e);
+            }
+        }
+    }
+
+    // Method to embed an attachment in a test step
+    public void embedAttachmentInTestStep(String rallyTestStepOID, String filePath, RallyRestApi rallyRestApi) {
+        try {
+            // Convert file to Base64
+            byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
+            String base64Content = Base64.getEncoder().encodeToString(fileContent);
+
+            // Create attachment content
+            JsonObject attachmentContent = new JsonObject();
+            attachmentContent.addProperty("Content", base64Content);
+            attachmentContent.addProperty("ContentType", "image/png");
+            attachmentContent.addProperty("TestCaseStep", rallyTestStepOID);
+            attachmentContent.addProperty("Name", Paths.get(filePath).getFileName().toString());
+
+            // Create the attachment
+            CreateRequest createRequest = new CreateRequest("Attachment", attachmentContent);
+            CreateResponse createResponse = rallyRestApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                logger.info("Successfully embedded attachment " + filePath + " in test step " + rallyTestStepOID);
+            } else {
+                logger.error("Failed to embed attachment " + filePath + " in test step " + rallyTestStepOID + ". Error: " + createResponse.getErrors());
+            }
+        } catch (IOException e) {
+            logger.error("Exception while embedding attachment in test step " + rallyTestStepOID, e);
+        }
+    }
+
+    // Other methods...
+}
+```
+
+### Explanation:
+- **embedAttachmentInTestStep**:
+  - **Purpose**: Embeds an attachment directly into a Rally test step.
+  - **Parameters**:
+    - `rallyTestStepOID`: The Object ID of the Rally test step where the attachment will be embedded.
+    - `filePath`: The local file path of the attachment to be embedded.
+    - `rallyRestApi`: An instance of `RallyRestApi` for interacting with the Rally API.
+  - **Implementation**:
+    - The method reads the file content, encodes it to Base64, and then creates an attachment in Rally associated with the given test step.
+
+This method should be called after you have downloaded the attachments from Jira and want to embed them in specific test steps in Rally. This method can be used in tandem with `moveAttachmentsToTestStep` depending on your needs.
+
+If you need further adjustments or additional methods, feel free to ask!
 
 
-im getting this error  Failed to move attachment OID https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799092748127 to test step https://rally1.rallydev.com/slm/webservice/v2.0/testcasestep/799092734515. Error: [Error setting value for field [ Artifact ]: Cannot use type ActionTestCaseStep in attribute Artifact. Value must be of type Artifact.]
+
+
+
+
+
+
+
+
+To update the `RunnerClass` with the latest changes and integration, you need to ensure that it utilizes the new methods for handling embedded attachments in test steps and properly moves attachments to the correct test steps in Rally. Below is the updated `RunnerClass` incorporating these changes:
+
+```java
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.rallydev.rest.RallyRestApi;
+import java.net.URI;
+
+public class RunnerClass {
+
+    // Logger Initialization for Runner Class
+    private static final Logger logger = LogManager.getLogger();
+
+    // Main method
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+        Gson gson = new Gson();
+        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
+
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+
+        for (String key : testcaseKeys) {
+            boolean rallyTestcaseCreationStatus = false;
+            boolean rallyOverallTestStepAttachmentsStatus = false;
+            jiraTestCase.setKey(key);
+            logger.info("Processing " + jiraTestCase.getKey());
+            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            RallyOperation rallyOperation = new RallyOperation();
+
+            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+
+            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+
+            if (rallyTestcaseOID != null) {
+                rallyTestcaseCreationStatus = true;
+            } else {
+                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                break;
+            }
+
+            List<String> testcaseAttachmentOIDs = new ArrayList<>();
+
+            if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
+                logger.info("Attachment paths are found in the list.");
+                testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                if (!testcaseAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                } else {
+                    logger.error("The Jira testcase is not created in Rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in Rally.");
+                    return;
+                }
+            } else {
+                logger.info("No Attachment path found for Testcase level.");
+            }
+
+            // Handle Test Step File Attachments
+            if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step file attachments paths are found in the list.");
+                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+                if (!testStepAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                    testcaseAttachmentOIDs.addAll(testStepAttachmentOIDs);
+                } else {
+                    logger.error("The Jira test step file attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
+                    return;
+                }
+            } else {
+                logger.info("No Attachment path found for Test Step file level.");
+            }
+
+            // Handle Test Step Embedded Attachments
+            if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step embedded attachments paths are found in the list.");
+                List<String> embeddedAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, embeddedAttachmentDownloadPathsTestStepLevel);
+                Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
+                if (!embeddedAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                    testcaseAttachmentOIDs.addAll(embeddedAttachmentOIDs);
+                } else {
+                    logger.error("The Jira test step embedded attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
+                    return;
+                }
+            } else {
+                logger.info("No Attachment path found for Test Step embedded level.");
+            }
+
+            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+            List<JiraTestStep> testSteps = new ArrayList<>();
+
+            for (JsonElement element : stepsArray) {
+                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+                testSteps.add(step);
+            }
+
+            rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, testcaseAttachmentOIDs);
+
+            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                System.out.println("Rally Testcase Creation Status is true");
+            } else {
+                logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+            }
+
+            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                // Call method to update "Testcase Migrated" and "Test Folder Migrated" check boxes in Jira
+            }
+        }
+    }
+}
+```
+
+### Key Changes:
+1. **Embedded Attachments Handling**: The code now includes handling for embedded attachments in test steps. The paths are downloaded and attached to the appropriate Rally test case.
+
+2. **Attachment Movement**: The code is prepared to move attachments to the specific test steps using `rallyOperation.migrateTestSteps`, which internally should now handle moving the attachments to the correct test steps based on the newly added functionality.
+
+This updated `RunnerClass` is now aligned with the new methods and functionality you've integrated into your framework.
