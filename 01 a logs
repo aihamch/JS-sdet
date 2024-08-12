@@ -1,76 +1,32 @@
-The error you are encountering suggests that the Rally API is attempting to interpret the `Content` field as an object reference, which is not the correct behavior. Since this problem persists even with various approaches, it indicates that the Rally API expects a very specific format for the attachment content that hasn't been satisfied yet.
+	private void moveAttachmentsToTestStep(String rallyTestStepOID, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
+ 	    for (String attachmentOID : attachmentOIDs) {
+ 	        try {
+ 	            // Fetch the existing attachment details
+ 	            GetRequest getRequest = new GetRequest("/attachment/" + attachmentOID);
+ 	            GetResponse getResponse = rallyRestApi.get(getRequest);
+ 	            
+ 	            if (getResponse.wasSuccessful()) {
+ 	                JsonObject attachmentDetails = getResponse.getObject();
+ 	                
+ 	                // Update the Artifact field to point to the new Test Step
+ 	                attachmentDetails.addProperty("Artifact", rallyTestStepOID);
+ 	                
+ 	                // Create an UpdateRequest with the updated details
+ 	                UpdateRequest updateRequest = new UpdateRequest("/attachment/" + attachmentOID, attachmentDetails);
+ 	                UpdateResponse updateResponse = rallyRestApi.update(updateRequest);
 
-Given that we've tried multiple common approaches without success, it's worth trying a more traditional method of encoding the content, similar to how file uploads typically work with REST APIs. Let's revisit the approach and consider that the content might need to be uploaded as binary data (Base64-encoded) in a multipart form data format, which is common in REST APIs for file uploads. However, Rally's API doesn't use traditional multipart file upload; it expects the attachment content in a Base64-encoded format directly within the JSON payload.
+ 	                if (updateResponse.wasSuccessful()) {
+ 	                    logger.info("Successfully moved attachment OID " + attachmentOID + " to test step " + rallyTestStepOID);
+ 	                } else {
+ 	                    logger.error("Failed to move attachment OID " + attachmentOID + " to test step " + rallyTestStepOID + ". Error: " + Arrays.toString(updateResponse.getErrors()));
+ 	                }
+ 	            } else {
+ 	                logger.error("Failed to retrieve attachment OID " + attachmentOID + " for updating. Error: " + Arrays.toString(getResponse.getErrors()));
+ 	            }
+ 	        } catch (Exception e) {
+ 	            logger.error("Exception while moving attachment OID " + attachmentOID + " to test step " + rallyTestStepOID, e);
+ 	        }
+ 	    }
 
-### Key Points:
-1. **Base64 Encoding Required**: Rally expects the file content to be Base64-encoded.
-2. **Correct `Size` Property**: The `Size` property should represent the original file size in bytes, not the length of the Base64 string.
 
-### Implementing a Correct Base64-encoded Upload:
-Let's revert to using Base64 encoding, ensuring that everything is correctly set up:
-
-```java
-private static String uploadBase64AttachmentToRally(RallyRestApi restApi, String testCaseRef) throws IOException {
-    // Content to be uploaded
-    String testContent = "This is a test file for Rally attachment upload.";
-    byte[] fileContent = testContent.getBytes(); // Get the file content as bytes
-    String base64Content = Base64.getEncoder().encodeToString(fileContent); // Base64 encode the content
-
-    JsonObject attachment = new JsonObject();
-    attachment.addProperty("Artifact", testCaseRef); // Correctly set the reference to the test case
-    attachment.addProperty("Content", base64Content); // Base64 encoded content
-    attachment.addProperty("Name", "TestAttachment.txt"); // The name of the file
-    attachment.addProperty("ContentType", "text/plain"); // MIME type of the file
-    attachment.addProperty("Size", fileContent.length);  // Actual size in bytes of the file content
-
-    // Debug: Print the attachment JSON object
-    System.out.println("Attachment JSON: " + attachment.toString());
-
-    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
-
-    if (attachmentResponse.wasSuccessful()) {
-        return attachmentResponse.getObject().get("_ref").getAsString();
-    } else {
-        // Debugging output
-        System.out.println("Error occurred creating attachment:");
-        System.out.println("Response Errors: " + Arrays.toString(attachmentResponse.getErrors()));
-        System.out.println("Response Warnings: " + Arrays.toString(attachmentResponse.getWarnings()));
-        return null;
-    }
-}
-```
-
-### How to Call This:
-
-Replace your existing code with this example and test it in your `main` method:
-
-```java
-public static void main(String[] args) throws Exception {
-    RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_YourAPIKeyHere_");
-    restApi.setApplicationName("AttachmentUploadTest");
-
-    try {
-        String testCaseRef = "https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799084766769"; // Your test case reference
-
-        // Call the method with Base64 encoded content
-        String attachmentRef = uploadBase64AttachmentToRally(restApi, testCaseRef);
-
-        if (attachmentRef != null) {
-            System.out.println("Successfully uploaded attachment: " + attachmentRef);
-        } else {
-            System.out.println("Failed to upload attachment.");
-        }
-    } finally {
-        restApi.close();
-    }
-}
-```
-
-### Summary:
-- **Base64 Encoding**: Ensure that the file content is Base64-encoded.
-- **File Size**: Use the original file size in bytes, not the length of the Base64 string.
-- **Debugging**: Keep an eye on the error messages, and print out the entire JSON payload being sent.
-
-### Contact Rally Support:
-If this still does not resolve the issue, it is likely that there's a specific requirement or issue with Rally's API that isn't well-documented. In this case, contacting Rally's support for clarification or known issues with attachment uploads is advisable. They may have encountered this issue before and could provide a specific solution or workaround.
+im getting this error  Failed to move attachment OID https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799092748127 to test step https://rally1.rallydev.com/slm/webservice/v2.0/testcasestep/799092734515. Error: [Error setting value for field [ Artifact ]: Cannot use type ActionTestCaseStep in attribute Artifact. Value must be of type Artifact.]
