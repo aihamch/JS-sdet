@@ -1,4 +1,28 @@
-  public static List<String> downloadTestStepEmbeddedAttachments(String jsonResponse, String apiToken,
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.util.EntityUtils;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class Utils {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    public static List<String> downloadTestStepEmbeddedAttachments(String jsonResponse, String apiToken,
             String testStepAttachmentLocationToBeSaved, String tC_Id, String baseURL, String columnName)
             throws IOException {
         List<String> filePaths = new ArrayList<>();
@@ -34,8 +58,12 @@
                             }
 
                             imageCount++;
-                            String extractUrl = imageUrl.substring(2);
-                            String absoluteUrl = baseURL + extractUrl;
+                            String extractUrl = imageUrl.startsWith("/") ? imageUrl.substring(1) : imageUrl;
+                            String absoluteUrl = baseURL.endsWith("/") ? baseURL + extractUrl : baseURL + "/" + extractUrl;
+
+                            // Log the constructed URL for debugging purposes
+                            logger.info("Constructed URL for embedded image download: " + absoluteUrl);
+
                             HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken);
                             if (response != null) {
                                 try (InputStream in = response.getContent()) {
@@ -59,3 +87,10 @@
         }
         return filePaths;
     }
+
+    // Assuming getJiraResponse method is implemented as provided previously
+    public static HttpEntity getJiraResponse(String url, String apiKey) {
+        // Implementation here
+        // ...
+    }
+}
