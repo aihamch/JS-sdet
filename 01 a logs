@@ -1,91 +1,10 @@
-Certainly! Below are the full classes for both `RallyOperation` and `RunnerClass` incorporating the changes you've requested.
+It seems that the new logic for handling test step attachments might have disrupted the existing migration of test steps. To address this, I'll make sure to preserve the original logic that worked for migrating the test steps while integrating the new logic for handling attachments.
 
-### Full `RallyOperation` Class
+I'll provide you with an updated version of the `RunnerClass` and `RallyOperation` class that correctly migrates the test steps as before while properly handling the attachments.
 
-```java
-package com.optum.coe.automation.rally;
+### Updated `RunnerClass`
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Base64;
-import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-
-public class RallyOperation {
-
-    // Initialization of the class member variables.
-    private String rallyBaseURL;
-    private String rallyApiKey;
-    private String rallyProjectKey;
-    private String rallyUser;
-
-    // Logger Initialization for RallyOperation Class
-    private static final Logger logger = LogManager.getLogger();
-
-    // Constructor loads the value from .properties file
-    public RallyOperation() {
-        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
-        rallyUser = ConfigLoader.getConfigValue("RALLY_USER_REF");
-        logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
-    }
-
-    // Method to create TestcaseStep with attachments
-    public String createTestcaseStepWithAttachment(RallyRestApi rallyApi, String rallyTestcaseOID, JiraTestStep step, String attachmentOID) throws IOException {
-        JsonObject testcaseStep = new JsonObject();
-        testcaseStep.addProperty("TestCase", "testcase/" + rallyTestcaseOID);
-        testcaseStep.addProperty("StepIndex", step.getIndex());
-        testcaseStep.addProperty("Input", step.getDescription());
-        testcaseStep.addProperty("ExpectedResult", "This is the expected result with screen shot <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-
-        CreateRequest createRequest = new CreateRequest("TestcaseStep", testcaseStep);
-        CreateResponse createResponse = rallyApi.create(createRequest);
-
-        if (createResponse.wasSuccessful()) {
-            String stepOID = createResponse.getObject().get("_ref").getAsString();
-            logger.info("Successfully created TestcaseStep with OID: " + stepOID);
-            return stepOID;
-        } else {
-            logger.error("Error occurred while creating TestcaseStep: " + createResponse.getErrors());
-            return null;
-        }
-    }
-
-    // Method to create attachment content
-    public String createAttachmentContent(RallyRestApi rallyApi, String filePath) throws IOException {
-        byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
-        String encodedContent = Base64.getEncoder().encodeToString(fileContent);
-
-        JsonObject attachmentContent = new JsonObject();
-        attachmentContent.addProperty("Content", encodedContent);
-
-        CreateRequest createRequest = new CreateRequest("AttachmentContent", attachmentContent);
-        CreateResponse createResponse = rallyApi.create(createRequest);
-
-        if (createResponse.wasSuccessful()) {
-            String attachmentContentOID = createResponse.getObject().get("_ref").getAsString();
-            logger.info("Successfully created AttachmentContent with OID: " + attachmentContentOID);
-            return attachmentContentOID;
-        } else {
-            logger.error("Error occurred while creating AttachmentContent: " + createResponse.getErrors());
-            return null;
-        }
-    }
-
-    // Additional methods (e.g., createRallyTestcase) can be included here as needed.
-}
-```
-
-### Full `RunnerClass`
+I'll revert to the previous method of migrating test steps and integrate the attachment handling correctly.
 
 ```java
 package com.optum.coe.automation.rally;
@@ -97,19 +16,17 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.rallydev.rest.RallyRestApi;
 import java.net.URI;
 
 public class RunnerClass {
 
-    // Logger Initialization for Runner Class
     private static final Logger logger = LogManager.getLogger();
 
-    // Main method
     public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
         Gson gson = new Gson();
         String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
@@ -158,9 +75,10 @@ public class RunnerClass {
             }
 
             // Handle Test Step File Attachments
+            List<String> testStepAttachmentOIDs = new ArrayList<>();
             if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
                 logger.info("Test Step file attachments paths are found in the list.");
-                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
+                testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
                 Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
                 if (!testStepAttachmentOIDs.isEmpty()) {
                     rallyOverallTestStepAttachmentsStatus = true;
@@ -174,9 +92,10 @@ public class RunnerClass {
             }
 
             // Handle Test Step Embedded Attachments
+            List<String> embeddedAttachmentOIDs = new ArrayList<>();
             if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
                 logger.info("Test Step embedded attachments paths are found in the list.");
-                List<String> embeddedAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, embeddedAttachmentDownloadPathsTestStepLevel);
+                embeddedAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, embeddedAttachmentDownloadPathsTestStepLevel);
                 Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
                 if (!embeddedAttachmentOIDs.isEmpty()) {
                     rallyOverallTestStepAttachmentsStatus = true;
@@ -197,66 +116,310 @@ public class RunnerClass {
                 testSteps.add(step);
             }
 
-            // Handle Test Step creation with attachments
-            for (JiraTestStep step : testSteps) {
-                for (String filePath : step.getAttachments()) {
-                    String attachmentContentOID = rallyOperation.createAttachmentContent(rallyRestApi, filePath);
-                    if (attachmentContentOID != null) {
-                        String stepOID = rallyOperation.createTestcaseStepWithAttachment(rallyRestApi, rallyTestcaseOID, step, attachmentContentOID);
-                        if (stepOID == null) {
-                            logger.error("Failed to create TestcaseStep for step index " + step.getIndex
-
-());
-                        }
-                    } else {
-                        logger.error("Failed to create attachment content for step index " + step.getIndex());
-                    }
-                }
-            }
+            // Migrate test steps without changing the existing logic
+            rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, testcaseAttachmentOIDs);
 
             if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
                 System.out.println("Rally Testcase Creation Status is true");
             } else {
-                logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
+                logger.error("The Jira testcase is not created in Rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in Rally.");
             }
 
             if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                // Call method to update "Testcase Migrated" and "Test Folder Migrated" checkboxes in Jira
+                // Call method to update "Testcase Migrated" and "Test Folder Migrated" check boxes in Jira
             }
         }
     }
 }
 ```
 
+### Reverted Changes in `RallyOperation` Class
 
+I will now revert the `RallyOperation` class to ensure that test steps are migrated properly, while still handling the attachments as you requested.
 
+```java
+package com.optum.coe.automation.rally;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
 
+public class RallyOperation {
 
+    private String rallyBaseURL;
+    private String rallyApiKey;
+    private String rallyProjectKey;
+    private String rallyUser;
 
+    private static final Logger logger = LogManager.getLogger();
 
+    public RallyOperation() {
+        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
+        rallyUser = ConfigLoader.getConfigValue("RALLY_USER_REF");
+        logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
+    }
 
+    public String createRallyTestcase(JsonObject jiraJson) {
+        String rallyTestCaseOID = null;
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", rallyProjectKey);
 
+        JsonObject testCase = new JsonObject();
+        JsonElement nameElement = jiraJson.get("name");
+        if (nameElement != null && !nameElement.isJsonNull()) {
+            testCase.addProperty("Name", nameElement.getAsString());
+        } else {
+            testCase.addProperty("Name", "Default Test Case Name - No TestCase name found in Jira");
+        }
 
-for (JiraTestStep step : testSteps) {
-    for (JiraAttachment attachment : step.getAttachments()) {
-        String filePath = attachment.getUrl(); // Assuming `getUrl()` returns the path to the file
-        String attachmentContentOID = rallyOperation.createAttachmentContent(rallyRestApi, filePath);
-        if (attachmentContentOID != null) {
-            String stepOID = rallyOperation.createTestcaseStepWithAttachment(rallyRestApi, rallyTestcaseOID, step, attachmentContentOID);
-            if (stepOID == null) {
-                logger.error("Failed to create TestcaseStep for step index " + step.getIndex());
+        testCase.addProperty("Method", "Manual");
+        JsonElement priorityElement = jiraJson.get("priority");
+        if (priorityElement != null && !priorityElement.isJsonNull()) {
+            String priority = priorityElement.getAsString();
+            if (priority.equalsIgnoreCase("Normal")) {
+                testCase.addProperty("Priority", "Useful");
+            } else {
+                testCase.addProperty("Priority", priority);
             }
         } else {
-            logger.error("Failed to create attachment content for step index " + step.getIndex());
+            testCase.addProperty("Priority", "Default Priority");
+        }
+
+        testCase.addProperty("Owner", "/user/" + rallyUser);
+        JsonElement statusElement = jiraJson.get("status");
+        if (statusElement != null && !statusElement.isJsonNull()) {
+            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        } else {
+            testCase.addProperty("Ready", false);
+        }
+
+        JsonArray tags
+
+Array = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        testCase.add("Tags", tagsArray);
+
+        String folderPath = jiraJson.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+
+        JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey, rallyBaseURL, rallyApiKey);
+        if (testFolder == null) {
+            logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
+            return rallyTestCaseOID;
+        } else {
+            logger.info("Folder " + folderPath + " is created successfully in Rally");
+        }
+
+        rallyJson.add("TestFolder", testFolder);
+        rallyJson.add("testCase", testCase);
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+        } catch (URISyntaxException e) {
+            logger.error("URI Syntax error for the URL " + rallyBaseURL + ". Please check the URL.", e);
+        }
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        JsonObject jsonData = rallyJson;
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+        try {
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", rallyProjectKey);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                JsonArray newTagsArray = new JsonArray();
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagRef);
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
+                logger.info("Successfully created test case and the OID for created testcase: " + rallyTestCaseOID);
+            } else {
+                logger.error("Error occurred creating test case");
+                for (String error : createResponse.getErrors()) {
+                    logger.error(error);
+                }
+            }
+        } catch (IOException e) {
+            logger.error("Exception while creating test case in Rally", e);
+        } finally {
+            try {
+                restApi.close();
+            } catch (IOException e) {
+                logger.error("Error occurred while closing rest api resource", e);
+            }
+        }
+        return rallyTestCaseOID;
+    }
+
+    public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID, List<String> filePaths) {
+        List<String> testcaseAttachmentOIDs = new ArrayList<>();
+        RallyRestApi rallyApi = null;
+        try {
+            rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+        } catch (URISyntaxException e) {
+            logger.error("Rally Base URL has some syntax error.", e);
+        }
+        try {
+            for (String filePath : filePaths) {
+                try {
+                    testcaseAttachmentOIDs.add(attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath));
+                    logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
+                } catch (IOException e) {
+                    testcaseAttachmentOIDs.clear();
+                    logger.error("File " + filePath + " is not attached to Rally due to IO exception.", e);
+                    return testcaseAttachmentOIDs;
+                }
+            }
+        } finally {
+            try {
+                rallyApi.close();
+            } catch (IOException e) {
+                logger.error("Rally API resource is not closed due to IO exception.", e);
+            }
+        }
+        return testcaseAttachmentOIDs;
+    }
+
+    public String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
+        byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
+        String encodedContent = Base64.getEncoder().encodeToString(fileContent);
+
+        String ContentType = null;
+        String attachmentType = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+
+        if (attachmentType.equals(".png")) {
+            ContentType = "image/png";
+        } else if (attachmentType.equals(".txt")) {
+            ContentType = "text/plain";
+        } else if (attachmentType.equals(".jpeg") || attachmentType.equals(".jpg")) {
+            ContentType = "image/jpeg";
+        } else if (attachmentType.equals(".xml")) {
+            ContentType = "application/xml";
+        } else if (attachmentType.equals(".gif")) {
+            ContentType = "image/gif";
+        } else if (attachmentType.equals(".doc")) {
+            ContentType = "application/msword";
+        } else if (attachmentType.equals(".docx")) {
+            ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        } else if (attachmentType.equals(".xls")) {
+            ContentType = "application/vnd.ms-excel";
+        } else if (attachmentType.equals(".xlsx")) {
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        } else if (attachmentType.equals(".zip")) {
+            ContentType = "application/zip";
+        }
+
+        JsonObject attachmentContent = new JsonObject();
+        attachmentContent.addProperty("Content", encodedContent);
+
+        CreateRequest createRequest = new CreateRequest("AttachmentContent", attachmentContent);
+        CreateResponse createResponse = rallyApi.create(createRequest);
+
+        if (createResponse.wasSuccessful()) {
+            String attachmentContentOID = createResponse.getObject().get("_ref").getAsString();
+
+            JsonObject attachment = new JsonObject();
+            attachment.addProperty("TestCase", "/testcase/" + testCaseId);
+            attachment.addProperty("Content", attachmentContentOID);
+            attachment.addProperty("Name", filePath.substring(filePath.lastIndexOf('/') + 1));
+            attachment.addProperty("Description", "Attachment for TestCase " + testCaseId);
+            attachment.addProperty("ContentType", ContentType);
+
+            CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+            CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+
+            if (attachmentResponse.wasSuccessful()) {
+                logger.info("Successfully attached file " + filePath + " to Rally TestCase.");
+                return attachmentResponse.getObject().get("_ref").getAsString();
+            } else {
+                logger.error("Failed to attach file " + filePath + " to Rally TestCase.");
+                return null;
+            }
+        } else {
+            logger.error("Failed to create attachment content in Rally.");
+            return null;
+        }
+    }
+
+    public void migrateTestSteps(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, List<String> testcaseAttachmentOIDs) {
+        for (JiraTestStep jiraTestStep : jiraTestSteps) {
+            try {
+                JsonObject newTestStep = new JsonObject();
+                newTestStep.addProperty("TestCase", rallyTestCaseOID);
+                newTestStep.addProperty("StepIndex", jiraTestStep.getIndex());
+                newTestStep.addProperty("Input", jiraTestStep.getInput());
+                newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
+
+                // Embed attachments in the ExpectedResult field if needed
+                String expectedResultWithAttachments = jiraTestStep.getExpectedResult();
+                for (String attachmentOID : testcaseAttachmentOIDs) {
+                    expectedResultWithAttachments += " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>";
+                }
+                newTestStep.addProperty("ExpectedResult", expectedResultWithAttachments);
+
+                CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
+                CreateResponse createResponse = rallyApi.create(createRequest);
+
+                if (createResponse.wasSuccessful()) {
+                    logger.info("Successfully created test step in Rally for TestCase: " + rallyTestCaseOID);
+                } else {
+                    logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
+                }
+            } catch (IOException e) {
+                logger.error("Exception occurred while creating test step in Rally", e);
+            }
         }
     }
 }
+```
 
+### Notes:
+1. **Test Step Migration**: The `migrateTestSteps` method should now work as it originally did, but with the added logic to handle the attachment embedding as needed.
 
-### Summary of Changes:
-1. **RallyOperation Class**: Added methods `createTestcaseStepWithAttachment` and `createAttachmentContent` to handle the creation of `TestcaseStep` and uploading attachments.
-   
-2. **RunnerClass**: Updated the loop to create attachments and link them to `TestcaseStep` using the newly added methods in `RallyOperation`.
+2. **Attachment Handling**
 
-These changes will allow your framework to process the attachments as you found in Postman, creating the correct `TestcaseStep` with embedded images.
+: Attachments are processed and added to the `ExpectedResult` field or any other required field based on the logic you specify.
+
+This setup should restore the correct migration of test steps and also correctly handle the attachment migration to the appropriate fields. If there are any further issues or additional adjustments needed, feel free to let me know!
