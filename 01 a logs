@@ -1,75 +1,31 @@
-The `NullPointerException` you're encountering occurs because your code is attempting to invoke the `getAsString()` method on a `JsonElement` that is `null`. This typically happens when the JSON object does not contain the key you're trying to access. 
-
-### Debugging Steps:
-1. **Check for `null` Before Accessing JSON Elements**: Before calling `getAsString()` on a `JsonElement`, ensure the key exists and that the value is not `null`. This will prevent `NullPointerException`.
-
-2. **Error in `migrateTestStepAttachments` Method**:
-   - The exception occurred in the `migrateTestStepAttachments` method, specifically when accessing a `JsonElement`. This suggests that the JSON object might not have the expected structure.
-
-### Update the Code:
-I will update your `migrateTestStepAttachments` method to include null checks before accessing the `JsonElement`. Here’s the updated code:
-
-```java
-private static void migrateTestStepAttachments(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef, String baseUrl, String authToken) throws IOException {
-    // Ensure the Attachments folder exists
-    File attachmentFolder = new File("Attachments");
-    if (!attachmentFolder.exists()) {
-        attachmentFolder.mkdir();
+private static String uploadAttachmentToRally(File file, RallyRestApi restApi, String testCaseRef) throws IOException {
+    if (file == null || !file.exists() || testCaseRef == null || testCaseRef.isEmpty()) {
+        System.out.println("Invalid file or test case reference provided for attachment upload.");
+        return null;
     }
 
-    JsonObject testScript = jiraJson.getAsJsonObject("testScript");
-    if (testScript != null) {
-        JsonArray steps = testScript.getAsJsonArray("steps");
-        if (steps != null) {
-            for (JsonElement stepElement : steps) {
-                JsonObject step = stepElement.getAsJsonObject();
+    JsonObject attachment = new JsonObject();
 
-                // Handle embedded attachments (images, etc.)
-                String description = "";
-                if (step.has("description") && !step.get("description").isJsonNull()) {
-                    description = step.get("description").getAsString();
-                }
-                List<File> downloadedAttachments = downloadEmbeddedAttachments(description, baseUrl, authToken);
+    // Convert file to Base64-encoded content
+    byte[] fileContent = java.nio.file.Files.readAllBytes(file.toPath());
+    String base64Content = Base64.getEncoder().encodeToString(fileContent);
 
-                // Handle file attachments (if any)
-                JsonArray attachmentArray = step.getAsJsonArray("attachments");
-                if (attachmentArray != null) {
-                    for (JsonElement attachmentElement : attachmentArray) {
-                        JsonObject attachmentObj = attachmentElement.getAsJsonObject();
-                        String fileUrl = attachmentObj.has("content") ? attachmentObj.get("content").getAsString() : "";
-                        String fileName = attachmentObj.has("filename") ? attachmentObj.get("filename").getAsString() : "";
+    attachment.addProperty("Artifact", testCaseRef);
+    attachment.addProperty("Content", base64Content);
+    attachment.addProperty("Name", file.getName());
+    attachment.addProperty("ContentType", "application/octet-stream");
+    attachment.addProperty("Size", fileContent.length);
 
-                        if (!fileUrl.isEmpty() && !fileName.isEmpty()) {
-                            // Download the attachment
-                            File file = downloadFile(baseUrl, fileUrl, fileName, authToken);
-                            downloadedAttachments.add(file);
-                        }
-                    }
-                }
+    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
 
-                // Upload attachments to Rally test case level
-                for (File file : downloadedAttachments) {
-                    String attachmentRef = uploadAttachmentToRally(file, restApi, testCaseRef);
-
-                    // Now link this attachment to the specific test step
-                    if (attachmentRef != null) {
-                        linkAttachmentToTestStep(restApi, testCaseRef, step.get("index").getAsInt(), attachmentRef);
-                    }
-
-                    // Cleanup - delete the file after uploading
-                    if (file.exists()) {
-                        file.delete();
-                    }
-                }
-            }
+    if (attachmentResponse.wasSuccessful()) {
+        return attachmentResponse.getObject().get("_ref").getAsString();
+    } else {
+        System.out.println("Error occurred creating attachment:");
+        for (String error : attachmentResponse.getErrors()) {
+            System.out.println(error);
         }
+        return null;
     }
 }
-```
-
-### Key Changes:
-1. **Null Checks**: Added checks using `step.has("key")` and `!step.get("key").isJsonNull()` before accessing JSON fields to prevent `NullPointerException`.
-2. **Default Values**: If the expected key doesn't exist or the value is `null`, we handle it gracefully by setting default values (e.g., an empty string).
-
-### Conclusion:
-These changes should prevent the `NullPointerException` by ensuring that the code only tries to access JSON elements that are actually present and not `null`. If you continue to encounter issues or have any further questions, feel free to ask!
