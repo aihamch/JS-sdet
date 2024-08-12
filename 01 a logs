@@ -1,131 +1,51 @@
-The `HTTP 401 Unauthorized` error indicates that the request to download the file is not authorized, which typically means that the API request lacks the required authentication headers.
-
-To resolve this, you'll need to ensure that your HTTP request to download the attachment includes the necessary authentication header, just like when you initially made the request to Jira for the test case.
-
-Here’s how you can modify the `downloadFile` method to include the authorization header:
-
-### Updated `downloadFile` Method:
-
-```java
-private static File downloadFile(String baseUrl, String fileUrl, String fileName, String authToken) throws IOException {
-    // Construct the full URL if the provided URL is relative
-    if (!fileUrl.startsWith("http://") && !fileUrl.startsWith("https://")) {
-        if (fileUrl.startsWith("../")) {
-            fileUrl = baseUrl + fileUrl.substring(2); // Handle relative paths that start with ../
-        } else {
-            fileUrl = baseUrl + fileUrl; // Handle other relative paths
-        }
-    }
-
-    File file = new File("Attachments/" + fileName);
-    
-    // Create a connection to the URL with the authorization header
-    URL url = new URL(fileUrl);
-    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-    connection.setRequestProperty("Authorization", "Bearer " + authToken);
-    
-    try (InputStream in = connection.getInputStream();
-         FileOutputStream out = new FileOutputStream(file)) {
-        byte[] buffer = new byte[1024];
-        int bytesRead;
-        while ((bytesRead = in.read(buffer)) != -1) {
-            out.write(buffer, 0, bytesRead);
-        }
-    }
-    return file;
+Pretty Response: {"owner":"JIRAUSER74201","updatedBy":"JIRAUSER109514","customFields":{"TestCase Migrated":false,"TestFolder Migrated":false,"Automation Status":"Automated Target - P2","Migrate Test to Rally":true},"keyNumber":5,"updatedOn":"2024-08-06T21:41:57.826Z","priority":"Normal","majorVersion":1,"createdOn":"2022-01-31T18:57:17.919Z","labels":["RallyMigrationTest"],"component":"Auth/Ref","projectKey":"CC2","folder":"/ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For","latestVersion":true,"createdBy":"JIRAUSER74201","testScript":{"id":343050,"type":"STEP_BY_STEP","steps":[{"expectedResult":"Validate data loaded in the following sections:<br />-Payer<br />-General Information<br />-Requesting Provider<br />-Service Provider<br />-Subscriber<br />Also validate there should not be any data in Dependent Information section<br />(<ul><li>if the response does NOT contain dependent information (patient=subscriber) then none of the dependent fields in the Auth/Ref submission form should be valued</li></ul>)","index":3,"description":"Select \"Authorization/Referral Submission\" from dropdown in the Demographic Information, then click \"USE MEMBER FOR\" button<br /><img src=\"../rest/tests/1.0/attachment/image/500125\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />","id":3802849},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500131\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500132\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","attachments":[{"fileName":"f03dbd34-98dc-4107-9163-a351e33a2f4b","fileSize":65059,"name":"Jira_Rally_JSON_Map_CC2_Project.xlsx","id":499989,"createdOn":"2024-08-05T21:35:57.010Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"5c1bb02c-ae86-4b5a-8d50-fa79d442aa5c","fileSize":63030,"name":"JSON_Rally_BackUp_PostMan.txt","id":499988,"createdOn":"2024-08-05T21:35:48.079Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"<img src=\"../rest/tests/1.0/attachment/image/500121\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img src=\"../rest/tests/1.0/attachment/image/500119\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />\"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Relationship field should have \"Self\" value","index":2,"description":"Validate \"Patient Information\" column has the same data as \"Subscriber Information\" column.<br />Validate: Relationship field should have \"Self\" value","id":3802848},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500128\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><img class=\"fr-fic fr-dii\" /><img src=\"../rest/tests/1.0/attachment/image/500127\" class=\"fr-fic fr-dii\" /><img class=\"fr-fic fr-dii\" /><br />","attachments":[{"fileName":"647cf2fe-3fca-4734-bec3-20a959a23322","fileSize":26843,"name":"TestStepAttachment_2.PNG","id":499987,"createdOn":"2024-08-05T21:35:36.294Z","projectId":35983,"userKey":"JIRAUSER109514"},{"fileName":"bb8d3405-5eb1-4fce-a27c-22cba75dccb4","fileSize":19118,"name":"Gherkins_CC2-9249.docx","id":499986,"createdOn":"2024-08-05T21:35:00.839Z","projectId":35983,"userKey":"JIRAUSER109514"}],"expectedResult":"Access to Eligibility Identifier should be succesfully.<br /><img src=\"../rest/tests/1.0/attachment/image/500129\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br />The<br /><img src=\"../rest/tests/1.0/attachment/image/500130\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","index":0,"description":"As an internal user log in to Cctr<br />and go to Verification -&gt; New Eligibility Request<br /><br /><img src=\"../rest/tests/1.0/attachment/image/500134\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />","id":3802846},{"testData":"<img src=\"../rest/tests/1.0/attachment/image/500118\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" /><br /><img src=\"../rest/tests/1.0/attachment/image/500120\" style=\"width:300px\" class=\"fr-fic fr-fil fr-dib\" />Click \"Find Provider\"Payer Name: enter \"QA Testing\"<br />Member id: QA5010-CC-MABCBS-COB","expectedResult":"Response Information should be displayed successfuly","index":1,"description":"enter required data for Subscriber request<br />then SUBMIT","id":3802847}]},"issueLinks":["CC2-9744"],"lastTestResultStatus":"Pass","name":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","parameters":{"variables":[],"entries":[]},"key":"CC2-T5","status":"Approved"}
+Invalid folder name encountered: ''
+Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083883
+Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901
+Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431
+Transformed JSON: {
+  "projectRef": "789325818991",
+  "TestFolder": {
+    "_rallyAPIMajor": "2",
+    "_rallyAPIMinor": "0",
+    "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798480941431",
+    "_refObjectUUID": "f94b7703-4801-4f19-ac41-59512b0a4a28",
+    "_objectVersion": "1",
+    "_refObjectName": "CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For",
+    "Name": "CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For",
+    "Parent": {
+      "_rallyAPIMajor": "2",
+      "_rallyAPIMinor": "0",
+      "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798403083901",
+      "_refObjectUUID": "3d736c02-dbe5-4cad-ad44-5cd4c451ebf0",
+      "_objectVersion": "1",
+      "_refObjectName": "ConnectCenter - FY22 iteration 21",
+      "Name": "ConnectCenter - FY22 iteration 21",
+      "_type": "TestFolder"
+    },
+    "_type": "TestFolder"
+  },
+  "testCase": {
+    "Name": "Guerkin1 - Eligibility inquiry response does not contain Dependent Information",
+    "Method": "Manual",
+    "Priority": "Useful",
+    "Owner": "/user/783605835347",
+    "Ready": false,
+    "Tags": [
+      {
+        "_ref": "https://rally1.rallydev.com/slm/webservice/v2.0/tag/798000675535"
+      }
+    ]
+  }
 }
-```
-
-### Update the Call in `migrateTestStepAttachments`:
-
-You also need to pass the `authToken` to the `downloadFile` method in the `migrateTestStepAttachments` method:
-
-```java
-private static void migrateTestStepAttachments(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef, String baseUrl, String authToken) throws IOException {
-    // Ensure the Attachments folder exists
-    File attachmentFolder = new File("Attachments");
-    if (!attachmentFolder.exists()) {
-        attachmentFolder.mkdir();
-    }
-
-    JsonObject testScript = jiraJson.getAsJsonObject("testScript");
-    if (testScript != null) {
-        JsonArray steps = testScript.getAsJsonArray("steps");
-        if (steps != null) {
-
-            for (JsonElement stepElement : steps) {
-                JsonObject step = stepElement.getAsJsonObject();
-
-                // Handle embedded attachments (images, etc.)
-                String description = step.get("description").getAsString();
-                List<File> downloadedAttachments = downloadEmbeddedAttachments(description, baseUrl, authToken);
-
-                // Handle file attachments (if any)
-                JsonArray attachmentArray = step.getAsJsonArray("attachments");
-                if (attachmentArray != null) {
-                    for (JsonElement attachmentElement : attachmentArray) {
-                        JsonObject attachmentObj = attachmentElement.getAsJsonObject();
-                        String fileUrl = attachmentObj.get("content").getAsString(); // Assuming 'content' holds the URL
-                        String fileName = attachmentObj.get("filename").getAsString();
-
-                        // Download the attachment
-                        File file = downloadFile(baseUrl, fileUrl, fileName, authToken);
-                        downloadedAttachments.add(file);
-                    }
-                }
-
-                // Upload attachments to Rally test case level
-                for (File file : downloadedAttachments) {
-                    String attachmentRef = uploadAttachmentToRally(file, restApi, testCaseRef);
-
-                    // Now link this attachment to the specific test step
-                    if (attachmentRef != null) {
-                        linkAttachmentToTestStep(restApi, testCaseRef, step.get("index").getAsInt(), attachmentRef);
-                    }
-
-                    // Cleanup - delete the file after uploading
-                    if (file.exists()) {
-                        file.delete();
-                    }
-                }
-            }
-        }
-    }
-}
-```
-
-### Update `downloadEmbeddedAttachments` Method:
-
-You also need to update the `downloadEmbeddedAttachments` method to pass the `authToken`:
-
-```java
-private static List<File> downloadEmbeddedAttachments(String content, String baseUrl, String authToken) throws IOException {
-    List<File> downloadedFiles = new ArrayList<>();
-    // Use regex to extract URLs of embedded images or other attachments
-    Pattern pattern = Pattern.compile("src\\s*=\\s*\"([^\"]+)\"");
-    Matcher matcher = pattern.matcher(content);
-
-    while (matcher.find()) {
-        String url = matcher.group(1);
-        String fileName = url.substring(url.lastIndexOf('/') + 1);
-        File file = downloadFile(baseUrl, url, fileName, authToken);
-        downloadedFiles.add(file);
-    }
-    return downloadedFiles;
-}
-```
-
-### Update the `main` Method:
-
-Finally, update the `main` method to pass the `authToken` to `migrateTestStepAttachments`:
-
-```java
-// In your main method, after creating the test case and migrating the test steps:
-migrateTestStepAttachments(jiraJson, restApi, testCaseRef, jiraBaseUri, authToken);
-```
-
-### Summary:
-- **Authorization Handling**: The `downloadFile` method now includes the necessary `Authorization` header to allow the download of attachments from Jira.
-- **Method Updates**: Methods are updated to pass the required `authToken` along with the `baseUrl`.
-
-This should resolve the `HTTP 401 Unauthorized` error, allowing you to successfully download the attachments from Jira.
+Successfully created test case: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799052276199
+Successfully created test step: 0
+Successfully created test step: 1
+Successfully created test step: 2
+Successfully created test step: 3
+Error occurred creating attachment:
+Cannot parse object reference from "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 in thread "main" java.lang.NullPointerException: Cannot invoke "com.google.gson.JsonElement.getAsString()" because the return value of "com.google.gson.JsonObject.get(String)" is null
+	at FoldersTestCase2.migrateTestStepAttachments(FoldersTestCase2.java:452)
+	at FoldersTestCase2.main(FoldersTestCase2.java:218)
+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"
