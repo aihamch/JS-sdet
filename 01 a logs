@@ -1,2 +1,67 @@
-024-08-12 15:31:39.737 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to move attachment OID 799099155099 to test step 799099243523. Error: [Could not read: Could not read referenced object null]
-2024-08-12 15:31:39.961 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment Details Before Update: {"_rallyAPIMajor":"2","_rallyAPIMinor":"0","_ref":"https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799099155113","_refObjectUUID":"7b9b41e7-5990-4add-b852-c087e48767be","_objectVersion":"1","_refObjectName":"1_2__EmbeddedFile_expectedResult.png","CreationDate":"2024-08-12T19:31:07.627Z","_CreatedAt":"just now","ObjectID":799099155113,"ObjectUUID":"7b9b41e7-5990-4add-b852-c087e48767be","VersionId":"1","Subscription":{"_rallyAPIMajor":"2","_rallyAPIMinor":"0","_ref":"https://rally1.rallydev.com/slm/webservice/v2.0/subscription/1895411786","_refObjectUUID":"91bc3fb3-07b0-4d17-92af-1988a9cb1b28","_refObjectName":"Optum Global Solutions","_type":"Subscription"},"Workspace":{"_rallyAPIMajor":"2","_rallyAPIMinor":"0","_ref":"https://rally1.rallydev.com/slm/webservice/v2.0/workspace/14457696030","_refObjectUUID":"1d47ac97-ec8d-4bd7-97a3-31bcfba9a03d","_refObjectName":"UHG","_type":"Workspace"},"Artifact":{"_rallyAPIMajor":"2","_rallyAPIMinor":"0","_ref":"https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799099025469","_refObjectUUID":"47569062-3d94-41cd-93c4-f46489ea44db","_refObjectName":"Guerkin1 - Eligibility inquiry response does not contain Dependent Information","_type":"TestCase"},"Content":{"_rallyAPIMajor":"2","_rallyAPIMinor":"0","_ref":"https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/799099155111","_refObjectUUID":"24256467-78ae-4bc5-a2cd-1041c7ad6dac","_type":"AttachmentContent"},"ContentType":"application/octet-stream","Description":"Jira to Rally Migration Automated Attachments","Name":"1_2__EmbeddedFile_expectedResult.png","Size":28478,"TestCaseResult":null,"User":{"_rallyAPIMajor":"2","_rallyAPIMinor":"0","_ref":"https://rally1.rallydev.com/slm/webservice/v2.0/user/783605835347","_refObjectUUID":"db151631-415b-40eb-a1af-e531575a3b00","_refObjectName":"Aiham Alchalabi","_type":"User"},"Errors":[],"Warnings":["It is no longer necessary to append \".js\" to WSAPI resources."]}
+private void moveAttachmentsToTestStep(String rallyTestStepFullUrl, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
+    String rallyTestStepOID = extractOID(rallyTestStepFullUrl);
+    if (rallyTestStepOID == null) {
+        logger.error("Failed to extract OID from the test step URL: " + rallyTestStepFullUrl);
+        return;
+    }
+
+    if (!checkObjectExists("testcasestep", rallyTestStepOID, rallyRestApi)) {
+        logger.error("Test step with OID " + rallyTestStepOID + " does not exist in Rally.");
+        return;
+    }
+
+    for (String attachmentFullUrl : attachmentOIDs) {
+        try {
+            String attachmentOID = extractOID(attachmentFullUrl);
+            if (attachmentOID == null) {
+                logger.error("Failed to extract OID from the attachment URL: " + attachmentFullUrl);
+                continue;
+            }
+
+            if (!checkObjectExists("attachment", attachmentOID, rallyRestApi)) {
+                logger.error("Attachment with OID " + attachmentOID + " does not exist in Rally.");
+                continue;
+            }
+
+            GetRequest getRequest = new GetRequest("/attachment/" + attachmentOID);
+            GetResponse getResponse = rallyRestApi.get(getRequest);
+
+            if (getResponse.wasSuccessful()) {
+                JsonObject attachmentDetails = getResponse.getObject();
+                String attachmentName = attachmentDetails.get("Name").getAsString();
+                String attachmentDescription = attachmentDetails.get("Description").getAsString();
+
+                // Download the attachment content
+                String attachmentContentRef = attachmentDetails.getAsJsonObject("Content").get("_ref").getAsString();
+                GetRequest contentRequest = new GetRequest(attachmentContentRef);
+                GetResponse contentResponse = rallyRestApi.get(contentRequest);
+
+                if (contentResponse.wasSuccessful()) {
+                    String content = contentResponse.getObject().get("Content").getAsString();
+
+                    // Create a new attachment for the test step
+                    JsonObject newAttachment = new JsonObject();
+                    newAttachment.addProperty("Artifact", rallyTestStepOID);
+                    newAttachment.addProperty("Name", attachmentName);
+                    newAttachment.addProperty("Description", attachmentDescription);
+                    newAttachment.addProperty("Content", content);
+
+                    CreateRequest createRequest = new CreateRequest("attachment", newAttachment);
+                    CreateResponse createResponse = rallyRestApi.create(createRequest);
+
+                    if (createResponse.wasSuccessful()) {
+                        logger.info("Successfully created new attachment for test step OID " + rallyTestStepOID);
+                    } else {
+                        logger.error("Failed to create new attachment for test step OID " + rallyTestStepOID + ". Error: " + Arrays.toString(createResponse.getErrors()));
+                    }
+                } else {
+                    logger.error("Failed to retrieve content for attachment OID " + attachmentOID + ". Error: " + Arrays.toString(contentResponse.getErrors()));
+                }
+            } else {
+                logger.error("Failed to retrieve attachment OID " + attachmentOID + " for updating. Error: " + Arrays.toString(getResponse.getErrors()));
+            }
+        } catch (Exception e) {
+            logger.error("Exception while moving attachment OID " + attachmentOID + " to test step " + rallyTestStepOID, e);
+        }
+    }
+}
