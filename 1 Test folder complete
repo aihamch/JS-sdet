@@ -346,3 +346,90 @@ public class RallyOperation {
     // Existing methods like checkObjectExists, moveAttachmentsToTestStep, and embedAttachmentInTestStep remain unchanged
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public class RallyOperation {
+
+    // Existing methods...
+
+    public void migrateTestStepsWithAttachments(String rallyTestCaseRef, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyRestApi, List<String> attachmentOIDs) {
+        Collections.reverse(jiraTestSteps);
+
+        for (JiraTestStep step : jiraTestSteps) {
+            try {
+                JsonObject newTestStep = new JsonObject();
+                newTestStep.addProperty("TestCase", rallyTestCaseRef);
+                newTestStep.addProperty("StepIndex", step.getIndex());
+
+                String inputField = step.getDescription();
+                String expectedResultField = step.getExpectedResult();
+
+                List<JiraAttachment> attachments = step.getAttachments();
+                if (attachments != null && !attachments.isEmpty()) {
+                    for (JiraAttachment attachment : attachments) {
+                        String filePath = attachment.getUrl();
+
+                        if (filePath != null && !filePath.isEmpty()) {
+                            String attachmentContentOID = createAttachmentContent(rallyRestApi, filePath);
+                            if (attachmentContentOID != null) {
+                                // Logic to decide where the attachment belongs
+                                if (inputField != null && inputField.contains(attachment.getName())) {
+                                    inputField += " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentContentOID + "/content'/>";
+                                } else if (expectedResultField != null && expectedResultField.contains(attachment.getName())) {
+                                    expectedResultField += " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentContentOID + "/content'/>";
+                                } else {
+                                    // Default to placing it in the ExpectedResult if no clear match
+                                    expectedResultField += " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentContentOID + "/content'/>";
+                                }
+                            } else {
+                                logger.error("Failed to create attachment content for step index " + step.getIndex());
+                            }
+                        } else {
+                            logger.warn("File path is null or empty for attachment in step index " + step.getIndex());
+                        }
+                    }
+                }
+
+                newTestStep.addProperty("Input", inputField);
+                newTestStep.addProperty("ExpectedResult", expectedResultField);
+                newTestStep.addProperty("TestData", step.getTestData());
+
+                CreateRequest createRequest = new CreateRequest("testcasestep", newTestStep);
+                CreateResponse createResponse = rallyRestApi.create(createRequest);
+
+                if (createResponse.wasSuccessful()) {
+                    String rallyTestStepOID = createResponse.getObject().get("_ref").getAsString();
+                    logger.info("Successfully created test step: " + step.getDescription());
+
+                    moveAttachmentsToTestStep(rallyTestStepOID, attachmentOIDs, rallyRestApi);
+                } else {
+                    logger.error("Failed to create test step: " + step.getDescription() + ". Error: " + createResponse.getErrors());
+                }
+            } catch (Exception e) {
+                logger.error("Exception while creating test step: " + step.getDescription(), e);
+            }
+        }
+    }
+
+    // Existing methods...
+
+}
+
+
