@@ -1,4 +1,3 @@
-
 package com.optum.coe.automation.rally;
 
 import java.io.File;
@@ -10,6 +9,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -183,9 +183,7 @@ public class Utils {
 
             return lastFolder;
 
-        } catch
-
-         (Exception e) {
+        } catch (Exception e) {
             logger.error("Exception occurred while creating test folder structure in Rally.", e);
             return null;
         } finally {
@@ -237,7 +235,7 @@ public class Utils {
             if (response != null) {
                 try (InputStream in = response.getContent()) {
                     Path filePath = Paths.get(tcAttachmentDownloadLocation + "/" + fileName);
-                    Files.copy(in, filePath);
+                    Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);  // Overwrite if file exists
                     filePaths.add(filePath.toString());
                     EntityUtils.consume(response);
                     logger.info("File downloaded from Jira to tcAttachmentDownloadLocation. File Name: " + fileName);
@@ -260,7 +258,7 @@ public class Utils {
 
         try (InputStream inputStream = connection.getInputStream()) {
             Path filePath = Paths.get(destinationFile);
-            Files.copy(inputStream, filePath);
+            Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);  // Overwrite if file exists
             logger.info("Downloaded file from URL: " + fileURL + " to: " + destinationFile);
             return filePath.toString();
         } catch (IOException e) {
@@ -298,13 +296,11 @@ public class Utils {
                     HttpEntity response = Utils.getJiraResponse(testStepAttachmentUrl, apiToken);
                     if (response != null) {
                         try (InputStream in = response.getContent()) {
-                            Path filePath = Paths.get(testStepFileAttachmentLocationToBeSaved + "/" + stepNumber
-                                    + "_" + attachmentNumber + "_" + attachmentFileName);
-                            Files.copy(in, filePath);
+                            Path filePath = Paths.get(testStepFileAttachmentLocationToBeSaved + "/" + stepNumber + "_" + attachmentNumber + "_" + attachmentFileName);
+                            Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);  // Overwrite if file exists
                             filePaths.add(filePath.toString());
                             EntityUtils.consume(response);
-                            logger.info("File downloaded from Jira to tcAttachmentDownloadLocation. File Name: "
-                                    + attachmentFileName);
+                            logger.info("File downloaded from Jira to testStepFileAttachmentLocation. File Name: " + attachmentFileName);
                         } catch (IOException e) {
                             logger.error("Failed to download the file attachments from Jira for Testcase level", e);
                         }
@@ -352,23 +348,16 @@ public class Utils {
                             HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken);
                             if (response != null) {
                                 try (InputStream in = response.getContent()) {
-                                    Path filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + stepNumber
-                                            + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
-                                    Files.copy(in, filePath);
+                                    Path filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
+                                    Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);  // Overwrite if file exists
                                     filePaths.add(filePath.toString());
                                     EntityUtils.consume(response);
-                                    logger.info("File downloaded from Jira to tcAttachmentDownloadLocation. File Name: "
-                                            + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_"
-                                            + columnName + ".png");
+                                    logger.info("File downloaded from Jira to testStepAttachmentLocation. File Name: " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
                                 } catch (IOException e) {
-                                    logger.error("Failed to download the file attachment " + stepNumber + "_"
-                                            + imageCount + "_" + "_EmbeddedFile_" + columnName
-                                            + " from Jira for test step level", e);
+                                    logger.error("Failed to download the file attachment " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + " from Jira for test step level", e);
                                 }
                             } else {
-                                logger.error("Failed to download the file attachment " + stepNumber + "_"
-                                        + imageCount + "_" + "_EmbeddedFile_" + columnName
-                                        + " from Jira for test step level. No Entity response found");
+                                logger.error("Failed to download the file attachment " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + " from Jira for test step level. No Entity response found");
                             }
                         }
                     }
