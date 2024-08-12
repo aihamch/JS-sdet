@@ -1,17 +1,12 @@
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.rallydev.rest.RallyRestApi;
 import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.request.QueryRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.response.QueryResponse;
-import com.rallydev.rest.request.CreateRequest;
 import com.rallydev.rest.response.CreateResponse;
 import com.rallydev.rest.util.Fetch;
-import com.rallydev.rest.util.*;
+import com.rallydev.rest.util.QueryFilter;
 
 import java.io.IOException;
 import java.net.URI;
@@ -133,6 +128,7 @@ class FoldersTestCase2 {
         JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
         JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
 
+        String rallyTestCaseRef = null;
         try {
             // Create a new test case
             JsonObject newTestCase = new JsonObject();
@@ -164,7 +160,8 @@ class FoldersTestCase2 {
             CreateResponse createResponse = restApi.create(createRequest);
 
             if (createResponse.wasSuccessful()) {
-                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+                rallyTestCaseRef = createResponse.getObject().get("_ref").getAsString();
+                System.out.println("Successfully created test case: " + rallyTestCaseRef);
             } else {
                 System.out.println("Error occurred creating test case:");
                 for (String error : createResponse.getErrors()) {
@@ -174,6 +171,42 @@ class FoldersTestCase2 {
         } finally {
             // Release resources
             restApi.close();
+        }
+
+        // Step 3: Migrate test steps from Jira to Rally
+        if (rallyTestCaseRef != null) {
+            migrateTestSteps(jiraJson, rallyTestCaseRef, restApi);
+        }
+    }
+
+    private static void migrateTestSteps(JsonObject jiraJson, String rallyTestCaseRef, RallyRestApi restApi) throws IOException {
+        JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+        if (testScript != null) {
+            JsonArray stepsArray = testScript.getAsJsonArray("steps");
+            if (stepsArray != null) {
+                for (JsonElement stepElement : stepsArray) {
+                    JsonObject stepObject = stepElement.getAsJsonObject();
+                    JsonObject rallyTestStep = new JsonObject();
+                    
+                    rallyTestStep.addProperty("TestCase", rallyTestCaseRef);
+                    rallyTestStep.addProperty("Input", stepObject.get("testData").getAsString());
+                    rallyTestStep.addProperty("ExpectedResult", stepObject.get("expectedResult").getAsString());
+                    rallyTestStep.addProperty("Description", stepObject.get("description").getAsString());
+
+                    // Create the test step in Rally
+                    CreateRequest createStepRequest = new CreateRequest("testcasestep", rallyTestStep);
+                    CreateResponse createStepResponse = restApi.create(createStepRequest);
+
+                    if (createStepResponse.wasSuccessful()) {
+                        System.out.println("Successfully created test step: " + createStepResponse.getObject().get("_ref").getAsString());
+                    } else {
+                        System.out.println("Error occurred creating test step:");
+                        for (String error : createStepResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -205,8 +238,6 @@ class FoldersTestCase2 {
         }
     }
 
-
-  
     private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
         JsonObject lastFolder = null;
         String lastFolderRef = null;
