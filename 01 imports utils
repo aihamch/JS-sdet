@@ -1,1 +1,80 @@
-2024-08-11 23:01:02.632 [main] ERROR com.optum.coe.automation.rally.Utils - No valid argument is passed to the method. It should be either description OR testData OR expectedResult
+public static List<String> downloadTestStepEmbeddedAttachments(String jsonResponse, String apiToken,
+        String testStepAttachmentLocationToBeSaved, String tC_Id, String baseURL, String columnName)
+        throws IOException {
+    List<String> filePaths = new ArrayList<>();
+
+    // Validate the response to ensure it starts with a '{'
+    if (jsonResponse == null || !jsonResponse.trim().startsWith("{")) {
+        logger.error("Received invalid JSON response or non-JSON content. Skipping processing.");
+        return filePaths;
+    }
+
+    // Check if columnName is valid
+    if (columnName == null || columnName.trim().isEmpty()) {
+        logger.error("Invalid columnName passed: {}. It should be either 'description', 'testData', or 'expectedResult'.", columnName);
+        return filePaths;
+    }
+
+    try {
+        JSONObject jsonObject = new JSONObject(jsonResponse);
+        JSONArray stepsArray = jsonObject.getJSONObject("testScript").getJSONArray("steps");
+        Path path = Paths.get(testStepAttachmentLocationToBeSaved);
+        if (!Files.exists(path)) {
+            try {
+                Files.createDirectories(path);
+            } catch (IOException e) {
+                logger.error("Failed to create directories for embedded attachment download location.", e);
+            }
+        }
+
+        for (int i = 0; i < stepsArray.length(); i++) {
+            JSONObject stepObject = stepsArray.getJSONObject(i);
+            int index = stepObject.getInt("index");
+            int stepNumber = index + 1;
+            if (stepObject.has(columnName)) {
+                String htmlContent = stepObject.getString(columnName);
+                Document doc = Jsoup.parse(htmlContent);
+                Elements imgElements = doc.select("img");
+                if (!imgElements.isEmpty()) {
+                    int imageCount = 0;
+                    for (Element img : imgElements) {
+                        String imageUrl = img.attr("src");
+                        if (!imageUrl.isEmpty()) {
+                            imageUrl = imageUrl.trim();
+                            imageUrl = imageUrl.replaceAll("\\.\\./", "");
+                            if (imageUrl.contains("\"")) {
+                                imageUrl = imageUrl.replace("\"", "");
+                            }
+
+                            imageCount++;
+                            String extractUrl = imageUrl.startsWith("/") ? imageUrl.substring(1) : imageUrl;
+                            String absoluteUrl = baseURL.endsWith("/") ? baseURL + extractUrl : baseURL + "/" + extractUrl;
+
+                            logger.info("Constructed URL for embedded image download: " + absoluteUrl);
+
+                            HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken);
+                            if (response != null) {
+                                try (InputStream in = response.getContent()) {
+                                    Path filePath = Paths.get(testStepAttachmentLocationToBeSaved + "/" + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
+                                    Files.copy(in, filePath, StandardCopyOption.REPLACE_EXISTING);
+                                    filePaths.add(filePath.toString());
+                                    EntityUtils.consume(response);
+                                    logger.info("File downloaded from Jira to testStepAttachmentLocation. File Name: " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + ".png");
+                                } catch (IOException e) {
+                                    logger.error("Failed to download the file attachment " + stepNumber + "_" + imageCount + "_" + "_EmbeddedFile_" + columnName + " from Jira for test step level", e);
+                                }
+                            } else {
+                                logger.error("Failed to download the file attachment from Jira. No Entity response found for URL: " + absoluteUrl);
+                            }
+                        }
+                    }
+                }
+            } else {
+                logger.error("No valid argument is passed to the method. It should be either 'description', 'testData', or 'expectedResult'. Received: {}", columnName);
+            }
+        }
+    } catch (JSONException e) {
+        logger.error("Error while parsing JSON response: " + jsonResponse, e);
+    }
+    return filePaths;
+}
