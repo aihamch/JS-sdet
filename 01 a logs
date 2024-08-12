@@ -1,13 +1,13 @@
 
-Exception in thread "main" java.net.MalformedURLException: no protocol: ../rest/tests/1.0/attachment/image/500125
-	at java.base/java.net.URL.<init>(URL.java:674)
-	at java.base/java.net.URL.<init>(URL.java:569)
-	at java.base/java.net.URL.<init>(URL.java:516)
-	at FoldersTestCase2.downloadFile(FoldersTestCase2.java:494)
-	at FoldersTestCase2.downloadEmbeddedAttachments(FoldersTestCase2.java:486)
-	at FoldersTestCase2.migrateTestStepAttachments(FoldersTestCase2.java:442)
+Exception in thread "main" java.io.IOException: Server returned HTTP response code: 401 for URL: https://jira.healthcareit.net/rest/tests/1.0/attachment/image/500125
+	at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream0(HttpURLConnection.java:2000)
+	at java.base/sun.net.www.protocol.http.HttpURLConnection.getInputStream(HttpURLConnection.java:1589)
+	at java.base/sun.net.www.protocol.https.HttpsURLConnectionImpl.getInputStream(HttpsURLConnectionImpl.java:224)
+	at java.base/java.net.URL.openStream(URL.java:1161)
+	at FoldersTestCase2.downloadFile(FoldersTestCase2.java:589)
+	at FoldersTestCase2.downloadEmbeddedAttachments(FoldersTestCase2.java:488)
+	at FoldersTestCase2.migrateTestStepAttachments(FoldersTestCase2.java:444)
 	at FoldersTestCase2.main(FoldersTestCase2.java:218)
-
 
 
 
