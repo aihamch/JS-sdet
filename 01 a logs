@@ -1,23 +1,149 @@
-public List<String> getJiraNonMigratedTestcaseKeys(String jiraResponse) {
-    List<String> testcaseKeys = new ArrayList<>();
 
-    if (jiraResponse == null || jiraResponse.isEmpty()) {
-        logger.error("The Jira response is null or empty.");
-        return testcaseKeys;  // Return an empty list to avoid further processing
-    }
+no we have have prblem wit the runner class : fetchJiraNonMigratedTestcases :The method fetchJiraNonMigratedTestcases(String, String) is undefined for the type JiraOperation
 
-    try {
-        JSONObject jsonObject = new JSONObject(jiraResponse);
-        // Assuming you want to extract the "key" field from the JSON object
-        if (jsonObject.has("key")) {
-            String key = jsonObject.getString("key");
-            testcaseKeys.add(key);
-        } else {
-            logger.warn("No 'key' field found in the Jira response.");
+
+
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.rallydev.rest.RallyRestApi;
+import java.net.URI;
+
+public class RunnerClass {
+
+    // Logger Initialization for Runner Class
+    private static final Logger logger = LogManager.getLogger();
+
+    // Main method
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+        Gson gson = new Gson();
+        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
+
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+
+     // Fetch Jira response
+        String jiraApiEndpoint = ConfigLoader.getConfigValue("JIRA_API_ENDPOINT");
+        logger.info("Jira API Endpoint: " + jiraApiEndpoint);  // Add this line to log the endpoint
+        String jiraApiToken = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
+        String jiraResponse = jiraOperation.fetchJiraNonMigratedTestcases(jiraApiEndpoint, jiraApiToken);
+
+        // Now get the list of non-migrated testcase keys
+        List<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys(jiraResponse);
+
+        for (String key : testcaseKeys) {
+            boolean rallyTestcaseCreationStatus = false;
+            boolean rallyOverallTestStepAttachmentsStatus = false;
+            jiraTestCase.setKey(key);
+            logger.info("Processing " + jiraTestCase.getKey());
+            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            RallyOperation rallyOperation = new RallyOperation();
+
+            // Download attachments from Jira for the TestCase level and TestStep level
+            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+
+            // Create Rally TestCase
+            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+
+            if (rallyTestcaseOID != null) {
+                rallyTestcaseCreationStatus = true;
+            } else {
+                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                break;
+            }
+
+            // List to store all attachment OIDs for referencing in TestSteps
+            List<String> testcaseAttachmentOIDs = new ArrayList<>();
+
+            // Attach files at the TestCase level
+            if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
+                logger.info("Attachment paths are found for the TestCase level.");
+                testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                if (!testcaseAttachmentOIDs.isEmpty()) {
+                    rallyOverallTestStepAttachmentsStatus = true;
+                } else {
+                    logger.error("The attachments for TestCase key " + jiraTestCase.getKey() + " are not uploaded to Rally.");
+                    return;
+                }
+            } else {
+                logger.info("No Attachment path found for TestCase level.");
+            }
+
+            // Handle Test Step File Attachments and Embedded Attachments
+            Map<Integer, List<String>> stepAttachmentOIDsMap = new HashMap<>();
+
+            if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step file attachments paths are found.");
+                addAttachmentsToStepMap(jiraTestcaseJson, fileAttachmentDownloadPathsTestStepLevel, stepAttachmentOIDsMap, rallyTestcaseOID, rallyOperation);
+            } else {
+                logger.info("No file attachment paths found for Test Step level.");
+            }
+
+            if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+                logger.info("Test Step embedded attachments paths are found.");
+                addAttachmentsToStepMap(jiraTestcaseJson, embeddedAttachmentDownloadPathsTestStepLevel, stepAttachmentOIDsMap, rallyTestcaseOID, rallyOperation);
+            } else {
+                logger.info("No embedded attachment paths found for Test Step level.");
+            }
+
+            // Retrieve the steps and migrate them
+            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+            List<JiraTestStep> testSteps = new ArrayList<>();
+
+            for (JsonElement element : stepsArray) {
+                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+                testSteps.add(step);
+            }
+
+            // Migrate Test Steps to Rally with their respective attachments
+            rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, stepAttachmentOIDsMap);
+
+            // Logging the overall result
+            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                logger.info("Rally TestCase creation and TestStep attachment upload completed successfully for key: " + jiraTestCase.getKey());
+            } else {
+                logger.error("Rally TestCase creation or TestStep attachment upload failed for key: " + jiraTestCase.getKey());
+            }
+
+            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
+                // Call method to update "TestCase Migrated" and "Test Folder Migrated" check boxes in Jira
+               // jiraOperation.updateJiraTestCaseStatus(jiraTestCase.getKey());
+            }
         }
-    } catch (Exception e) {
-        logger.error("Error occurred while parsing Jira response to get non-migrated testcase keys.", e);
     }
 
-    return testcaseKeys;
+    private static void addAttachmentsToStepMap(JsonObject jiraTestcaseJson, List<String> attachmentPaths, Map<Integer, List<String>> stepAttachmentOIDsMap, String rallyTestcaseOID, RallyOperation rallyOperation) {
+        List<String> attachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, attachmentPaths);
+        Utils.deleteAttachmentFileFromLocal(attachmentPaths);
+        if (!attachmentOIDs.isEmpty()) {
+            // Assume that attachments belong to specific test steps based on their order or name
+            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+            for (int i = 0; i < stepsArray.size(); i++) {
+                if (stepAttachmentOIDsMap.containsKey(i)) {
+                    stepAttachmentOIDsMap.get(i).addAll(attachmentOIDs);
+                } else {
+                    stepAttachmentOIDsMap.put(i, new ArrayList<>(attachmentOIDs));
+                }
+            }
+        } else {
+            logger.error("Test Step attachments are not created in Rally for TestCase OID " + rallyTestcaseOID);
+        }
+    }
 }
