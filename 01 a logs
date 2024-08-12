@@ -208,3 +208,34 @@ private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCa
         System.out.println("Test step not found or error occurred.");
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ // Now migrate the test step attachments
+            migrateTestStepAttachments(jiraJson, restApi, testCaseRef);
+        } else {
+            System.out.println("Error occurred creating test case:");
+            for (String error : createResponse.getErrors()) {
+                System.out.println(error);
+            }
+        }
+    } finally {
+        // Release resources
+        restApi.close();
+    }
+}
