@@ -1,243 +1,42 @@
-package com.optum.coe.automation.rally;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.http.HttpEntity;
-import org.apache.http.ParseException;
-import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-public class JiraOperation {
-    private String jiraBaseURL;
-    private String jiraApiKey;
-    private String jiraProjectKey;
-    private String max_chunk;
-    private String tcFileAttachmentDownloadLocation;
-    private static String tsFileAttachmentDownloadLocation;
-    private static final Logger logger = LogManager.getLogger();
-
-    public JiraOperation() {
-        jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
-        jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
-        jiraProjectKey = ConfigLoader.getConfigValue("JIRA_PROJECT_KEY");
-        max_chunk = ConfigLoader.getConfigValue("MAX_VALUE_CHUNK");
-        tcFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_CASE_FILE_ATTACHMENT_LOCATION");
-        tsFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
-        logger.info("Jira values for the project key " + jiraProjectKey + " are assigned from rally_migration_config.properties file");
-        logger.log(Level.getLevel("VERBOSE"),
-                "Below are the values assigned from rally_migration_config.properties file. \nJira Base URL - "
-                        + jiraBaseURL + "\nJira Project Key " + jiraProjectKey + "\nMax Chunk value - " + max_chunk
-                        + "\nTest Case File Attachment Download location - " + tcFileAttachmentDownloadLocation
-                        + "\nTest Step File Attachment location - " + tsFileAttachmentDownloadLocation);
-    }
-
-    public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
-        ArrayList<String> testCaseKeys = new ArrayList<>();
-        String encodedKey = null;
-        try {
-            encodedKey = java.net.URLEncoder.encode(
-                    "projectKey = " + jiraProjectKey
-                            + " AND \"Migrate Test to Rally\" = true AND \"TestCase Migrated\" = false",
-                    java.nio.charset.StandardCharsets.UTF_8.toString());
-        } catch (Exception e) {
-            logger.error("Error while encoding a part of URL ", e);
-            return testCaseKeys;
-        }
-
-        String url = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=" + max_chunk + "&query="
-                + encodedKey;
-        logger.info("String URL to get non-migrated testcase keys from Jira: " + url);
-
-        HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-        if (response != null) {
-            String result = null;
-            try {
-                result = EntityUtils.toString(response);
-                if (result == null || result.trim().isEmpty()) {
-                    logger.error("Empty or null response received from Jira for non-migrated test case keys.");
-                    return testCaseKeys;
-                }
-                JSONArray jsonArray = new JSONArray(result);
-                for (int i = 0; i < jsonArray.length(); i++) {
-                    JSONObject jsonObject = jsonArray.getJSONObject(i);
-                    String key = jsonObject.getString("key");
-                    logger.info("Key retrieved: " + key);
-                    testCaseKeys.add(key);
-                }
-            } catch (ParseException | IOException e) {
-                logger.error("Error while parsing the JSON response ", e);
-            }
-        } else {
-            logger.error("Response is NULL while retrieving non-migrated keys from Jira.");
-        }
-        return testCaseKeys;
-    }
-
-    // Other methods as in the previous implementation...
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-package com.optum.coe.automation.rally;
-
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import com.google.gson.JsonObject;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.rallydev.rest.RallyRestApi;
-import java.net.URI;
-
-public class RunnerClass {
-
-    // Logger Initialization for Runner Class
-    private static final Logger logger = LogManager.getLogger();
-
-    // Main method
-    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
-        Gson gson = new Gson();
-        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
-
-        JiraTestCase jiraTestCase = new JiraTestCase();
-        JiraOperation jiraOperation = new JiraOperation();
-
-        // Fetch Jira response
-        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-
-        if (testcaseKeys.isEmpty()) {
-            logger.error("No non-migrated test case keys found. Exiting process.");
-            return;
-        }
-
-        for (String key : testcaseKeys) {
-            boolean rallyTestcaseCreationStatus = false;
-            boolean rallyOverallTestStepAttachmentsStatus = false;
-            jiraTestCase.setKey(key);
-            logger.info("Processing " + jiraTestCase.getKey());
-            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-            RallyOperation rallyOperation = new RallyOperation();
-
-            if (jiraTestcaseJson == null) {
-                logger.error("Failed to retrieve test case details for key: " + jiraTestCase.getKey());
-                continue; // Skip this test case and continue with the next one
-            }
-
-            // Download attachments from Jira for the TestCase level and TestStep level
-            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
-
-            // Create Rally TestCase
-            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
-
-            if (rallyTestcaseOID != null) {
-                rallyTestcaseCreationStatus = true;
-            } else {
-                logger.error("Test case is not created in Rally for the key " + jiraTestCase.getKey());
-                continue; // Skip this test case if it couldn't be created
-            }
-
-            // List to store all attachment OIDs for referencing in TestSteps
-            List<String> testcaseAttachmentOIDs = new ArrayList<>();
-
-            // Attach files at the TestCase level
-            if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
-                logger.info("Attachment paths are found for the TestCase level.");
-                testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-                if (!testcaseAttachmentOIDs.isEmpty()) {
-                    rallyOverallTestStepAttachmentsStatus = true;
-                } else {
-                    logger.error("The attachments for TestCase key " + jiraTestCase.getKey() + " are not uploaded to Rally.");
-                    continue; // Skip further processing if attachments couldn't be uploaded
-                }
-            } else {
-                logger.info("No Attachment path found for TestCase level.");
-            }
-
-            // Handle Test Step File Attachments and Embedded Attachments
-            Map<Integer, List<String>> stepAttachmentOIDsMap = new HashMap<>();
-
-            if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                logger.info("Test Step file attachments paths are found.");
-                addAttachmentsToStepMap(jiraTestcaseJson, fileAttachmentDownloadPathsTestStepLevel, stepAttachmentOIDsMap, rallyTestcaseOID, rallyOperation);
-            } else {
-                logger.info("No file attachment paths found for Test Step level.");
-            }
-
-            if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                logger.info("Test Step embedded attachments paths are found.");
-                addAttachmentsToStepMap(jiraTestcaseJson, embeddedAttachmentDownloadPathsTestStepLevel, stepAttachmentOIDsMap, rallyTestcaseOID, rallyOperation);
-            } else {
-                logger.info("No embedded attachment paths found for Test Step level.");
-            }
-
-            // Retrieve the steps and migrate them
-            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-            List<JiraTestStep> testSteps = new ArrayList<>();
-
-            for (JsonElement element : stepsArray) {
-                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
-                testSteps.add(step);
-            }
-
-            // Migrate Test Steps to Rally with their respective attachments
-            rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, stepAttachmentOIDsMap);
-
-            // Logging the overall result
-            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                logger.info("Rally TestCase creation and TestStep attachment upload completed successfully for key: " + jiraTestCase.getKey());
-            } else {
-                logger.error("Rally TestCase creation or TestStep attachment upload failed for key: " + jiraTestCase.getKey());
-            }
-
-            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                // Call method to update "TestCase Migrated" and "Test Folder Migrated" check boxes in Jira
-                // jiraOperation.updateJiraTestCaseStatus(jiraTestCase.getKey());
-            }
-        }
-    }
-
-    private static void addAttachmentsToStepMap(JsonObject jiraTestcaseJson, List<String> attachmentPaths, Map<Integer, List<String>> stepAttachmentOIDsMap, String rallyTestcaseOID, RallyOperation rallyOperation) {
-        List<String> attachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, attachmentPaths);
-        Utils.deleteAttachmentFileFromLocal(attachmentPaths);
-        if (!attachmentOIDs.isEmpty()) {
-            // Assume that attachments belong to specific test steps based on their order or name
-            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-            for (int i = 0; i < stepsArray.size(); i++) {
-                if (stepAttachmentOIDsMap.containsKey(i)) {
-                    stepAttachmentOIDsMap.get(i).addAll(attachmentOIDs);
-                } else {
-                    stepAttachmentOIDsMap.put(i, new ArrayList<>(attachmentOIDs));
-                }
-            }
-        } else {
-            logger.error("Test Step attachments are not created in Rally for TestCase OID " + rallyTestcaseOID);
-        }
-    }
-}
+2024-08-11 21:46:11.554 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key RALLY_BASE_URL loaded with value: https://rally1.rallydev.com
+2024-08-11 21:46:11.555 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key RALLY_API_KEY loaded with value: _UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk
+2024-08-11 21:46:11.588 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_BASE_URL loaded with value: https://jira.healthcareit.net
+2024-08-11 21:46:11.588 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_API_TOKEN loaded with value: NjkzMzI2MjUyMTAxOjheeHwL8gYnhul3HZo2HojKKY1R
+2024-08-11 21:46:11.588 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key JIRA_PROJECT_KEY loaded with value: CC2
+2024-08-11 21:46:11.588 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key MAX_VALUE_CHUNK loaded with value: 1
+2024-08-11 21:46:11.588 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key TEST_CASE_FILE_ATTACHMENT_LOCATION loaded with value: C:attachments
+2024-08-11 21:46:11.588 [main] INFO  com.optum.coe.automation.rally.ConfigLoader - Config key TEST_STEP_FILE_ATTACHMENT_LOCATION loaded with value: C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-11 21:46:11.588 [main] INFO  com.optum.coe.automation.rally.JiraOperation - Jira values for the project key CC2 are assigned from rally_migration_config.properties file
+2024-08-11 21:46:11.588 [main] VERBOSE com.optum.coe.automation.rally.JiraOperation - Below are the values assigned from rally_migration_config.properties file. 
+Jira Base URL - https://jira.healthcareit.net
+Jira Project Key CC2
+Max Chunk value - 1
+Test Case File Attachment Download location - C:attachments
+Test Step File Attachment location - C:UsersaalchalaDocumentsThinaRallyMigrationattachmentsTestStep_Attachments
+2024-08-11 21:46:11.589 [main] INFO  com.optum.coe.automation.rally.JiraOperation - String URL to get non-migrated testcase keys from Jira: https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-11 21:46:12.448 [main] INFO  com.optum.coe.automation.rally.Utils - Successfully returned HttpEntity response for the URL https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=1&query=projectKey+%3D+CC2+AND+%22Migrate+Test+to+Rally%22+%3D+true+AND+%22TestCase+Migrated%22+%3D+false
+2024-08-11 21:46:12.451 [main] ERROR com.optum.coe.automation.rally.JiraOperation - Error while parsing the JSON response 
+org.apache.http.ConnectionClosedException: Premature end of chunk coded message body: closing chunk expected
+	at org.apache.http.impl.io.ChunkedInputStream.getChunkSize(ChunkedInputStream.java:263) ~[httpcore-4.4.13.jar:4.4.13]
+	at org.apache.http.impl.io.ChunkedInputStream.nextChunk(ChunkedInputStream.java:222) ~[httpcore-4.4.13.jar:4.4.13]
+	at org.apache.http.impl.io.ChunkedInputStream.read(ChunkedInputStream.java:147) ~[httpcore-4.4.13.jar:4.4.13]
+	at org.apache.http.conn.EofSensorInputStream.read(EofSensorInputStream.java:118) ~[httpclient-4.5.13.jar:4.5.13]
+	at java.base/java.util.zip.CheckedInputStream.read(CheckedInputStream.java:59) ~[?:?]
+	at java.base/java.util.zip.GZIPInputStream.readUByte(GZIPInputStream.java:266) ~[?:?]
+	at java.base/java.util.zip.GZIPInputStream.readUShort(GZIPInputStream.java:258) ~[?:?]
+	at java.base/java.util.zip.GZIPInputStream.readHeader(GZIPInputStream.java:164) ~[?:?]
+	at java.base/java.util.zip.GZIPInputStream.<init>(GZIPInputStream.java:79) ~[?:?]
+	at java.base/java.util.zip.GZIPInputStream.<init>(GZIPInputStream.java:91) ~[?:?]
+	at org.apache.http.client.entity.GZIPInputStreamFactory.create(GZIPInputStreamFactory.java:61) ~[httpclient-4.5.13.jar:4.5.13]
+	at org.apache.http.client.entity.LazyDecompressingInputStream.initWrapper(LazyDecompressingInputStream.java:51) ~[httpclient-4.5.13.jar:4.5.13]
+	at org.apache.http.client.entity.LazyDecompressingInputStream.read(LazyDecompressingInputStream.java:69) ~[httpclient-4.5.13.jar:4.5.13]
+	at java.base/sun.nio.cs.StreamDecoder.readBytes(StreamDecoder.java:270) ~[?:?]
+	at java.base/sun.nio.cs.StreamDecoder.implRead(StreamDecoder.java:313) ~[?:?]
+	at java.base/sun.nio.cs.StreamDecoder.read(StreamDecoder.java:188) ~[?:?]
+	at java.base/java.io.InputStreamReader.read(InputStreamReader.java:177) ~[?:?]
+	at java.base/java.io.Reader.read(Reader.java:250) ~[?:?]
+	at org.apache.http.util.EntityUtils.toString(EntityUtils.java:227) ~[httpcore-4.4.13.jar:4.4.13]
+	at org.apache.http.util.EntityUtils.toString(EntityUtils.java:308) ~[httpcore-4.4.13.jar:4.4.13]
+	at com.optum.coe.automation.rally.JiraOperation.getJiraNonMigratedTestcaseKeys(JiraOperation.java:69) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:35) [classes/:?]
+2024-08-11 21:46:12.457 [main] ERROR com.optum.coe.automation.rally.RunnerClass - No non-migrated test case keys found. Exiting process.
