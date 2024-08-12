@@ -25,3 +25,31 @@ private static String uploadSimpleAttachmentToRally(RallyRestApi restApi, String
         return null;
     }
 }
+
+
+
+
+
+
+
+
+public static void main(String[] args) throws Exception {
+    RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_YourAPIKeyHere_");
+    restApi.setApplicationName("AttachmentUploadTest");
+
+    try {
+        String testCaseRef = "https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799083473551"; // Your test case reference
+
+        // Call the simplified method
+        String attachmentRef = uploadSimpleAttachmentToRally(restApi, testCaseRef);
+
+        if (attachmentRef != null) {
+            System.out.println("Successfully uploaded attachment: " + attachmentRef);
+        } else {
+            System.out.println("Failed to upload attachment.");
+        }
+    } finally {
+        restApi.close();
+    }
+}
+
