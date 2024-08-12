@@ -1,28 +1,28 @@
-The issue you're facing seems to be related to how the Rally API is interpreting the `Content` field of your attachment request. The error message indicates that Rally is attempting to parse the Base64 content as an object reference, which is incorrect behavior.
+Given that the same error persists, it appears that the issue is related to how the Rally API is processing the Base64-encoded content. Since all typical steps to ensure the proper encoding and format have been followed, it's possible that the issue lies in how the API is handling the request.
 
-### Diagnosing the Problem:
-1. **Incorrect Interpretation by the API**: The Rally API is misinterpreting the Base64-encoded string as an object reference.
-2. **Size Calculation**: The `Size` field should reflect the actual size of the file in bytes, not the length of the Base64-encoded string. 
+### Additional Troubleshooting Steps:
 
-### Solution Steps:
-1. **Ensure Correct `Size` Calculation**: The `Size` property should be the size of the original file in bytes, not the length of the Base64 string.
-2. **Recheck API Documentation**: Review the Rally API documentation to ensure all fields (`Artifact`, `Content`, `Name`, `ContentType`, and `Size`) are correctly defined and formatted.
-3. **Test with Minimal Content**: Try uploading a very minimal and simple file content to see if the Rally API accepts it.
+1. **Try a Different Content Type**:
+   - It's possible that the Rally API is not handling the `ContentType` as expected. Try using a different content type, such as `application/octet-stream`.
 
-### Adjusted Example:
+2. **Upload Without Base64 Encoding**:
+   - Rally's API might not require the `Content` to be Base64-encoded. Try sending the raw bytes instead of encoding them.
+
+### Example with Raw Content:
+
+Let's try uploading the content without Base64 encoding:
 
 ```java
-private static String uploadSimpleAttachmentToRally(RallyRestApi restApi, String testCaseRef) throws IOException {
-    // Simplified content for testing
+private static String uploadRawAttachmentToRally(RallyRestApi restApi, String testCaseRef) throws IOException {
+    // Content as a raw string (without Base64 encoding)
     String testContent = "This is a test file for Rally attachment upload.";
     byte[] fileContent = testContent.getBytes(); // Get the file content as bytes
-    String base64Content = Base64.getEncoder().encodeToString(fileContent);
 
     JsonObject attachment = new JsonObject();
     attachment.addProperty("Artifact", testCaseRef);
-    attachment.addProperty("Content", base64Content);
+    attachment.addProperty("Content", new String(fileContent));  // Use raw content instead of Base64
     attachment.addProperty("Name", "TestAttachment.txt");
-    attachment.addProperty("ContentType", "text/plain");
+    attachment.addProperty("ContentType", "text/plain");  // Try different content types if needed
     attachment.addProperty("Size", fileContent.length);  // Actual size in bytes of the file content
 
     // Debug: Print the attachment JSON object
@@ -45,7 +45,7 @@ private static String uploadSimpleAttachmentToRally(RallyRestApi restApi, String
 
 ### How to Call This:
 
-Replace your existing code with this minimal example and run it from your `main` method:
+Replace your existing code with this example and test it in your `main` method:
 
 ```java
 public static void main(String[] args) throws Exception {
@@ -55,8 +55,8 @@ public static void main(String[] args) throws Exception {
     try {
         String testCaseRef = "https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799083473551"; // Your test case reference
 
-        // Call the simplified method
-        String attachmentRef = uploadSimpleAttachmentToRally(restApi, testCaseRef);
+        // Call the raw content method
+        String attachmentRef = uploadRawAttachmentToRally(restApi, testCaseRef);
 
         if (attachmentRef != null) {
             System.out.println("Successfully uploaded attachment: " + attachmentRef);
@@ -69,9 +69,11 @@ public static void main(String[] args) throws Exception {
 }
 ```
 
-### Important Considerations:
-- **File Size**: The `Size` field should reflect the original file's size, not the length of the Base64 string.
-- **Base64 Encoding**: Make sure the Base64 content is fully encoded and accurately represents the file.
+### Notes:
+- **Raw Content**: If Rally's API does not expect Base64-encoded content, sending the raw bytes might resolve the issue.
+- **Content-Type**: Consider testing different content types (e.g., `application/octet-stream`) if `text/plain` doesn't work.
 
-### Next Steps:
-- If this minimal example fails with the same error, the issue might be related to how Rally's API is processing the `Content` field. In that case, contacting Rally's support for clarification on the expected format or potential API issues might be necessary.
+### Last Resort:
+- **Contact Rally Support**: If this still does not work, it's advisable to contact Rally's support. They may have specific requirements or known issues with attachment uploads that aren't immediately clear from the documentation.
+
+This troubleshooting process should help determine if the problem is with how the API expects the content or if there's an underlying issue with Rally's API itself.
