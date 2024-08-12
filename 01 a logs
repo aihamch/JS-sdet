@@ -26,6 +26,18 @@ public class RallyOperation {
         }
     }
 
+    // Method to verify that an object exists in Rally
+    private boolean checkObjectExists(String objectType, String oid, RallyRestApi rallyRestApi) {
+        try {
+            GetRequest getRequest = new GetRequest("/" + objectType + "/" + oid);
+            GetResponse getResponse = rallyRestApi.get(getRequest);
+            return getResponse.wasSuccessful();
+        } catch (Exception e) {
+            logger.error("Error while checking existence of " + objectType + " with OID " + oid, e);
+            return false;
+        }
+    }
+
     // Updated method to move attachments to test step
     private void moveAttachmentsToTestStep(String rallyTestStepFullUrl, List<String> attachmentOIDs, RallyRestApi rallyRestApi) {
         // Extract the test step OID from the full URL
@@ -35,12 +47,24 @@ public class RallyOperation {
             return;
         }
 
+        // Verify that the test step exists in Rally
+        if (!checkObjectExists("testcasestep", rallyTestStepOID, rallyRestApi)) {
+            logger.error("Test step with OID " + rallyTestStepOID + " does not exist in Rally.");
+            return;
+        }
+
         for (String attachmentFullUrl : attachmentOIDs) {
             try {
                 // Extract the OID from the full URL
                 String attachmentOID = extractOID(attachmentFullUrl);
                 if (attachmentOID == null) {
                     logger.error("Failed to extract OID from the attachment URL: " + attachmentFullUrl);
+                    continue;
+                }
+
+                // Verify that the attachment exists in Rally
+                if (!checkObjectExists("attachment", attachmentOID, rallyRestApi)) {
+                    logger.error("Attachment with OID " + attachmentOID + " does not exist in Rally.");
                     continue;
                 }
 
@@ -76,6 +100,6 @@ public class RallyOperation {
             }
         }
     }
-    
+
     // Other methods in RallyOperation class...
 }
