@@ -1,3 +1,18 @@
+The error you're seeing occurs because the Rally API is expecting a valid reference (usually a URL or a specific format string) for certain fields, but it received an invalid string or incorrectly formatted data.
+
+### Debugging Steps:
+
+1. **Check the Data Being Sent**: Ensure that the data you are sending to the Rally API for attachment creation is correctly formatted and contains valid information.
+
+2. **Base64 Encoding for Attachments**: If you're uploading a file, the `Content` field must contain the Base64 encoded string of the file data.
+
+3. **Valid References**: The `_ref` fields should contain valid references (URLs) pointing to existing Rally objects.
+
+### Update the Attachment Upload Logic:
+
+The issue might be related to how the attachment is being created. Below is an updated method that includes better error handling and validation:
+
+```java
 private static String uploadAttachmentToRally(File file, RallyRestApi restApi, String testCaseRef) throws IOException {
     if (file == null || !file.exists() || testCaseRef == null || testCaseRef.isEmpty()) {
         System.out.println("Invalid file or test case reference provided for attachment upload.");
@@ -27,5 +42,85 @@ private static String uploadAttachmentToRally(File file, RallyRestApi restApi, S
             System.out.println(error);
         }
         return null;
+    }
+}
+```
+
+### Key Points:
+
+1. **Validation**: The method now checks whether the `file` exists and if the `testCaseRef` is valid before attempting the upload.
+2. **Error Messages**: If there's an issue with the upload, the error messages returned by Rally are printed, which can help in diagnosing the problem.
+3. **Ensure Proper Data Format**: The `Content` field must be Base64 encoded, and the `Artifact` field should contain a valid Rally reference.
+
+### Conclusion:
+By ensuring that the data sent to the Rally API is properly formatted and valid, you can avoid errors related to parsing object references. If this still doesn't resolve the issue, the next step would be to closely inspect the specific error messages returned by the Rally API and verify that all fields required for the attachment creation are correctly populated.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+private static void migrateTestStepAttachments(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef, String baseUrl, String authToken) throws IOException {
+    // Ensure the Attachments folder exists
+    File attachmentFolder = new File("Attachments");
+    if (!attachmentFolder.exists()) {
+        attachmentFolder.mkdir();
+    }
+
+    JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+    if (testScript != null) {
+        JsonArray steps = testScript.getAsJsonArray("steps");
+        if (steps != null) {
+            for (JsonElement stepElement : steps) {
+                JsonObject step = stepElement.getAsJsonObject();
+
+                // Handle embedded attachments (images, etc.)
+                String description = "";
+                if (step.has("description") && !step.get("description").isJsonNull()) {
+                    description = step.get("description").getAsString();
+                }
+                List<File> downloadedAttachments = downloadEmbeddedAttachments(description, baseUrl, authToken);
+
+                // Handle file attachments (if any)
+                JsonArray attachmentArray = step.getAsJsonArray("attachments");
+                if (attachmentArray != null) {
+                    for (JsonElement attachmentElement : attachmentArray) {
+                        JsonObject attachmentObj = attachmentElement.getAsJsonObject();
+                        String fileUrl = attachmentObj.has("content") ? attachmentObj.get("content").getAsString() : "";
+                        String fileName = attachmentObj.has("filename") ? attachmentObj.get("filename").getAsString() : "";
+
+                        if (!fileUrl.isEmpty() && !fileName.isEmpty()) {
+                            // Download the attachment
+                            File file = downloadFile(baseUrl, fileUrl, fileName, authToken);
+                            downloadedAttachments.add(file);
+                        }
+                    }
+                }
+
+                // Upload attachments to Rally test case level
+                for (File file : downloadedAttachments) {
+                    // Use the uploadAttachmentToRally method here
+                    String attachmentRef = uploadAttachmentToRally(file, restApi, testCaseRef);
+
+                    // Now link this attachment to the specific test step
+                    if (attachmentRef != null) {
+                        linkAttachmentToTestStep(restApi, testCaseRef, step.get("index").getAsInt(), attachmentRef);
+                    }
+
+                    // Cleanup - delete the file after uploading
+                    if (file.exists()) {
+                        file.delete();
+                    }
+                }
+            }
+        }
     }
 }
