@@ -1,22 +1,27 @@
-Attachment JSON: {"Artifact":"https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799083473551","Content":"VGhpcyBpcyBhIHRlc3QgZmlsZSBmb3IgUmFsbHkgYXR0YWNobWVudCB1cGxvYWQu","Name":"TestAttachment.txt","ContentType":"text/plain","Size":48}
-Error occurred creating attachment:
-Response Errors: [Cannot parse object reference from "VGhpcyBpcyBhIHRlc3QgZmlsZSBmb3IgUmFsbHkgYXR0YWNobWVudCB1cGxvYWQu"]
-Response Warnings: [It is no longer necessary to append ".js" to WSAPI resources.]
-Failed to upload test file to test case level.
-Exception in thread "main" java.lang.IllegalStateException: Connection manager has been shut down
-	at org.apache.http.util.Asserts.check(Asserts.java:34)
-	at org.apache.http.impl.conn.BasicClientConnectionManager.assertNotShutdown(BasicClientConnectionManager.java:153)
-	at org.apache.http.impl.conn.BasicClientConnectionManager.getConnection(BasicClientConnectionManager.java:159)
-	at org.apache.http.impl.conn.BasicClientConnectionManager$1.getConnection(BasicClientConnectionManager.java:145)
-	at org.apache.http.impl.client.DefaultRequestDirector.execute(DefaultRequestDirector.java:417)
-	at org.apache.http.impl.client.AbstractHttpClient.doExecute(AbstractHttpClient.java:835)
-	at org.apache.http.impl.client.CloseableHttpClient.execute(CloseableHttpClient.java:72)
-	at org.apache.http.impl.client.CloseableHttpClient.execute(CloseableHttpClient.java:56)
-	at org.apache.http.impl.client.DecompressingHttpClient.execute(DecompressingHttpClient.java:164)
-	at org.apache.http.impl.client.DecompressingHttpClient.execute(DecompressingHttpClient.java:123)
-	at com.rallydev.rest.client.HttpClient.executeRequest(HttpClient.java:157)
-	at com.rallydev.rest.client.HttpClient.doRequest(HttpClient.java:145)
-	at com.rallydev.rest.client.ApiKeyClient.doRequest(ApiKeyClient.java:37)
-	at com.rallydev.rest.client.HttpClient.doPost(HttpClient.java:179)
-	at com.rallydev.rest.RallyRestApi.create(RallyRestApi.java:125)
-	at FoldersTestCase2.main(FoldersTestCase2.java:237)
+private static String uploadSimpleAttachmentToRally(RallyRestApi restApi, String testCaseRef) throws IOException {
+    // Simplified content for testing
+    String base64Content = "VGhpcyBpcyBhIHRlc3QgZmlsZSBmb3IgUmFsbHkgYXR0YWNobWVudCB1cGxvYWQu"; // This should be a valid Base64 string
+
+    JsonObject attachment = new JsonObject();
+    attachment.addProperty("Artifact", testCaseRef);
+    attachment.addProperty("Content", base64Content);
+    attachment.addProperty("Name", "TestAttachment.txt");
+    attachment.addProperty("ContentType", "text/plain");
+    attachment.addProperty("Size", base64Content.length());  // Size should be the length of the Base64 string or the original file content length
+
+    // Debug: Print the attachment JSON object
+    System.out.println("Attachment JSON: " + attachment.toString());
+
+    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
+
+    if (attachmentResponse.wasSuccessful()) {
+        return attachmentResponse.getObject().get("_ref").getAsString();
+    } else {
+        // Debugging output
+        System.out.println("Error occurred creating attachment:");
+        System.out.println("Response Errors: " + Arrays.toString(attachmentResponse.getErrors()));
+        System.out.println("Response Warnings: " + Arrays.toString(attachmentResponse.getWarnings()));
+        return null;
+    }
+}
