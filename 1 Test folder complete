@@ -1,29 +1,67 @@
-for (JiraTestStep step : testSteps) {
-    // Retrieve the attachments list and check if it's null or empty
-    List<JiraAttachment> attachments = step.getAttachments();
+public class RallyOperation {
 
-    if (attachments != null && !attachments.isEmpty()) {
-        for (JiraAttachment attachment : attachments) {
-            String filePath = attachment.getUrl(); // Assuming `getUrl()` returns the path to the file
+    // Method to create TestcaseStep with attachments in the correct field (Input or ExpectedResult)
+    public String createTestcaseStepWithAttachment(RallyRestApi rallyApi, String rallyTestcaseOID, JiraTestStep step, String attachmentOID, String attachmentField) throws IOException {
+        JsonObject testcaseStep = new JsonObject();
+        testcaseStep.addProperty("TestCase", "testcase/" + rallyTestcaseOID);
+        testcaseStep.addProperty("StepIndex", step.getIndex());
 
-            // Ensure the file path is not null or empty
-            if (filePath != null && !filePath.isEmpty()) {
-                String attachmentContentOID = rallyOperation.createAttachmentContent(rallyRestApi, filePath);
-                
-                if (attachmentContentOID != null) {
-                    String stepOID = rallyOperation.createTestcaseStepWithAttachment(rallyRestApi, rallyTestcaseOID, step, attachmentContentOID);
-                    
-                    if (stepOID == null) {
-                        logger.error("Failed to create TestcaseStep for step index " + step.getIndex());
-                    }
-                } else {
-                    logger.error("Failed to create attachment content for step index " + step.getIndex());
-                }
-            } else {
-                logger.warn("File path is null or empty for attachment in step index " + step.getIndex());
-            }
+        // Assigning values dynamically based on the determined attachment field
+        if ("Input".equals(attachmentField)) {
+            testcaseStep.addProperty("Input", step.getDescription() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+            testcaseStep.addProperty("ExpectedResult", step.getExpectedResult());
+        } else if ("ExpectedResult".equals(attachmentField)) {
+            testcaseStep.addProperty("Input", step.getDescription());
+            testcaseStep.addProperty("ExpectedResult", step.getExpectedResult() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
         }
-    } else {
-        logger.info("No attachments found for step index " + step.getIndex());
+
+        CreateRequest createRequest = new CreateRequest("TestcaseStep", testcaseStep);
+        CreateResponse createResponse = rallyApi.create(createRequest);
+
+        if (createResponse.wasSuccessful()) {
+            String stepOID = createResponse.getObject().get("_ref").getAsString();
+            logger.info("Successfully created TestcaseStep with OID: " + stepOID);
+            return stepOID;
+        } else {
+            logger.error("Error occurred while creating TestcaseStep: " + createResponse.getErrors());
+            return null;
+        }
+    }
+
+    // Method to determine if the attachment should be placed in Input or ExpectedResult
+    private String determineAttachmentField(JiraTestStep step, JiraAttachment attachment) {
+        // Logic to determine where the attachment should go based on Jira data
+        // You could base this on specific fields in the JiraTestStep or JiraAttachment classes
+
+        // Example logic (this would be customized based on how Jira attachments are associated):
+        if (step.getDescription() != null && step.getDescription().contains(attachment.getFileName())) {
+            return "Input";
+        } else if (step.getExpectedResult() != null && step.getExpectedResult().contains(attachment.getFileName())) {
+            return "ExpectedResult";
+        } else {
+            // Default to Input if unclear
+            return "Input";
+        }
+    }
+
+    // Method to create attachment content
+    public String createAttachmentContent(RallyRestApi rallyApi, String filePath) throws IOException {
+        byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
+        String encodedContent = Base64.getEncoder().encodeToString(fileContent);
+
+        JsonObject attachmentContent = new JsonObject();
+        attachmentContent.addProperty("Content", encodedContent);
+
+        CreateRequest createRequest = new CreateRequest("AttachmentContent", attachmentContent);
+        CreateResponse createResponse = rallyApi.create(createRequest);
+
+        if (createResponse.wasSuccessful()) {
+            String attachmentContentOID = createResponse.getObject().get("_ref").getAsString();
+            logger.info("Successfully created AttachmentContent with OID: " + attachmentContentOID);
+            return attachmentContentOID;
+        } else {
+            logger.error("Error occurred while creating AttachmentContent: " + createResponse.getErrors());
+            return null;
+        }
     }
 }
