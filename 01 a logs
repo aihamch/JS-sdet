@@ -1,55 +1,15 @@
-public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, List<String> fileAttachmentPaths, List<String> embeddedAttachmentPaths) {
-    List<String> uploadedAttachments = new ArrayList<>();
-
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseOID);
-            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex());
-
-            String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
-            newTestStep.addProperty("Input", inputField);
-
-            newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
-
-            if (embeddedAttachmentPaths != null && !embeddedAttachmentPaths.isEmpty()) {
-                for (String embeddedPath : embeddedAttachmentPaths) {
-                    if (!uploadedAttachments.contains(embeddedPath)) {
-                        String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                        if (attachmentURL == null) {
-                            logger.error("Failed to attach file: " + embeddedPath);
-                            continue;
-                        }
-
-                        String attachmentOID = extractOID(attachmentURL);
-                        if (attachmentOID == null) {
-                            logger.error("Failed to extract OID from attachment URL: " + attachmentURL);
-                            continue;
-                        }
-
-                        uploadedAttachments.add(embeddedPath);
-                        newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                    }
-                }
-            }
-
-            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-            CreateResponse createResponse = rallyApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String testStepURL = createResponse.getObject().get("_ref").getAsString();
-                String testStepOID = extractOID(testStepURL);
-                if (testStepOID != null) {
-                    logger.info("Successfully created test step with OID: " + testStepOID);
-                } else {
-                    logger.error("Failed to extract OID from created test step URL: " + testStepURL);
-                }
-            } else {
-                logger.error("Failed to create test step in Rally: " + Arrays.toString(createResponse.getErrors()));
-            }
-        } catch (IOException e) {
-            logger.error("Exception occurred while creating test step in Rally", e);
-        }
-    }
-}
+024-08-13 15:38:06.992 [main] INFO  com.optum.coe.automation.rally.Utils - File downloaded from Jira to testStepAttachmentLocation. File Name: 1_2__EmbeddedFile_expectedResult.png
+2024-08-13 15:38:06.992 [main] INFO  com.optum.coe.automation.rally.Utils - Attachments are dowloaded successfully
+2024-08-13 15:38:07.149 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Test case Custom fields value retrieved.
+2024-08-13 15:38:07.151 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Test case Automation Status value retrieved.
+2024-08-13 15:38:07.151 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Test case Objective value retrieved.
+2024-08-13 15:38:07.151 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Test case Pre-conditions value retrieved.
+2024-08-13 15:38:07.151 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Test case Estimated time value retrieved.
+2024-08-13 15:38:07.151 [main] INFO  com.optum.coe.automation.rally.Utils - Invalid folder name encountered: ''
+2024-08-13 15:38:07.623 [main] INFO  com.optum.coe.automation.rally.Utils - Subfolder already exists: https://rally1.rallydev.com/slm/webservice/v2.0/testfolder/798329264103
+2024-08-13 15:38:07.920 [main] ERROR com.optum.coe.automation.rally.Utils - Error occurred creating subfolder
+2024-08-13 15:38:07.922 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Folder /ConnectCenter/Release 5.8.6/ConnectCenter - FY22 iteration 21/CC2-9744 AuthRef Submit - x217 - dependent issues after Use Member For is  created successfully in Rally
+2024-08-13 15:38:08.328 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error occurred creating test case
+2024-08-13 15:38:08.328 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Could not read: Could not read referenced object null
+2024-08-13 15:38:08.329 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Closed rest api resource in finally block
+2024-08-13 15:38:08.329 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key CC2-T5
