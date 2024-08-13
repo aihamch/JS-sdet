@@ -1,292 +1,509 @@
 package com.optum.coe.automation.rally;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
-import java.util.Map;
-import org.apache.http.HttpEntity;
-import org.apache.http.ParseException;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.response.CreateResponse;
 
-public class JiraOperation {
+public class RallyOperation {
 
-    private String jiraBaseURL;
-    private String jiraApiKey;
-    private String jiraProjectKey;
-    private String max_chunk;
-    private String tcFileAttachmentDownloadLocation;
-    private static String tsFileAttachmentDownloadLocation;
-    private static final Logger logger = LogManager.getLogger();
-    private static final String tsEmbeddedAttachmentDownloadLocation = null;
+	// Initialization of the class member variables. This section can be updated in future if more member variables are added during integration if needed. 
+	private String rallyBaseURL;
+	private String rallyApiKey;
+	private String rallyProjectKey;
+	private String rallyUser;
+	private static  String[] CFList;
+	private static String key;
+	
+	// Logger Initialization for RallyOperation Class
+	private static final Logger logger = LogManager.getLogger();
+	
+	/* A Constructor loads the value from .properties file. These value will be loaded as soon as a object is created for this class.
+	 * Rally Base URL, Rally API Key, Rally Project Reference, Rally user are loaded from .properties file */
+	
+	public RallyOperation() {
+	
+		rallyBaseURL=ConfigLoader.getConfigValue("RALLY_BASE_URL");
+		rallyApiKey=ConfigLoader.getConfigValue("RALLY_API_KEY");
+		rallyProjectKey=ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
+		rallyUser=ConfigLoader.getConfigValue("RALLY_USER_REF");
+		CFList=ConfigLoader.getConfigValue("JIRA_CUSTOM_FIELDS").split(",");
+		logger.info("Rally values for the project key " + rallyProjectKey +" are assiged from rally_migration_config.properties file");
+		logger.log(Level.getLevel("VERBOSE"), "Below the values assigned from rally_migration_config.properties file. \nRally Base URL - " + rallyBaseURL + "\nRally Project Reference " + rallyProjectKey);
 
-    public JiraOperation() {
-        jiraBaseURL = ConfigLoader.getConfigValue("JIRA_BASE_URL");
-        jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
-        jiraProjectKey = ConfigLoader.getConfigValue("JIRA_PROJECT_KEY");
-        max_chunk = ConfigLoader.getConfigValue("MAX_VALUE_CHUNK");
-        tcFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_CASE_FILE_ATTACHMENT_LOCATION");
-        tsFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
-        logger.info("Jira values for the project key " + jiraProjectKey + " are assigned from rally_migration_config.properties file");
-        logger.log(Level.getLevel("VERBOSE"),
-                "Below are the values assigned from rally_migration_config.properties file. \nJira Base URL - "
-                        + jiraBaseURL + "\nJira Project Key " + jiraProjectKey + "\nMax Chunk value - " + max_chunk
-                        + "\nTest Case File Attachment Download location - " + tcFileAttachmentDownloadLocation
-                        + "\nTest Step File Attachment location - " + tsFileAttachmentDownloadLocation);
-    }
+	}
+	
+	
+	/* A method which handles below major functionalities
+	 * 1. Transform the Jira Testcase details to Rally Test variable
+	 * 2. Check if the Jira folder structure is available in Rally
+	 *      a. If folder structure is not available in rally, then create the same Jira folder structure in rally for the testcase 
+	 *      b. If folder structure is available in rally, no action is required 
+	 * 3. Create the testcase
+	 * 4. Log the testcase OID to the log file; This OID will be used while integrating TestStep, Attachments implementation for the testcase
+	 * 5. Returns a boolean value as true for a successful testcase creation in rally, else returns false */
+	
+	
+	public String createRallyTestcase(JsonObject jiraJson)  {
+		
+		//boolean status = false;
+		String rallyTestCaseOID = null;
+		// Create JSON object for rally Json and add rally project reference key
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", rallyProjectKey);
+        
+        // Create JSON object for testcase Json to add the rally testcase property
+        JsonObject testCase = new JsonObject();
+       
+        // Get testcase name from Jira Json body and add it to rally testcase as a property
+        JsonElement nameElement = jiraJson.get("name");
+        if (nameElement != null && !nameElement.isJsonNull()) {
+            testCase.addProperty("Name", nameElement.getAsString());
+        } else {
+            testCase.addProperty("Name", "Default Test Case Name - No TestCase name found in Jira"); // Give a default value if no name is found in Jira Json body
+        }
 
-    public ArrayList<String> getJiraNonMigratedTestcaseKeys() {
-        ArrayList<String> testCaseKeys = new ArrayList<>();
-        String encodedKey = null;
+        // Add method as Manual to rally testcase as a property
+        testCase.addProperty("Method", "Manual");
+
+        // Add priority value from Jira Json body to rally testcase as a property
+        JsonElement priorityElement = jiraJson.get("priority");
+        if (priorityElement != null && !priorityElement.isJsonNull()) {
+            String priority = priorityElement.getAsString();
+            if (priority.equalsIgnoreCase("High")) {
+                testCase.addProperty("Priority", "Critical");
+            }
+            else if (priority.equalsIgnoreCase("Normal")) {
+            	testCase.addProperty("Priority", "Important");
+            }
+			else if (priority.equalsIgnoreCase("Low")) {
+            	testCase.addProperty("Priority", "Useful");
+            }
+            else {
+                testCase.addProperty("Priority", "Useful");
+            }
+        }
+
+        // Add owner from config file to the rally testcase as a property
+        testCase.addProperty("Owner", "/user/" + rallyUser);
+
+        // Add status from Jira Json and add to the rally testcase as a property 
+        JsonElement statusElement = jiraJson.get("status");
+        if (statusElement != null && !statusElement.isJsonNull()) {
+            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        } else {
+            testCase.addProperty("Ready", false); // default value
+        }
+
+        // Add Custom Fields to Rally
+        String NstrValue;
+		try {
+			NstrValue = createCFNotes(jiraJson);
+	        testCase.addProperty("Notes", NstrValue);
+	        logger.info("Test case Custom fields value retrieved.");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			logger.error("Failed to retrieve Custom fields value.");
+		}
+        
+        // Add Automation Status
+        String aStatus;
+		try {
+			aStatus = createAutostatus(jiraJson);
+	        testCase.addProperty("c_AutomationStatus", aStatus);
+			logger.info("Test case Automation Status value retrieved.");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			logger.error("Failed to retrieve Automation Status value.");
+		}
+        
+        // Add TC Objective
+        String RTCObj;
+		try {
+			RTCObj = createTCObjectives(jiraJson);
+	        testCase.addProperty("Objective",RTCObj);
+			logger.info("Test case Objective value retrieved.");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			logger.error("Failed to retrieve Objectives value.");
+		}
+
+        // Add TC Pre-Conditions
+        String RTCpc;
+		try {
+			RTCpc = createTCPreConditions(jiraJson);
+	        testCase.addProperty("PreConditions",RTCpc);
+			logger.info("Test case Pre-conditions value retrieved.");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			logger.error("Failed to retrieve Pre-conditions value.");
+		}
+        
+        // Add Estimated Time 
+        String esTime;
+		try {
+			esTime = createEstimatedTime(jiraJson);
+	        testCase.addProperty("c_ExpectedTestDuration", esTime);
+			logger.info("Test case Estimated time value retrieved.");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			logger.error("Failed to retrieve Estimated-time-conditions value.");
+		}
+        
+        // Add tags - Need implementation as discussed in code review meeting
+        JsonArray tagsArray = new JsonArray();
+        JsonObject tagObject = new JsonObject();
+        tagObject.addProperty("_ref", "/tag/56011614555");
+        tagObject.addProperty("Name", "Billing and Eligibility");
+        tagsArray.add(tagObject);
+        testCase.add("Tags", tagsArray);
+
+        // Get folder hierarchy from JIRA response
+        String folderPath = jiraJson.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+
+        // Call a Util method to create test folder based on folder hierarchy
+        JsonObject testFolder = Utils.createTestFolder(folderHierarchy, rallyProjectKey , rallyBaseURL, rallyApiKey);
+        if (testFolder == null) {	
+        	logger.error("Failed to create or retrieve TestFolder during Testcase Creation process in Rally");
+        	return rallyTestCaseOID;// Exit the method or handle accordingly
+        } else logger.info("Folder " + folderPath + " is  created successfully in Rally");
+        
+        // Add TestFolder to the test case
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        rallyJson.add("testCase", testCase);
+
+        // Save the transformed JSON to a variable
+        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+        //System.out.println("Transformed JSON: " + rallyJsonString);
+
+        // Initialize Rally API
+        RallyRestApi restApi = null;
+		try {
+			restApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+		} catch (URISyntaxException e) {
+			logger.error("URI Sytntax error for the URL " + rallyBaseURL + ". Please check the URL." , e);
+		}
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+        // Extract values from JSON:
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
         try {
-            encodedKey = java.net.URLEncoder.encode(
-                    "projectKey = " + jiraProjectKey
-                            + " AND \"Migrate Test to Rally\" = true AND \"TestCase Migrated\" = false",
-                    StandardCharsets.UTF_8.toString());
-        } catch (UnsupportedEncodingException e) {
-            logger.error("Error while encoding a part of URL ", e);
-        }
-
-        String url = jiraBaseURL + "/rest/atm/1.0/testcase/search?fields=key&maxResults=" + max_chunk + "&query="
-                + encodedKey;
-        logger.info("String URL to get non-migrated testcase keys from Jira " + url);
-
-        HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-        if (response != null) {
-            String result = null;
-            try {
-                result = EntityUtils.toString(response);
-            } catch (ParseException | IOException e) {
-                logger.error("Error while parsing the Json response ", e);
+            // Create a new test case
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", rallyProjectKey);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+            newTestCase.addProperty("Notes", testCaseData.get("Notes").getAsString());
+            if(testCaseData.has("Objective")){
+            	newTestCase.addProperty("Objective", testCaseData.get("Objective").getAsString());
             }
-            JSONArray jsonArray = new JSONArray(result);
-            for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject jsonObject = jsonArray.getJSONObject(i);
-                String key = jsonObject.getString("key");
-                logger.info("Key retrieved: " + jsonObject.getString("key"));
-                testCaseKeys.add(key);
+            if(testCaseData.has("PreConditions")){
+            	newTestCase.addProperty("PreConditions", testCaseData.get("PreConditions").getAsString());
             }
-        } else {
-            logger.error("Response is NULL from while retrieving non-migrated keys from JIRA. Returning NULL");
-        }
-        return testCaseKeys;
-    }
-
-    public JsonObject getJiraTestCaseDetails(String key) {
-        JsonObject jiraJson = null;
-        String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
-        HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-        if (response != null) {
-            try {
-                String responseBody = EntityUtils.toString(response);
-                logger.info("Testcase details for the key " + key + ": " + responseBody);
-                jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
-            } catch (ParseException | IOException e) {
-                logger.error("Failed to retrieve JIRA testcase details for the key " + key, e);
+            if((ConfigLoader.getConfigValue("JIRA_PROJECT_KEY")).equalsIgnoreCase("CC2") && (testCaseData.has("c_AutomationStatus"))){
+                newTestCase.addProperty("c_AutomationStatus", testCaseData.get("c_AutomationStatus").getAsString());
             }
-        } else {
-            logger.error("Failed to get jira testcase details for the key " + key + "; Returning null");
-        }
-        return jiraJson;
-    }
+            if(testCaseData.has("c_ExpectedTestDuration")){
+                newTestCase.addProperty("c_ExpectedTestDuration",testCaseData.get("c_ExpectedTestDuration").getAsString());
+            }
 
-    public static List<String> downloadStepAttachments(JiraTestStep step) {
-        List<String> attachmentPaths = new ArrayList<>();
-
-        if (step == null) {
-            logger.warn("JiraTestStep is null.");
-            return attachmentPaths;
-        }
-
-        List<JiraAttachment> attachments = step.getAttachments();
-        if (attachments == null || attachments.isEmpty()) {
-            logger.warn("No attachments found for the test step.");
-            return attachmentPaths;
-        }
-
-        for (JiraAttachment attachment : attachments) {
-            try {
-                String downloadUrl = attachment.getUrl();
-                if (downloadUrl != null && !downloadUrl.isEmpty()) {
-                    String localPath = tsFileAttachmentDownloadLocation + "/" + attachment.getFileName();
-                    Utils.downloadFileFromUrl(downloadUrl, localPath);
-                    attachmentPaths.add(localPath);
-                } else {
-                    logger.warn("Download URL is null or empty for attachment: " + attachment.getFileName());
+            // Add Tags to the test case from the JSON file
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                JsonArray newTagsArray = new JsonArray();
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagRef);
+                    newTagsArray.add(newTagObject);
                 }
-            } catch (IOException e) {
-                logger.error("Failed to download attachment: " + attachment.getFileName(), e);
+                newTestCase.add("Tags", newTagsArray);
             }
-        }
 
-        return attachmentPaths;
-    }
+            // Add TestFolder to the test case from the JSON file
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
 
-    public List<String> jiraAttachmentsDownload(String testcaseKey, String testType, String attachmentType) {
-        List<String> fileAttachmentDownloadPaths = null;
-        String testAttachmentUrl = null;
-        if (testType.equals("testcase")) {
-            testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey + "/attachments";
-            logger.info("URL String for testcase attachments: " + testAttachmentUrl);
-        } else if (testType.equals("teststep") && attachmentType.equals("file")) {
-            testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey;
-            logger.info("URL String for teststep attachments: " + testAttachmentUrl);
-        } else if (testType.equals("teststep") && attachmentType.equals("embedded")) {
-            testAttachmentUrl = jiraBaseURL + "/rest/atm/1.0/testcase/" + testcaseKey;
-            logger.info("URL String for teststep attachments: " + testAttachmentUrl);
-        } else {
-            logger.error("Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
-            return null;
-        }
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = null;
+			try {
+				createResponse = restApi.create(createRequest);
+			} catch (IOException e) {
+				logger.error("IO exception during create request." , e);
+			}
 
-        HttpEntity response = Utils.getJiraResponse(testAttachmentUrl, jiraApiKey);
-        if (response != null) {
-            String result = null;
-            try {
-                result = EntityUtils.toString(response);
-                if (result.trim().isEmpty() || result.equals("{}") || result.equals("[]")) {
-                    logger.info("No Attachment URL found for the testcase key " + testcaseKey);
-                } else {
-                    logger.info("Attachment URL is found for the testcase key " + testcaseKey + "; JSON body: " + result);
-                    if (testType.equals("testcase")) {
-                        Map<String, String> testMap = Utils.pharseJsonGetAttachmentUrlAndName(result);
-                        fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromJiraTestCase(testMap,
-                                tcFileAttachmentDownloadLocation, jiraApiKey, testcaseKey);
-                    } else if (testType.equals("teststep") && attachmentType.equals("file")) {
-                        fileAttachmentDownloadPaths = Utils.downloadFileAttachmentFromTestStep(result, jiraApiKey,
-                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL);
-                    } else if (testType.equals("teststep") && attachmentType.equals("embedded")) {
-                        List<String> descriptionAttachmentDownloadPaths, testDataAttachmentDownloadPaths, expectedResultAttachmentDownloadPaths;
-                        descriptionAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "description");
-                        testDataAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "testData");
-                        expectedResultAttachmentDownloadPaths = Utils.downloadTestStepEmbeddedAttachments(result, jiraApiKey,
-                                tsFileAttachmentDownloadLocation, testcaseKey, jiraBaseURL, "expectedResult");
-                        descriptionAttachmentDownloadPaths.addAll(testDataAttachmentDownloadPaths);
-                        descriptionAttachmentDownloadPaths.addAll(expectedResultAttachmentDownloadPaths);
-                        fileAttachmentDownloadPaths = descriptionAttachmentDownloadPaths;
-                    } else {
-                        logger.error("Usage of jiraFileAttachmentsDownload is not correct. The argument value should be either testcase or teststep");
-                        return null;
-                    }
-                }
-            } catch (ParseException | IOException e) {
-                logger.error("Error while parsing the Json response ", e);
-            }
-        } else {
-            logger.error("Response is NULL while retrieving non-migrated keys from JIRA. Returning NULL");
-        }
-        return fileAttachmentDownloadPaths;
-    }
-
-    public List<String> downloadEmbeddedImages(JiraTestStep step) {
-        List<String> embeddedImageUrls = step.getEmbeddedImageUrls();
-        List<String> downloadedPaths = new ArrayList<>();
-        String jiraBaseUrl = ConfigLoader.getConfigValue("JIRA_BASE_URL");
-
-        if (embeddedImageUrls == null || embeddedImageUrls.isEmpty()) {
-            logger.warn("No embedded images found for the test step: " + step.getDescription());
-            return downloadedPaths;
-        }
-
-        for (String imageUrl : embeddedImageUrls) {
-            if (imageUrl != null && !imageUrl.isEmpty()) {
-                try {
-                    String fullUrl = imageUrl.startsWith("http") ? imageUrl : jiraBaseUrl + imageUrl.replace("../", "/");
-
-                    logger.info("Downloading image from URL: " + fullUrl);
-                    String filePath = Utils.downloadFileFromUrl(fullUrl, "C:attachments");
-                    if (filePath != null) {
-                        downloadedPaths.add(filePath);
-                        logger.info("Downloaded image to: " + filePath);
-                    } else {
-                        logger.error("Failed to download image from URL: " + fullUrl);
-                    }
-                } catch (Exception e) {
-                    logger.error("Exception while downloading image from URL: " + imageUrl, e);
-                }
+            if (createResponse.wasSuccessful()) {
+            	//status = true;
+            	rallyTestCaseOID = createResponse.getObject().get("_ref").getAsString();
+            	logger.info("Successfully created test case and the OID for created testcase: " + createResponse.getObject().get("_ref").getAsString());
+             	
             } else {
-                logger.warn("Encountered null or empty image URL.");
+            	logger.error("Error occurred creating test case");	
+                for (String error : createResponse.getErrors()) {
+                	logger.error(error);
+                }
             }
+            
+            
+        } finally {
+            // Release resources
+            try {
+				restApi.close();
+				logger.info("Closed rest api resource in finally block");
+			} catch (IOException e) {
+				logger.error("Error occurred while closing rest api resource at finally block" , e);
+			}
+            
         }
-        return downloadedPaths;
+         return rallyTestCaseOID;   
     }
-
-    public String downloadImage(String baseUrl, String relativeUrl) throws IOException {
-        try {
-            URL fullUrl = new URL(baseUrl + relativeUrl.replace("../", "/"));
-            String downloadedFilePath = Utils.downloadFileFromUrl(tsEmbeddedAttachmentDownloadLocation, tsEmbeddedAttachmentDownloadLocation);
-            return downloadedFilePath;
-        } catch (MalformedURLException e) {
-            logger.error("Failed to download embedded image from URL: " + relativeUrl, e);
-            return null;
+	
+	public static String createTCObjectives (JsonObject jiraJson) throws Exception{
+		Set<String> map = jiraJson.keySet();
+		if (map.contains("objective")) {
+			String jiraObj = jiraJson.get("objective").getAsString();
+			return jiraObj;
+		// System.out.println("jiraObj :" + jiraObj);
+		}
+		return null;
+	}
+	
+	public static String createTCPreConditions (JsonObject jiraJson) throws Exception{
+		Set<String> map = jiraJson.keySet();
+		if (map.contains("precondition")) {
+			String jiraPC = jiraJson.get("precondition").getAsString();
+			return jiraPC;
+		// System.out.println("jiraObj :" + jiraObj);
+		}
+		return null;
+	}
+	
+	public static String createEstimatedTime (JsonObject jiraJson) throws Exception{
+		Set<String> map = jiraJson.keySet();
+		String estiTime = new String();
+       	if (map.contains("estimatedTime"))
+       	{
+    		Integer millis = jiraJson.get("estimatedTime").getAsInt();
+    		if(millis != null && millis != 0)	
+    		{
+    			estiTime = String.format("%02d.%02d", 
+				    TimeUnit.MILLISECONDS.toHours(millis),
+				    TimeUnit.MILLISECONDS.toMinutes(millis) - 
+				    TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(millis)));
+    		}
+       	}
+		return estiTime;
+	}
+	
+	public static String createCFNotes(JsonObject jiraJson) throws Exception{
+		key=jiraJson.get("key").getAsString();
+	    StringBuilder nString = new StringBuilder();
+	    nString.append("Jira TC Created On: " + jiraJson.get("createdOn").getAsString() + "<br>");
+	    nString.append("Jira TC ID: " + key + "<br>");
+        String wUrl = JiraOperation.retrieveJWeblinks(key);
+        if (wUrl.length() > 0)
+        {
+        	nString.append("Web URL: " + wUrl + "<br>");
         }
-    }
+	    if (jiraJson.has("customFields")) 
+	    {
+	    	JsonObject CFields = (JsonObject) jiraJson.get("customFields");
+	        Set<String> map = CFields.keySet();
+	        for (String ele : CFList) {
+	       	if (map.contains(ele))
+	          	{
+	          		nString.append(ele + ": " +  CFields.get(ele).getAsString() + "<br>");
+	          	}
+	        }
+	    }
+	    return (nString.toString());
+	}
+	
+	public static String createAutostatus(JsonObject jiraJson) throws Exception{
+        String c_AutomationStatus = new String();
+	    if (jiraJson.has("customFields")) 
+	    {
+	    	JsonObject CFields = (JsonObject) jiraJson.get("customFields");
+	        Set<String> map = CFields.keySet();
+	        if (map.contains("Automation Status")) {
+	        	String AutoStatus = CFields.get("Automation Status").getAsString();	
+	            if (AutoStatus.equalsIgnoreCase("AutoBot Automated")) {
+	                c_AutomationStatus = "Automated";
+	            }
+	            else if (AutoStatus.equalsIgnoreCase("AutoBot Blocker")) {
+	                c_AutomationStatus = "To be Analyzed";
+	            }
+	            else if (AutoStatus.equalsIgnoreCase("AutoBot Inprogress")) {
+	                c_AutomationStatus = "Under Development";
+	            }
+	            else if (AutoStatus.equalsIgnoreCase("Automated Review")) {
+	                c_AutomationStatus = "Ready for Review";
+	            }
+	            else if (AutoStatus.equalsIgnoreCase("Automated Scheduled - P1")) {
+	                c_AutomationStatus = "Approved";
+	            }
+	            else if (AutoStatus.equalsIgnoreCase("Automated Target - P2")) {
+	                c_AutomationStatus = "Research for Automation";
+	            }
+	            else if (AutoStatus.equalsIgnoreCase("Automated Scheduled - P1")) {
+	                c_AutomationStatus = "Can Not Automate";
+	            }
+	            else
+	            {
+	            	c_AutomationStatus = null;
+	            }
+	        }
+	    }
+		return c_AutomationStatus;
+	}
 
-    public List<JiraTestStep> getTestSteps(String testCaseId) {
-        List<JiraTestStep> testSteps = new ArrayList<>();
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-
+	/* A method which is used to attach the files to rally testcase */
+	
+    public List<String> attachFilestoRallyTestcase(String rallyTestCaseOID , List<String> filePaths) {
+      	
+    	List<String> testcaseAttachmentOIDs = new ArrayList<String>(); // Initialize a list to get Attachment OIDs
+    	RallyRestApi rallyApi = null; // Initialize rally api object
+		try {
+			rallyApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+		} catch (URISyntaxException e) {
+			logger.error("Rally Base URL has some syntax error.",e );
+			testcaseAttachmentOIDs.clear();
+			return testcaseAttachmentOIDs;
+		
+		}
         try {
-            String url = jiraBaseURL + "/rest/api/2/issue/" + testCaseId + "/teststeps";
-            HttpGet request = new HttpGet(url);
-            request.addHeader("Authorization", "Basic " + jiraApiKey);
-
-            CloseableHttpResponse response = (CloseableHttpResponse) httpClient.execute(request);
-            String jsonResponse = EntityUtils.toString(response.getEntity());
-
-            JSONObject jsonObject = new JSONObject(jsonResponse);
-            JSONArray stepsArray = jsonObject.getJSONArray("testSteps");
-
-            logger.info("URL used to fetch test steps: " + url);
-            logger.info("Number of teststeps retrieved: " + stepsArray.length());
-
-            for (int i = 0; i < stepsArray.length(); i++) {
-                JSONObject stepJson = stepsArray.getJSONObject(i);
-                JiraTestStep step = new JiraTestStep();
-                step.setId(stepJson.getInt("id"));
-                step.setDescription(stepJson.getString("description"));
-                step.setExpectedResult(stepJson.getString("expectedResult"));
-                step.setIndex(stepJson.getInt("index"));
-                step.setTestData(stepJson.getString("testData"));
-                testSteps.add(step);
+           
+            for (String filePath : filePaths) {  // Loop through each local file path where file attachment resides and attach them using attachFileToRallyTestCase method
+                try {
+                	String testcaseAttachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
+                	if (testcaseAttachmentOID != null ) {
+                		testcaseAttachmentOIDs.add(testcaseAttachmentOID);
+                	} else {
+                		testcaseAttachmentOIDs.clear();
+                		logger.error("Error occurred while trying to attach the files to rally");
+                		return testcaseAttachmentOIDs;
+                	}
+					logger.info("File " + filePath + " is attached for the testcase OID " + rallyTestCaseOID + " in Rally successfully");
+				} catch (IOException e) {
+					testcaseAttachmentOIDs.clear();
+					logger.error("File " + filePath + " is not attached to Rally due to IO exception.",e );
+					return testcaseAttachmentOIDs;
+				}
             }
-
-            logger.info("Fetched " + testSteps.size() + " test steps for test case ID: " + testCaseId);
-
-        } catch (Exception e) {
-            logger.error("Error fetching test steps for test case ID: " + testCaseId, e);
         } finally {
             try {
-                httpClient.close();
-            } catch (Exception e) {
-                logger.error("Error closing HttpClient", e);
-            }
+				rallyApi.close(); // Close api resource
+			} catch (IOException e) {
+				logger.error("Ready API resource is not closed due to IO exception.",e );
+				
+			}
         }
-
-        return testSteps;
+    	return testcaseAttachmentOIDs; // return testcase attachment OID for further processing
+        
     }
+	
+    /* A method which is used to attach a specific file to rally testcase */
+    
+ 	public String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
+	    
+ 		byte[] fileContent = Files.readAllBytes(Paths.get(filePath)); //Read the file and encode it in Base64
+	       String encodedContent = Base64.getEncoder().encodeToString(fileContent); 
+	       String ContentType = null;
+	       String attachmentType = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+	       // Handle all the attachment type
+	       if (attachmentType == "png" ) {
+	    	   ContentType = "image/png"; 
+	       } else if (attachmentType == "txt" ) { 
+	    	   ContentType = "text/plain"; 
+	       } else if (attachmentType == "jpeg" || attachmentType == "jpg" )   {  
+	    	   ContentType = "image/jpeg";  
+	       } else if (attachmentType == "xml")   {
+	    	   ContentType = "application/xml";
+	       } else if (attachmentType == "gif")   { 
+	    	   ContentType = "image/gif";
+	       } else if (attachmentType == "doc")   {
+	    	   ContentType = "application/msword";
+	       } else if (attachmentType == "docx")   {
+	    	   ContentType = "application/vnd.openxmlformats-officedocument.wordprocess-ingml.document";
+	       }  else if (attachmentType == "xls")   {
+	    	   ContentType = "application/vnd.ms-excel";
+	       } else if (attachmentType == "xlsx")   {
+	    	   ContentType = "application/vnd.openxmlformats-officedocument.spread-sheetml.sheet";
+	       } else if (attachmentType == "zip")   {
+	    	   ContentType = "application/zip";
+	       }
+	       
+	       //Create the AttachmentContent
+	       JsonObject attachmentContent = new JsonObject();
+	       attachmentContent.addProperty("Content", encodedContent);
+	       CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
+	       CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+	       if (!attachmentContentResponse.wasSuccessful()) {
+	           logger.error("Error creating AttachmentContent for file " + filePath + ": " + attachmentContentResponse.getErrors());
+	           return null;
+	       }
+	       String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+	       //Create the Attachment
+	       JsonObject attachment = new JsonObject();
+	       attachment.addProperty("Artifact", "/testcase/" + testCaseId); // Reference to the test case
+	       attachment.addProperty("Content", attachmentContentRef);
+	       attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
+	       attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
+	       attachment.addProperty("ContentType", ContentType);
+	       attachment.addProperty("Size", fileContent.length);
+	       CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+	       CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+	       if (attachmentResponse.wasSuccessful()) {
+	    	   logger.info("Attachment created successfully for file " + filePath + ": " + attachmentResponse.getObject().get("_ref").getAsString());
+	    	   return attachmentResponse.getObject().get("_ref").getAsString();
+	       } else {
+	    	   logger.error("Error creating Attachment for file " + filePath + ": " + attachmentResponse.getErrors());
+	    	   return null;
+	       }
+	   }
 
-    private String getFileNameFromUrl(String url) {
-        return url.substring(url.lastIndexOf('/') + 1);
-    }
 }
+
+	
+	
+	
+	
+	
+	
+	
