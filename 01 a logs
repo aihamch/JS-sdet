@@ -1,55 +1,104 @@
-public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, List<String> fileAttachmentPaths, List<String> embeddedAttachmentPaths) {
-    List<String> uploadedAttachments = new ArrayList<>();
+package com.optum.coe.automation.rally;
 
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseOID);
-            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex());
-            
-            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-            String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
-            newTestStep.addProperty("Input", inputField);
-            
-            // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
-            newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-            // Embed file attachments in the ExpectedResult or Input fields as needed
-            if (fileAttachmentPaths != null && !fileAttachmentPaths.isEmpty()) {
-                for (String filePath : fileAttachmentPaths) {
-                    if (!uploadedAttachments.contains(filePath)) {
-                        String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
-                        if (attachmentOID != null) {
-                            uploadedAttachments.add(filePath);
-                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                        }
-                    }
-                }
+public class JiraTestStep {
+    private static final Logger logger = LogManager.getLogger();
+    private int id;
+    private String description;
+    private String expectedResult;
+    private int index;
+    private String testData;
+    private List<JiraAttachment> attachments;
+
+    // Getter and Setter methods
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getExpectedResult() {
+        return expectedResult;
+    }
+
+    public void setExpectedResult(String expectedResult) {
+        this.expectedResult = expectedResult;
+    }
+
+    public int getIndex() {
+        return index;
+    }
+
+    public void setIndex(int index) {
+        this.index = index;
+    }
+
+    public String getTestData() {
+        return testData;
+    }
+
+    public void setTestData(String testData) {
+        this.testData = testData;
+    }
+
+    public List<JiraAttachment> getAttachments() {
+        return attachments;
+    }
+
+    public void setAttachments(List<JiraAttachment> attachments) {
+        this.attachments = attachments;
+    }
+
+    // New method to combine description and testData into a single step string
+    public String getStep() {
+        StringBuilder stepBuilder = new StringBuilder();
+
+        if (description != null && !description.isEmpty()) {
+            stepBuilder.append(description);
+        }
+
+        if (testData != null && !testData.isEmpty()) {
+            if (stepBuilder.length() > 0) {
+                stepBuilder.append("\n");
             }
+            stepBuilder.append(testData);
+        }
 
-            if (embeddedAttachmentPaths != null && !embeddedAttachmentPaths.isEmpty()) {
-                for (String embeddedPath : embeddedAttachmentPaths) {
-                    if (!uploadedAttachments.contains(embeddedPath)) {
-                        String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                        if (attachmentOID != null) {
-                            uploadedAttachments.add(embeddedPath);
-                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                        }
-                    }
-                }
+        return stepBuilder.toString();
+    }
+
+    // Method to extract embedded image URLs from the description, testData, and expectedResult
+    public List<String> getEmbeddedImageUrls() {
+        List<String> imageUrls = new ArrayList<>();
+        extractUrlsFromField(description, imageUrls);
+        extractUrlsFromField(testData, imageUrls);
+        extractUrlsFromField(expectedResult, imageUrls);
+        return imageUrls;
+    }
+
+    private void extractUrlsFromField(String field, List<String> imageUrls) {
+        if (field != null) {
+            Pattern pattern = Pattern.compile("\\.\\.\\/rest\\/tests\\/1\\.0\\/attachment\\/image\\/\\d+");
+            Matcher matcher = pattern.matcher(field);
+            while (matcher.find()) {
+                imageUrls.add(matcher.group());
             }
-
-            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-            CreateResponse createResponse = rallyApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                logger.info("Successfully created test step in Rally for TestCase: " + rallyTestCaseOID);
-            } else {
-                logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
-            }
-        } catch (IOException e) {
-            logger.error("Exception occurred while creating test step in Rally", e);
         }
     }
 }
