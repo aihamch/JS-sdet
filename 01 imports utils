@@ -1,3 +1,46 @@
+
+public List<String> jiraAttachmentsDownloadForStep(String testcaseKey, int stepNumber, String attachmentType) {
+    List<String> attachmentPaths = new ArrayList<>();
+
+    try {
+        // Fetching the Jira attachments for the specific test step
+        getJiraTestStepAttachments(testcaseKey, stepNumber); 
+
+        // Assuming that `Utils.downloadFileAttachmentFromJiraTestCase` is the method for downloading attachments
+        String downloadLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
+        String jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_TOKEN");
+
+        // Assuming `getJiraTestStepAttachments` internally handles downloading of attachments to a specific location
+        attachmentPaths = Utils.downloadFileAttachmentFromJiraTestCase(attachmentMap, downloadLocation, jiraApiKey, testcaseKey);
+
+    } catch (IOException e) {
+        logger.error("Error while downloading attachments for TestCase " + testcaseKey + " at step " + stepNumber, e);
+    }
+
+    return attachmentPaths;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.util.EntityUtils;
