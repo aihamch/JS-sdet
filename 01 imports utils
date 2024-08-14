@@ -5,8 +5,12 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import com.google.gson.JsonObject;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -33,19 +37,6 @@ public class RunnerClass {
             logger.info("Processing " + jiraTestCase.getKey());
             JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
             
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
             RallyOperation rallyOperation = new RallyOperation();
 
             // Download and attach testcase level attachments
@@ -64,20 +55,28 @@ public class RunnerClass {
 
             // Handle Test Step Attachments
             List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
 
+            // Create a map to hold the embedded attachments for each step
+            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<>();
             JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
             List<JiraTestStep> testSteps = new ArrayList<>();
 
-            for (JsonElement element : stepsArray) {
+            for (int i = 0; i < stepsArray.size(); i++) {
+                JsonElement element = stepsArray.get(i);
                 JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
                 testSteps.add(step);
+
+                // Download and map embedded attachments for the current test step
+                List<String> embeddedAttachmentPaths = jiraOperation.jiraAttachmentsDownloadForStep(jiraTestCase.getKey(), i + 1, "embedded");
+                if (!embeddedAttachmentPaths.isEmpty()) {
+                    embeddedAttachmentsMap.put(i + 1, embeddedAttachmentPaths);
+                }
             }
 
-            rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, fileAttachmentDownloadPathsTestStepLevel, embeddedAttachmentDownloadPathsTestStepLevel);
+            rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, fileAttachmentDownloadPathsTestStepLevel, embeddedAttachmentsMap);
 
             Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
-            Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
+            embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
         }
     }
 }
