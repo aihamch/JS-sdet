@@ -1,71 +1,255 @@
-public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
-    Set<String> processedAttachments = new HashSet<>();
-
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseOID);
-            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
-            
-            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-            String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
-            newTestStep.addProperty("Input", inputField);
-            
-            // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
-            newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
-
-            // Handle embedded attachments specific to this test step
-            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
-            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
-                for (String embeddedPath : stepEmbeddedAttachments) {
-                    if (!processedAttachments.contains(embeddedPath)) {
-                        // Extract the filename from the full path
-                        String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
-                        String[] attachmentParts = filename.split("_");
-
-                        if (attachmentParts.length > 0) {
-                            try {
-                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
-
-                                // Check if this attachment corresponds to the current step
-                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
-                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                                    String attachmentOID = extractOID(attachmentURL);
-                                    if (attachmentOID != null) {
-                                        // Determine whether the attachment belongs to Input or ExpectedResult
-                                        if (filename.contains("testData") || filename.contains("description")) {
-                                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Attachment added to Input field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
-                                        } else if (filename.contains("expectedResult")) {
-                                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Attachment added to Expected Result field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
-                                        } else {
-                                            logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
-                                        }
-                                    }
-                                    processedAttachments.add(embeddedPath);  // Mark this attachment as processed
-                                }
-                            } catch (NumberFormatException e) {
-                                logger.error("Failed to parse step number from attachment name: " + filename, e);
-                            }
-                        }
-                    }
-                }
-            }
-
-            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-            CreateResponse createResponse = rallyApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String testStepURL = createResponse.getObject().get("_ref").getAsString();
-                String testStepOID = extractOID(testStepURL);
-                logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
-            } else {
-                logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
-            }
-        } catch (IOException e) {
-            logger.error("Exception occurred while creating test step in Rally", e);
-        }
-    }
-}
+2024-08-14 16:13:19.533 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\4_1_EmbeddedFile_description.png
+java.lang.NumberFormatException: For input string: "C:attachments\4"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_description.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\2_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\2"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\2_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\2"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_1_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_2_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.537 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:19.538 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_2_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.034 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799302466409 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799302526497
+2024-08-14 16:13:20.034 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\4_1_EmbeddedFile_description.png
+java.lang.NumberFormatException: For input string: "C:attachments\4"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.034 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_description.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.034 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\2_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\2"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\2_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\2"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_1_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_2_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.035 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_2_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.256 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799302466457 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799302526497
+2024-08-14 16:13:20.490 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799302466505 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799302526497
+2024-08-14 16:13:20.490 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\4_1_EmbeddedFile_description.png
+java.lang.NumberFormatException: For input string: "C:attachments\4"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.490 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_description.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.490 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.490 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.490 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.491 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.491 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\2_1_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\2"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.491 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\2_2_EmbeddedFile_testData.png
+java.lang.NumberFormatException: For input string: "C:attachments\2"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.491 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_1_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.491 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\3_2_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\3"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.491 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_1_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
+2024-08-14 16:13:20.491 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to parse step number from attachment name: C:attachments\1_2_EmbeddedFile_expectedResult.png
+java.lang.NumberFormatException: For input string: "C:attachments\1"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:668) ~[?:?]
+	at java.base/java.lang.Integer.parseInt(Integer.java:786) ~[?:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:277) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:75) [classes/:?]
