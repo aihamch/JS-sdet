@@ -173,6 +173,91 @@ public class RunnerClass {
 }
 ```
 
+
+
+
+
+
+
+
+
+
+
+
+private Map<String, String> getJiraTestStepAttachments(String testcaseKey, int stepNumber, String attachmentType) {
+    Map<String, String> attachmentMap = new HashMap<>();
+    
+    try {
+        // Make an API call to get the test case details (including steps) from Jira
+        String jiraUrl = ConfigLoader.getConfigValue("JIRA_BASE_URL") + "/rest/api/latest/testcase/" + testcaseKey;
+        String jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_KEY");
+
+        // Fetch the JSON response for the test case
+        HttpEntity responseEntity = Utils.getJiraResponse(jiraUrl, jiraApiKey);
+        if (responseEntity != null) {
+            String jsonResponse = EntityUtils.toString(responseEntity);
+            JSONObject testCaseJson = new JSONObject(jsonResponse);
+
+            // Navigate to the specific step
+            JSONArray stepsArray = testCaseJson.getJSONObject("testScript").getJSONArray("steps");
+            if (stepNumber > 0 && stepNumber <= stepsArray.length()) {
+                JSONObject stepObject = stepsArray.getJSONObject(stepNumber - 1);
+
+                // Check if the step contains attachments
+                if (stepObject.has("attachments")) {
+                    JSONArray attachmentsArray = stepObject.getJSONArray("attachments");
+                    for (int i = 0; i < attachmentsArray.length(); i++) {
+                        JSONObject attachmentObject = attachmentsArray.getJSONObject(i);
+
+                        // Filter attachments based on the specified type (if needed)
+                        if (attachmentType.equalsIgnoreCase("file")) {
+                            // Example: Only include file attachments
+                            String fileUrl = attachmentObject.getString("url");
+                            String fileName = attachmentObject.getString("filename");
+                            attachmentMap.put(fileUrl, fileName);
+                        } else if (attachmentType.equalsIgnoreCase("embedded")) {
+                            // Example: Handle embedded images or other types of attachments
+                            String imageUrl = attachmentObject.getString("url");
+                            String imageName = attachmentObject.getString("filename");
+                            attachmentMap.put(imageUrl, imageName);
+                        }
+                    }
+                } else {
+                    logger.info("No attachments found for TestCase " + testcaseKey + " at step " + stepNumber);
+                }
+            } else {
+                logger.warn("Invalid step number: " + stepNumber + " for TestCase " + testcaseKey);
+            }
+        } else {
+            logger.error("Failed to get a valid response from Jira for TestCase " + testcaseKey);
+        }
+    } catch (Exception e) {
+        logger.error("Error while retrieving attachments for TestCase " + testcaseKey + " at step " + stepNumber, e);
+    }
+
+    return attachmentMap;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### Changes Explained:
 
 1. **Explicit Generic Types**: 
