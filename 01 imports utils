@@ -15,6 +15,10 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
             // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
             newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
 
+            // Add detailed logging for debugging
+            logger.debug("Processing Jira test step index: " + jiraTestStep.getIndex());
+            logger.debug("Expected attachments for this step: " + embeddedAttachmentsMap.get(jiraTestStep.getIndex()));
+            
             // Handle embedded attachments specific to this test step
             List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
             if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
@@ -28,6 +32,9 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                             try {
                                 // Extract the step number from the first part of the filename
                                 int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
+
+                                // Add detailed logging
+                                logger.debug("Attachment step number from filename: " + attachmentStepNumber);
 
                                 // Check if this attachment corresponds to the current step
                                 if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
@@ -46,6 +53,8 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                                         }
                                     }
                                     processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                                } else {
+                                    logger.debug("Attachment " + filename + " does not match the current step index " + (jiraTestStep.getIndex() + 1));
                                 }
                             } catch (NumberFormatException e) {
                                 logger.error("Failed to parse step number from attachment name: " + filename, e);
