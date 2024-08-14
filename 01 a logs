@@ -1,9 +1,11 @@
 public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
     for (JiraTestStep jiraTestStep : jiraTestSteps) {
         try {
+            int rallyStepIndex = jiraTestStep.getIndex() + 1;  // Adjust the index to start from 1 in Rally
+
             JsonObject newTestStep = new JsonObject();
             newTestStep.addProperty("TestCase", rallyTestCaseOID);
-            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
+            newTestStep.addProperty("StepIndex", rallyStepIndex);
             
             // Combine "Step" and "Test Data" fields into the "Input" field in Rally
             String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
@@ -23,17 +25,17 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                         String columnName = parts[3];
                         
                         // Ensure the attachment belongs to the current step based on the step number
-                        if (stepNumber == jiraTestStep.getIndex() + 1) {
+                        if (stepNumber == rallyStepIndex) {  // Ensure correct matching of steps
                             String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
                             String attachmentOID = extractOID(attachmentURL);
                             if (attachmentOID != null) {
                                 // Determine whether the attachment belongs to Input or ExpectedResult
                                 if (columnName.equalsIgnoreCase("Input") || columnName.equalsIgnoreCase("TestData") || columnName.equalsIgnoreCase("Step")) {
                                     newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                    logger.info("Attachment added to Input field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
+                                    logger.info("Attachment added to Input field for Test Step " + rallyStepIndex + ": " + embeddedPath);
                                 } else if (columnName.equalsIgnoreCase("ExpectedResult")) {
                                     newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                    logger.info("Attachment added to Expected Result field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
+                                    logger.info("Attachment added to Expected Result field for Test Step " + rallyStepIndex + ": " + embeddedPath);
                                 }
                             }
                         }
