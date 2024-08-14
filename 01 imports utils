@@ -1,3 +1,94 @@
+Since `jiraAttachmentsDownloadForStep` is undefined in your `JiraOperation` class, you'll need to create this method. This method should handle downloading attachments specific to a particular test step within a test case. Here’s how you could define it in your `JiraOperation` class:
+
+### Adding `jiraAttachmentsDownloadForStep` Method to `JiraOperation`
+
+```java
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class JiraOperation {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    // Existing methods...
+
+    public List<String> jiraAttachmentsDownloadForStep(String testcaseKey, int stepNumber, String attachmentType) {
+        List<String> attachmentPaths = new ArrayList<>();
+
+        try {
+            // Assume that `getJiraTestStepAttachments` is a method that retrieves the attachment URLs and names for a specific step
+            Map<String, String> attachmentMap = getJiraTestStepAttachments(testcaseKey, stepNumber, attachmentType);
+
+            // Download the attachments using the existing `downloadFileAttachmentFromJiraTestCase` method in `Utils` class
+            if (attachmentMap != null && !attachmentMap.isEmpty()) {
+                String downloadLocation = "testStepAttachmentLocation"; // Update this to your actual location
+                String jiraApiKey = ConfigLoader.getConfigValue("JIRA_API_KEY");
+                attachmentPaths = Utils.downloadFileAttachmentFromJiraTestCase(attachmentMap, downloadLocation, jiraApiKey, testcaseKey);
+            } else {
+                logger.info("No attachments found for TestCase " + testcaseKey + " at step " + stepNumber);
+            }
+        } catch (IOException e) {
+            logger.error("Error while downloading attachments for TestCase " + testcaseKey + " at step " + stepNumber, e);
+        }
+
+        return attachmentPaths;
+    }
+
+    // Placeholder method to simulate getting the attachment URLs and names for a specific step
+    private Map<String, String> getJiraTestStepAttachments(String testcaseKey, int stepNumber, String attachmentType) {
+        // Implement this method to return a map of attachment URLs and filenames for a specific test step
+        // You may need to interact with Jira's API to retrieve this information.
+        return null;
+    }
+
+    // Existing methods...
+}
+```
+
+### Explanation:
+
+1. **`jiraAttachmentsDownloadForStep` Method**:
+   - This method takes the `testcaseKey`, `stepNumber`, and `attachmentType` as parameters.
+   - It retrieves the attachments related to a specific test step by calling a method (like `getJiraTestStepAttachments`), which you will need to implement based on your Jira integration.
+   - It then downloads the attachments using the existing utility method `downloadFileAttachmentFromJiraTestCase` from your `Utils` class.
+
+2. **`getJiraTestStepAttachments` Method**:
+   - This is a placeholder method where you would implement the logic to retrieve the attachment URLs and names for a specific test step from Jira.
+   - Depending on your Jira setup, you might need to make API calls to fetch these details.
+
+### Next Steps:
+
+- Implement the `getJiraTestStepAttachments` method to fetch the attachment information from Jira.
+- Test the `jiraAttachmentsDownloadForStep` method to ensure it correctly downloads attachments for each test step.
+- Integrate this new method with your existing logic in the `RunnerClass`.
+
+This setup should allow you to handle downloading and mapping of attachments to their respective test steps without any mismatches.
+
+
+
+
+
+
+
+
+
+
+
+
+
+The error you're encountering ("cannot infer type arguments for HashMap") typically occurs when there's ambiguity or a mismatch in the generic types used when creating a `HashMap`. To resolve this issue, you'll need to ensure that you're explicitly specifying the types for the `HashMap` when you declare and initialize it.
+
+Here’s how you can update the code to fix this:
+
+### Updated Code:
+
+```java
 package com.optum.coe.automation.rally;
 
 import java.io.IOException;
@@ -57,7 +148,7 @@ public class RunnerClass {
             List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
 
             // Create a map to hold the embedded attachments for each step
-            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<>();
+            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<Integer, List<String>>();
             JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
             List<JiraTestStep> testSteps = new ArrayList<>();
 
@@ -80,3 +171,17 @@ public class RunnerClass {
         }
     }
 }
+```
+
+### Changes Explained:
+
+1. **Explicit Generic Types**: 
+   - When creating the `embeddedAttachmentsMap`, I've explicitly specified the types as `Map<Integer, List<String>>`. This ensures that the compiler knows exactly what types to expect and resolves the issue.
+   - Specifically, `new HashMap<Integer, List<String>>()` is used to explicitly define the types.
+
+### Additional Notes:
+
+- If the `jiraAttachmentsDownloadForStep` method or the logic to download embedded attachments for a specific step does not exist yet, you’ll need to implement that within your `JiraOperation` class.
+- Ensure that the types used in `migrateTestStepsWithAttachments` in `RallyOperation` match this new type signature.
+
+This should fix the type inference issue you encountered.
