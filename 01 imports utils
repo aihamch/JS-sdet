@@ -1,254 +1,69 @@
-2024-08-14 17:37:01.601 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\4_1_EmbeddedFile_description.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799306735785
-2024-08-14 17:37:01.601 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 3: C:attachments\4_1_EmbeddedFile_description.png
-2024-08-14 17:37:01.815 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799306735797 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799306683303
-2024-08-14 17:37:03.147 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_1_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799306735867
-2024-08-14 17:37:03.147 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 2: C:attachments\3_1_EmbeddedFile_testData.png
-2024-08-14 17:37:04.300 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_2_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799306735881
-2024-08-14 17:37:04.301 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 2: C:attachments\3_2_EmbeddedFile_testData.png
-2024-08-14 17:37:05.697 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_1_EmbeddedFile_expectedResult.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799306735895
-2024-08-14 17:37:05.697 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Expected Result field for Test Step 2: C:attachments\3_1_EmbeddedFile_expectedResult.png
-2024-08-14 17:37:06.843 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_2_EmbeddedFile_expectedResult.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799306735909
-2024-08-14 17:37:06.844 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Expected Result field for Test Step 2: C:attachments\3_2_EmbeddedFile_expectedResult.png
-2024-08-14 17:37:07.076 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799306735921 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799306683303
-2024-08-14 17:37:07.299 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799306735969 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799306683303
-2024-08-14 17:37:08.391 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\2_1_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799306736019
-2024-08-14 17:37:08.391 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 1: C:attachments\2_1_EmbeddedFile_testData.png
-2024-08-14 17:37:09.541 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\2_2_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799306736033
-2024-08-14 17:37:09.541 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 1: C:attachments\2_2_EmbeddedFile_testData.png
-2024-08-14 17:37:09.777 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799306736045 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799306683303
+for (JiraTestStep jiraTestStep : jiraTestSteps) {
+    try {
+        JsonObject newTestStep = new JsonObject();
+        newTestStep.addProperty("TestCase", rallyTestCaseOID);
+        newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
+        
+        // Combine "Step" and "Test Data" fields into the "Input" field in Rally
+        String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
+                            (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
+        newTestStep.addProperty("Input", inputField);
+        
+        // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
+        newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
 
-from this logs you can see that step 0 was not read and there for attachments that starts with 1 are not migrated 
+        // Handle embedded attachments specific to this test step
+        List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
+        if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
+            for (String embeddedPath : stepEmbeddedAttachments) {
+                if (!processedAttachments.contains(embeddedPath)) {
+                    // Extract the filename from the full path
+                    String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
+                    String[] attachmentParts = filename.split("_");
 
+                    if (attachmentParts.length > 0) {
+                        try {
+                            // Extract the step number from the first part of the filename
+                            int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
 
-here is my jiraTestStep calss 
-package com.optum.coe.automation.rally;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import java.util.List;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-
-
-
-
-
-//public class JiraTestStep {
-//    private static final Logger logger = LogManager.getLogger();
-//    
-//    private int id;
-//    private String description;
-//    private String expectedResult;
-//    private int index;
-//    private String testData;
-//    private List<JiraAttachment> attachments;
-//    private String input;
-//    private int stepIndex;
-//
-//    public String getInput() {
-//        return input;
-//    }
-//
-//    public void setInput(String input) {
-//        this.input = input;
-//    }
-//
-//    public String getExpectedResult() {
-//        return expectedResult;
-//    }
-//
-//    public void setExpectedResult(String expectedResult) {
-//        this.expectedResult = expectedResult;
-//    }
-//
-//    public int getStepIndex() {
-//        return stepIndex;
-//    }
-//
-//    public void setStepIndex(int stepIndex) {
-//        this.stepIndex = stepIndex;
-//    }
-//
-//    public List<JiraAttachment> getAttachments() {
-//        return attachments;
-//    }
-//
-//    public void setAttachments(List<JiraAttachment> attachments) {
-//        this.attachments = attachments;
-//    }
-//
-//    public int getId() {
-//        return id;
-//    }
-//
-//    public void setId(int id) {
-//        this.id = id;
-//    }
-//
-//    public String getDescription() {
-//        return description;
-//    }
-//
-//    public void setDescription(String description) {
-//        this.description = description;
-//    }
-//
-//    public String getExpectedresult() {
-//        return expectedResult;
-//    }
-//
-//    public void setExpectedresult(String expectedResult) {
-//        this.expectedResult = expectedResult;
-//    }
-//
-//    public int getIndex() {
-//        return index;
-//    }
-//
-//    public void setIndex(int index) {
-//        this.index = index;
-//    }
-//
-//    public String getTestdata() {
-//        return testData;
-//    }
-//
-//    public void setTestdata(String testData) {
-//        this.testData = testData;
-//    }
-//
-//    // Method to extract embedded image URLs from the description
-//    public List<String> getEmbeddedImageUrls() {
-//        List<String> imageUrls = new ArrayList<>();
-//        if (description != null) {
-//            // Regular expression to match image URLs
-//            String urlRegex = "(https?://[^\\s]+\\.(?:jpg|jpeg|png|gif))";
-//            Pattern pattern = Pattern.compile(urlRegex, Pattern.CASE_INSENSITIVE);
-//            Matcher matcher = pattern.matcher(description);
-//
-//            while (matcher.find()) {
-//                imageUrls.add(matcher.group());
-//            }
-//        }
-//
-//        // Log the extracted URLs for debugging
-//        if (imageUrls.isEmpty()) {
-//            logger.warn("No embedded images found in description: " + description);
-//        } else {
-//            logger.info("Found embedded images: " + imageUrls);
-//        }
-//
-//        return imageUrls;
-//    }
-//}
-
-
-
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-public class JiraTestStep {
-    private static final Logger logger = LogManager.getLogger();
-    private int id;
-    private String description;
-    private String expectedResult;
-    private int index;
-    private String testData;
-    private List<JiraAttachment> attachments;
-
-    // Getter and Setter methods
-    public int getId() {
-        return id;
-    }
-
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getExpectedResult() {
-        return expectedResult;
-    }
-
-    public void setExpectedResult(String expectedResult) {
-        this.expectedResult = expectedResult;
-    }
-
-    public int getIndex() {
-        return index;
-    }
-
-    public void setIndex(int index) {
-        this.index = index;
-    }
-
-    public String getTestData() {
-        return testData;
-    }
-
-    public void setTestData(String testData) {
-        this.testData = testData;
-    }
-
-    public List<JiraAttachment> getAttachments() {
-        return attachments;
-    }
-
-    public void setAttachments(List<JiraAttachment> attachments) {
-        this.attachments = attachments;
-    }
-
-    // New method to combine description and testData into a single step string
-    public String getStep() {
-        StringBuilder stepBuilder = new StringBuilder();
-
-        if (description != null && !description.isEmpty()) {
-            stepBuilder.append(description);
-        }
-
-        if (testData != null && !testData.isEmpty()) {
-            if (stepBuilder.length() > 0) {
-                stepBuilder.append("\n");
-            }
-            stepBuilder.append(testData);
-        }
-
-        return stepBuilder.toString();
-    }
-
-    // Method to extract embedded image URLs from the description, testData, and expectedResult
-    public List<String> getEmbeddedImageUrls() {
-        List<String> imageUrls = new ArrayList<>();
-        extractUrlsFromField(description, imageUrls);
-        extractUrlsFromField(testData, imageUrls);
-        extractUrlsFromField(expectedResult, imageUrls);
-        return imageUrls;
-    }
-
-    private void extractUrlsFromField(String field, List<String> imageUrls) {
-        if (field != null) {
-            Pattern pattern = Pattern.compile("\\.\\.\\/rest\\/tests\\/1\\.0\\/attachment\\/image\\/\\d+");
-            Matcher matcher = pattern.matcher(field);
-            while (matcher.find()) {
-                imageUrls.add(matcher.group());
+                            // Check if this attachment corresponds to the current step
+                            if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
+                                String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                                String attachmentOID = extractOID(attachmentURL);
+                                if (attachmentOID != null) {
+                                    // Determine whether the attachment belongs to Input or ExpectedResult
+                                    if (filename.contains("testData") || filename.contains("description")) {
+                                        newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                        logger.info("Attachment added to Input field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
+                                    } else if (filename.contains("expectedResult")) {
+                                        newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                        logger.info("Attachment added to Expected Result field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
+                                    } else {
+                                        logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+                                    }
+                                }
+                                processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                            }
+                        } catch (NumberFormatException e) {
+                            logger.error("Failed to parse step number from attachment name: " + filename, e);
+                        }
+                    }
+                }
             }
         }
+
+        CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
+        CreateResponse createResponse = rallyApi.create(createRequest);
+
+        if (createResponse.wasSuccessful()) {
+            String testStepURL = createResponse.getObject().get("_ref").getAsString();
+            String testStepOID = extractOID(testStepURL);
+            logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
+        } else {
+            logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
+        }
+    } catch (IOException e) {
+        logger.error("Exception occurred while creating test step in Rally", e);
     }
 }
+
