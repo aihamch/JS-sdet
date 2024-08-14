@@ -1,156 +1,47 @@
-package com.optum.coe.automation.rally;
+public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
+    for (JiraTestStep jiraTestStep : jiraTestSteps) {
+        try {
+            JsonObject newTestStep = new JsonObject();
+            newTestStep.addProperty("TestCase", rallyTestCaseOID);
+            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
+            
+            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
+            String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
+                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
+            newTestStep.addProperty("Input", inputField);
+            
+            // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
+            newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import com.google.gson.JsonObject;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-
-public class RallyOperation {
-
-    private static final Logger logger = LogManager.getLogger(RallyOperation.class);
-    private String rallyBaseURL;
-    private String rallyApiKey;
-    private String rallyProjectKey;
-    private String rallyUser;
-
-    public RallyOperation() {
-        rallyBaseURL = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-        rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-        rallyProjectKey = ConfigLoader.getConfigValue("RALLY_PROJECT_REF");
-        rallyUser = ConfigLoader.getConfigValue("RALLY_USER_REF");
-        logger.info("Rally values for the project key " + rallyProjectKey + " are assigned from rally_migration_config.properties file");
-    }
-
-    public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
-        for (JiraTestStep jiraTestStep : jiraTestSteps) {
-            try {
-                JsonObject newTestStep = new JsonObject();
-                newTestStep.addProperty("TestCase", rallyTestCaseOID);
-                newTestStep.addProperty("StepIndex", jiraTestStep.getIndex());
-                
-                // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-                String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                    (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
-                newTestStep.addProperty("Input", inputField);
-                
-                // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
-                newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
-
-                // Handle embedded attachments specific to this test step
-                List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
-                if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
-                    for (String embeddedPath : stepEmbeddedAttachments) {
-                        String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                        String attachmentOID = extractOID(attachmentURL);
-                        if (attachmentOID != null) {
-                                                    // Assuming the naming convention provided is used to distinguish Input vs ExpectedResult embedded files
-                            String columnName = embeddedPath.contains("_Input") ? "Input" : "ExpectedResult";
-                            String updatedField = newTestStep.get(columnName).getAsString() + 
-                                " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>";
-                            newTestStep.addProperty(columnName, updatedField);
+            // Handle embedded attachments specific to this test step
+            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
+            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
+                for (String embeddedPath : stepEmbeddedAttachments) {
+                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                    String attachmentOID = extractOID(attachmentURL);
+                    if (attachmentOID != null) {
+                        // Determine whether the attachment belongs to Input or ExpectedResult
+                        if (embeddedPath.contains("_Input")) {
+                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                        } else {
+                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
                         }
                     }
                 }
-
-                CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-                CreateResponse createResponse = rallyApi.create(createRequest);
-
-                if (createResponse.wasSuccessful()) {
-                    String testStepURL = createResponse.getObject().get("_ref").getAsString();
-                    String testStepOID = extractOID(testStepURL);
-                    logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
-                } else {
-                    logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
-                }
-            } catch (IOException e) {
-                logger.error("Exception occurred while creating test step in Rally", e);
             }
-        }
-    }
 
-    private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
-        byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
-        String encodedContent = Base64.getEncoder().encodeToString(fileContent);
+            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
+            CreateResponse createResponse = rallyApi.create(createRequest);
 
-        String contentType = determineContentType(filePath);
-
-        JsonObject attachmentContent = new JsonObject();
-        attachmentContent.addProperty("Content", encodedContent);
-
-        CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
-        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
-        if (!attachmentContentResponse.wasSuccessful()) {
-            logger.error("Error creating AttachmentContent for file " + filePath + ": " + attachmentContentResponse.getErrors());
-            return null;
-        }
-        String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
-
-        JsonObject attachment = new JsonObject();
-        attachment.addProperty("Artifact", "/testcase/" + testCaseId);
-        attachment.addProperty("Content", attachmentContentRef);
-        attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
-        attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
-        attachment.addProperty("ContentType", contentType);
-        attachment.addProperty("Size", fileContent.length);
-
-        CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-        CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
-        if (attachmentResponse.wasSuccessful()) {
-            logger.info("Attachment created successfully for file " + filePath + ": " + attachmentResponse.getObject().get("_ref").getAsString());
-            return attachmentResponse.getObject().get("_ref").getAsString();
-        } else {
-            logger.error("Error creating Attachment for file " + filePath + ": " + attachmentResponse.getErrors());
-            return null;
-        }
-    }
-
-    private String determineContentType(String filePath) {
-        String attachmentType = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
-        switch (attachmentType) {
-            case ".png":
-                return "image/png";
-            case ".txt":
-                return "text/plain";
-            case ".jpeg":
-            case ".jpg":
-                return "image/jpeg";
-            case ".xml":
-                return "application/xml";
-            case ".gif":
-                return "image/gif";
-            case ".doc":
-                return "application/msword";
-            case ".docx":
-                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            case ".xls":
-                return "application/vnd.ms-excel";
-            case ".xlsx":
-                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-            case ".zip":
-                return "application/zip";
-            default:
-                return "application/octet-stream";
-        }
-    }
-
-    private String extractOID(String fullUrl) {
-        if (fullUrl != null && fullUrl.contains("/")) {
-            return fullUrl.substring(fullUrl.lastIndexOf('/') + 1);
-        } else {
-            logger.error("Invalid URL format: " + fullUrl);
-            return null;
+            if (createResponse.wasSuccessful()) {
+                String testStepURL = createResponse.getObject().get("_ref").getAsString();
+                String testStepOID = extractOID(testStepURL);
+                logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
+            } else {
+                logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
+            }
+        } catch (IOException e) {
+            logger.error("Exception occurred while creating test step in Rally", e);
         }
     }
 }
-
