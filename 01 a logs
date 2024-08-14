@@ -20,21 +20,34 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
             if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
                 for (String embeddedPath : stepEmbeddedAttachments) {
                     if (!processedAttachments.contains(embeddedPath)) {
-                        String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                        String attachmentOID = extractOID(attachmentURL);
-                        if (attachmentOID != null) {
-                            // Determine whether the attachment belongs to Input or ExpectedResult
-                            if (embeddedPath.contains("testData") || embeddedPath.contains("description")) {
-                                newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                logger.info("Attachment added to Input field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
-                            } else if (embeddedPath.contains("expectedResult")) {
-                                newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                logger.info("Attachment added to Expected Result field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
-                            } else {
-                                logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+                        // Extract the step number from the attachment file name
+                        String[] attachmentParts = embeddedPath.split("_");
+                        if (attachmentParts.length > 0) {
+                            try {
+                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
+                                
+                                // Check if this attachment corresponds to the current step
+                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
+                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                                    String attachmentOID = extractOID(attachmentURL);
+                                    if (attachmentOID != null) {
+                                        // Determine whether the attachment belongs to Input or ExpectedResult
+                                        if (embeddedPath.contains("testData") || embeddedPath.contains("description")) {
+                                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Attachment added to Input field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
+                                        } else if (embeddedPath.contains("expectedResult")) {
+                                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Attachment added to Expected Result field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
+                                        } else {
+                                            logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+                                        }
+                                    }
+                                    processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                                }
+                            } catch (NumberFormatException e) {
+                                logger.error("Failed to parse step number from attachment name: " + embeddedPath, e);
                             }
                         }
-                        processedAttachments.add(embeddedPath);  // Mark this attachment as processed
                     }
                 }
             }
