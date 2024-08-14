@@ -1,65 +1,61 @@
-public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        try {
-            int rallyStepIndex = jiraTestStep.getIndex() + 1;  // Adjust the index to start from 1 in Rally
+the embedded attachment name usually comes with this format 1_2_EmbeddedFile_expectedResult.png
+the first number is the number of the step meanin what step number this embedded attachment should belongs to in rally
 
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseOID);
-            newTestStep.addProperty("StepIndex", rallyStepIndex);
-            
-            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-            String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
-            newTestStep.addProperty("Input", inputField);
-            
-            // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
-            newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
+i want this method to check the attachment name if it has testData or description then add it to Input in test step level in rally
+else if it has expectedResult then add it to expectedResult in test step level in rally
 
-            // Handle embedded attachments specific to this test step
-            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
-            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
-                for (String embeddedPath : stepEmbeddedAttachments) {
-                    String[] parts = Paths.get(embeddedPath).getFileName().toString().split("_");
-                    if (parts.length >= 4) {
-                        int stepNumber = Integer.parseInt(parts[0]);
-                        String columnName = parts[3];
-                        
-                        // Ensure the attachment belongs to the current step based on the step number
-                        if (stepNumber == rallyStepIndex) {  // Ensure correct matching of steps
+and to check if the attachment name 
+    public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
+        Set<String> processedAttachments = new HashSet<>();
+
+        for (JiraTestStep jiraTestStep : jiraTestSteps) {
+            try {
+                JsonObject newTestStep = new JsonObject();
+                newTestStep.addProperty("TestCase", rallyTestCaseOID);
+                newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
+                
+                // Combine "Step" and "Test Data" fields into the "Input" field in Rally
+                String inputField = (jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
+                                    (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : "");
+                newTestStep.addProperty("Input", inputField);
+                
+                // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
+                newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
+
+                // Handle embedded attachments specific to this test step
+                List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
+                if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
+                    for (String embeddedPath : stepEmbeddedAttachments) {
+                        if (!processedAttachments.contains(embeddedPath)) {
                             String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
                             String attachmentOID = extractOID(attachmentURL);
                             if (attachmentOID != null) {
-                                // Determine whether the attachment belongs to Input, ExpectedResult, or description
-                                if (columnName.equalsIgnoreCase("Input") || columnName.equalsIgnoreCase("TestData") || columnName.equalsIgnoreCase("Step")) {
+                                // Determine whether the attachment belongs to Input or ExpectedResult
+                                if (embeddedPath.contains("_Input")) {
                                     newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                    logger.info("Attachment added to Input field for Test Step " + rallyStepIndex + ": " + embeddedPath);
-                                } else if (columnName.equalsIgnoreCase("ExpectedResult")) {
-                                    newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                    logger.info("Attachment added to Expected Result field for Test Step " + rallyStepIndex + ": " + embeddedPath);
-                                } else if (columnName.equalsIgnoreCase("description")) {
-                                    newTestStep.addProperty("Description", newTestStep.get("Description").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                    logger.info("Attachment added to Description field for Test Step " + rallyStepIndex + ": " + embeddedPath);
+                                    logger.info("Attachment added to Input field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
                                 } else {
-                                    logger.error("No valid argument is passed to the method. It should be either description, testData, or expectedResult");
+                                    newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                    logger.info("Attachment added to Expected Result field for Test Step " + jiraTestStep.getIndex() + ": " + embeddedPath);
                                 }
                             }
+                            processedAttachments.add(embeddedPath);  // Mark this attachment as processed
                         }
                     }
                 }
-            }
 
-            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-            CreateResponse createResponse = rallyApi.create(createRequest);
+                CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
+                CreateResponse createResponse = rallyApi.create(createRequest);
 
-            if (createResponse.wasSuccessful()) {
-                String testStepURL = createResponse.getObject().get("_ref").getAsString();
-                String testStepOID = extractOID(testStepURL);
-                logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
-            } else {
-                logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
+                if (createResponse.wasSuccessful()) {
+                    String testStepURL = createResponse.getObject().get("_ref").getAsString();
+                    String testStepOID = extractOID(testStepURL);
+                    logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
+                } else {
+                    logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
+                }
+            } catch (IOException e) {
+                logger.error("Exception occurred while creating test step in Rally", e);
             }
-        } catch (IOException e) {
-            logger.error("Exception occurred while creating test step in Rally", e);
         }
     }
-}
