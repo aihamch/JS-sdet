@@ -15,6 +15,8 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
             // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
             newTestStep.addProperty("ExpectedResult", jiraTestStep.getExpectedResult());
 
+            logger.debug("Processing Jira test step index: " + jiraTestStep.getIndex());
+
             // Handle embedded attachments specific to this test step
             List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
             if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
@@ -33,6 +35,8 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
 
                                 // Check if this attachment corresponds to the current step
                                 if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
+                                    logger.debug("Attachment " + filename + " matches step " + jiraTestStep.getIndex() + 1);
+
                                     String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
                                     String attachmentOID = extractOID(attachmentURL);
                                     if (attachmentOID != null) {
@@ -57,6 +61,8 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                         }
                     }
                 }
+            } else {
+                logger.debug("No attachments found for step index: " + jiraTestStep.getIndex());
             }
 
             CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
