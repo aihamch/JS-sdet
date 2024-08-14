@@ -29,6 +29,8 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                                 // Extract the step number from the first part of the filename
                                 int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
 
+                                logger.debug("Processing attachment: " + filename + " for Jira step index: " + jiraTestStep.getIndex() + " (attachment step: " + attachmentStepNumber + ")");
+
                                 // Check if this attachment corresponds to the current step
                                 if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
                                     String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
@@ -46,6 +48,8 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                                         }
                                     }
                                     processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                                } else {
+                                    logger.debug("Attachment " + filename + " does not match step " + jiraTestStep.getIndex() + 1 + " (it matches step " + attachmentStepNumber + ").");
                                 }
                             } catch (NumberFormatException e) {
                                 logger.error("Failed to parse step number from attachment name: " + filename, e);
