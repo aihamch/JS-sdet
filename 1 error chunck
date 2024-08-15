@@ -1,33 +1,3 @@
-The errors you encountered seem to be related to incorrect handling of the attachment creation and URL extraction processes. Specifically, it appears that the `extractOID` method is returning `null`, which is causing subsequent errors when attempting to create test steps or attach files.
-
-Let's address these issues step by step.
-
-### Step 1: Fix `extractOID` Method
-The `extractOID` method should properly handle cases where the input URL is `null` or does not contain a valid OID. Here is an updated version of the method:
-
-```java
-private String extractOID(String fullUrl) {
-    if (fullUrl != null && fullUrl.contains("/")) {
-        String oid = fullUrl.substring(fullUrl.lastIndexOf('/') + 1);
-        if (oid != null && !oid.isEmpty()) {
-            return oid;
-        } else {
-            logger.error("OID extraction failed. Extracted OID is null or empty: " + fullUrl);
-            return null;
-        }
-    } else {
-        logger.error("Invalid URL format for OID extraction: " + fullUrl);
-        return null;
-    }
-}
-```
-
-### Step 2: Debugging Attachment Creation
-Ensure that the `attachFileToRallyTestCase` method correctly handles the attachment creation process. I suspect the errors you're seeing (`[Ljava.lang.String;@...`) might be due to incorrect handling of the response or logging.
-
-### Updated `attachFileToRallyTestCase` Method
-
-```java
 private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
     byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
     String encodedContent = Base64.getEncoder().encodeToString(fileContent);
@@ -39,11 +9,18 @@ private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseI
 
     CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
     CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+
+    // Log and return null if attachment content creation fails
     if (!attachmentContentResponse.wasSuccessful()) {
         logger.error("Error creating AttachmentContent for file " + filePath + ": " + String.join(", ", attachmentContentResponse.getErrors()));
         return null;
     }
+
     String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+    if (attachmentContentRef == null || attachmentContentRef.isEmpty()) {
+        logger.error("AttachmentContentRef is null or empty for file " + filePath);
+        return null;
+    }
 
     JsonObject attachment = new JsonObject();
     attachment.addProperty("Artifact", "/testcase/" + testCaseId);
@@ -55,35 +32,19 @@ private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseI
 
     CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
     CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
-    if (attachmentResponse.wasSuccessful()) {
-        logger.info("Attachment created successfully for file " + filePath + ": " + attachmentResponse.getObject().get("_ref").getAsString());
-        return attachmentResponse.getObject().get("_ref").getAsString();
-    } else {
+
+    // Log and return null if attachment creation fails
+    if (!attachmentResponse.wasSuccessful()) {
         logger.error("Error creating Attachment for file " + filePath + ": " + String.join(", ", attachmentResponse.getErrors()));
         return null;
     }
+
+    String attachmentURL = attachmentResponse.getObject().get("_ref").getAsString();
+    if (attachmentURL == null || attachmentURL.isEmpty()) {
+        logger.error("Attachment URL is null or empty after creation for file " + filePath);
+        return null;
+    }
+
+    logger.info("Attachment created successfully for file " + filePath + ": " + attachmentURL);
+    return attachmentURL;
 }
-```
-
-### Step 3: Check for Null or Invalid Data Before Processing
-
-Before attempting to attach a file or create a test step, ensure that the data being processed is valid. Here’s how you can integrate this check:
-
-#### In the `migrateTestStepsWithAttachments` Method:
-```java
-String attachmentOID = extractOID(attachmentURL);
-if (attachmentOID != null) {
-    // Proceed with embedding the image in the Input or ExpectedResult fields
-} else {
-    logger.error("Failed to extract OID from the URL: " + attachmentURL);
-    continue; // Skip this attachment and proceed with the next
-}
-```
-
-### Step 4: Testing and Validation
-After implementing these fixes:
-
-1. **Test the Code**: Run the program again and check if the issues are resolved.
-2. **Log Validation**: Review the logs to ensure that the attachments are being processed correctly and the test steps are being created successfully.
-
-If you encounter any further issues or specific errors, you can provide more details, and I'll assist you in troubleshooting them.
