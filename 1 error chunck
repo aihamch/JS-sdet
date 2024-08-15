@@ -10,13 +10,14 @@ private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseI
     CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
     CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
 
-    // Log and return null if attachment content creation fails
+    // Log the attachment content response
     if (!attachmentContentResponse.wasSuccessful()) {
         logger.error("Error creating AttachmentContent for file " + filePath + ": " + String.join(", ", attachmentContentResponse.getErrors()));
         return null;
     }
 
     String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+    logger.info("AttachmentContentRef: " + attachmentContentRef);
     if (attachmentContentRef == null || attachmentContentRef.isEmpty()) {
         logger.error("AttachmentContentRef is null or empty for file " + filePath);
         return null;
@@ -33,18 +34,29 @@ private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseI
     CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
     CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
 
-    // Log and return null if attachment creation fails
+    // Log the attachment creation response
     if (!attachmentResponse.wasSuccessful()) {
         logger.error("Error creating Attachment for file " + filePath + ": " + String.join(", ", attachmentResponse.getErrors()));
         return null;
     }
 
     String attachmentURL = attachmentResponse.getObject().get("_ref").getAsString();
+    logger.info("Attachment URL: " + attachmentURL);
     if (attachmentURL == null || attachmentURL.isEmpty()) {
         logger.error("Attachment URL is null or empty after creation for file " + filePath);
         return null;
     }
 
-    logger.info("Attachment created successfully for file " + filePath + ": " + attachmentURL);
     return attachmentURL;
+}
+
+private String extractOID(String fullUrl) {
+    if (fullUrl != null && fullUrl.contains("/")) {
+        String oid = fullUrl.substring(fullUrl.lastIndexOf('/') + 1);
+        logger.info("Extracted OID: " + oid);
+        return oid;
+    } else {
+        logger.error("Invalid URL format for OID extraction: " + fullUrl);
+        return null;
+    }
 }
