@@ -1,10 +1,15 @@
-private String cleanText(String text) {
+private String cleanText(String text, boolean removeAllImages) {
     if (text == null || text.isEmpty()) {
         return text;
     }
 
-    // Remove duplicate image tags (assuming exact same image tags are considered duplicates)
-    text = text.replaceAll("(<img[^>]+>)(\\s*\\1)+", "$1");
+    // Option to remove all <img> tags
+    if (removeAllImages) {
+        text = text.replaceAll("<img[^>]*>", "");
+    } else {
+        // Remove duplicate image tags (assuming exact same image tags are considered duplicates)
+        text = text.replaceAll("(<img[^>]+>)(\\s*\\1)+", "$1");
+    }
 
     // Remove duplicate lines of text or patterns (if applicable)
     String[] lines = text.split("\n");
