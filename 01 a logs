@@ -1,90 +1,24 @@
-// Modified migrateTestStepsWithAttachments method
-public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
-    Set<String> processedAttachments = new HashSet<>();
-
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseOID);
-            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
-            
-            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-            String inputField = cleanText((jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : ""));
-            newTestStep.addProperty("Input", inputField);
-            
-            // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
-            String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
-            newTestStep.addProperty("ExpectedResult", expectedResultField);
-
-            // Handle embedded attachments specific to this test step
-            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
-            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
-                for (String embeddedPath : stepEmbeddedAttachments) {
-                    if (!processedAttachments.contains(embeddedPath)) {
-                        // Extract the filename from the full path
-                        String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
-                        String[] attachmentParts = filename.split("_");
-
-                        if (attachmentParts.length > 0) {
-                            try {
-                                // Extract the step number from the first part of the filename
-                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
-
-                                // Check if this attachment corresponds to the current step
-                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
-                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                                    String attachmentOID = extractOID(attachmentURL);
-                                    if (attachmentOID != null) {
-                                        // Determine whether the attachment belongs to Input or ExpectedResult
-                                        if (filename.contains("testData") || filename.contains("description")) {
-                                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                        } else if (filename.contains("expectedResult")) {
-                                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                        } else {
-                                            logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
-                                        }
-                                    }
-                                    processedAttachments.add(embeddedPath);  // Mark this attachment as processed
-                                }
-                            } catch (NumberFormatException e) {
-                                logger.error("Failed to parse step number from attachment name: " + filename, e);
-                            }
-                        }
-                    }
-                }
-            }
-
-            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-            CreateResponse createResponse = rallyApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String testStepURL = createResponse.getObject().get("_ref").getAsString();
-                String testStepOID = extractOID(testStepURL);
-                logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
-            } else {
-                logger.error("Failed to create test step in Rally: " + createResponse.getErrors());
-            }
-        } catch (IOException e) {
-            logger.error("Exception occurred while creating test step in Rally", e);
-        }
-    }
-}
-
-// Utility method to clean text by removing duplicates or unwanted parts
 private String cleanText(String text) {
     if (text == null || text.isEmpty()) {
         return text;
     }
 
-    // Basic cleaning: remove any duplicate image tags or specific unwanted text patterns
-    // Example: Remove repeated img tags
-    text = text.replaceAll("(<img[^>]+>\\s*){2,}", "$1"); // Removes duplicate image tags
-    
-    // Additional cleaning logic as needed, e.g., removing known unwanted phrases, cleaning whitespace, etc.
-    // You can add more sophisticated cleaning logic here based on your specific requirements.
+    // Remove duplicate image tags (assuming exact same image tags are considered duplicates)
+    text = text.replaceAll("(<img[^>]+>)(\\s*\\1)+", "$1");
 
-    return text.trim();
+    // Remove duplicate lines of text or patterns (if applicable)
+    String[] lines = text.split("\n");
+    StringBuilder cleanedText = new StringBuilder();
+    Set<String> seenLines = new HashSet<>();
+
+    for (String line : lines) {
+        String trimmedLine = line.trim();
+        if (!seenLines.contains(trimmedLine)) {
+            cleanedText.append(trimmedLine).append("\n");
+            seenLines.add(trimmedLine);
+        }
+    }
+
+    // Remove any potential trailing whitespace or extra newlines
+    return cleanedText.toString().trim();
 }
