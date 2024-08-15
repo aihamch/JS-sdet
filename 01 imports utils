@@ -1,109 +1,81 @@
-2024-08-14 18:33:38.361 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Processing Jira test step index: 3
-2024-08-14 18:33:38.361 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Expected attachments for this step: [C:attachments\4_1_EmbeddedFile_description.png, C:attachments\1_1_EmbeddedFile_description.png, C:attachments\3_1_EmbeddedFile_testData.png, C:attachments\3_2_EmbeddedFile_testData.png, C:attachments\1_1_EmbeddedFile_testData.png, C:attachments\1_2_EmbeddedFile_testData.png, C:attachments\2_1_EmbeddedFile_testData.png, C:attachments\2_2_EmbeddedFile_testData.png, C:attachments\3_1_EmbeddedFile_expectedResult.png, C:attachments\3_2_EmbeddedFile_expectedResult.png, C:attachments\1_1_EmbeddedFile_expectedResult.png, C:attachments\1_2_EmbeddedFile_expectedResult.png]
-2024-08-14 18:33:38.361 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 4
-2024-08-14 18:33:38.361 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 4 with current step index 4
-2024-08-14 18:33:39.511 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\4_1_EmbeddedFile_description.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799309278091
-2024-08-14 18:33:39.511 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 4: C:attachments\4_1_EmbeddedFile_description.png
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_description.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 3_1_EmbeddedFile_testData.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 3_2_EmbeddedFile_testData.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_testData.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_2_EmbeddedFile_testData.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 2
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 2 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 2_1_EmbeddedFile_testData.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 2
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 2 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 2_2_EmbeddedFile_testData.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 3_1_EmbeddedFile_expectedResult.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 3_2_EmbeddedFile_expectedResult.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_expectedResult.png does not match the current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 4
-2024-08-14 18:33:39.511 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_2_EmbeddedFile_expectedResult.png does not match the current step index 4
-2024-08-14 18:33:39.762 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799309278103 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799309566691
-2024-08-14 18:33:39.762 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Processing Jira test step index: 2
-2024-08-14 18:33:39.762 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Expected attachments for this step: [C:attachments\4_1_EmbeddedFile_description.png, C:attachments\1_1_EmbeddedFile_description.png, C:attachments\3_1_EmbeddedFile_testData.png, C:attachments\3_2_EmbeddedFile_testData.png, C:attachments\1_1_EmbeddedFile_testData.png, C:attachments\1_2_EmbeddedFile_testData.png, C:attachments\2_1_EmbeddedFile_testData.png, C:attachments\2_2_EmbeddedFile_testData.png, C:attachments\3_1_EmbeddedFile_expectedResult.png, C:attachments\3_2_EmbeddedFile_expectedResult.png, C:attachments\1_1_EmbeddedFile_expectedResult.png, C:attachments\1_2_EmbeddedFile_expectedResult.png]
-2024-08-14 18:33:39.762 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:39.762 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 3
-2024-08-14 18:33:39.762 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_description.png does not match the current step index 3
-2024-08-14 18:33:39.763 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:39.763 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 3
-2024-08-14 18:33:40.802 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_1_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799309278153
-2024-08-14 18:33:40.802 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 3: C:attachments\3_1_EmbeddedFile_testData.png
-2024-08-14 18:33:40.802 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:40.802 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 3
-2024-08-14 18:33:41.868 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_2_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799309278167
-2024-08-14 18:33:41.868 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 3: C:attachments\3_2_EmbeddedFile_testData.png
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_testData.png does not match the current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_2_EmbeddedFile_testData.png does not match the current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 2
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 2 with current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 2_1_EmbeddedFile_testData.png does not match the current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 2
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 2 with current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 2_2_EmbeddedFile_testData.png does not match the current step index 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:41.869 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 3
-2024-08-14 18:33:42.780 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_1_EmbeddedFile_expectedResult.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799309278197
-2024-08-14 18:33:42.780 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Expected Result field for Test Step 3: C:attachments\3_1_EmbeddedFile_expectedResult.png
-2024-08-14 18:33:42.780 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 3
-2024-08-14 18:33:42.780 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 3 with current step index 3
-2024-08-14 18:33:43.753 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\3_2_EmbeddedFile_expectedResult.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799309278215
-2024-08-14 18:33:43.753 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Expected Result field for Test Step 3: C:attachments\3_2_EmbeddedFile_expectedResult.png
-2024-08-14 18:33:43.754 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:43.754 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 3
-2024-08-14 18:33:43.754 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_expectedResult.png does not match the current step index 3
-2024-08-14 18:33:43.754 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:43.754 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 3
-2024-08-14 18:33:43.754 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_2_EmbeddedFile_expectedResult.png does not match the current step index 3
-2024-08-14 18:33:43.917 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799309278227 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799309566691
-2024-08-14 18:33:43.918 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Processing Jira test step index: 0
-2024-08-14 18:33:43.918 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Expected attachments for this step: null
-2024-08-14 18:33:44.107 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799309278275 for TestCase: https://rally1.rallydev.com/slm/webservice/v2.0/testcase/799309566691
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Processing Jira test step index: 1
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Expected attachments for this step: [C:attachments\4_1_EmbeddedFile_description.png, C:attachments\1_1_EmbeddedFile_description.png, C:attachments\3_1_EmbeddedFile_testData.png, C:attachments\3_2_EmbeddedFile_testData.png, C:attachments\1_1_EmbeddedFile_testData.png, C:attachments\1_2_EmbeddedFile_testData.png, C:attachments\2_1_EmbeddedFile_testData.png, C:attachments\2_2_EmbeddedFile_testData.png, C:attachments\3_1_EmbeddedFile_expectedResult.png, C:attachments\3_2_EmbeddedFile_expectedResult.png, C:attachments\1_1_EmbeddedFile_expectedResult.png, C:attachments\1_2_EmbeddedFile_expectedResult.png]
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 2
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_description.png does not match the current step index 2
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 2
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_testData.png does not match the current step index 2
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 2
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_2_EmbeddedFile_testData.png does not match the current step index 2
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 2
-2024-08-14 18:33:44.107 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 2 with current step index 2
-2024-08-14 18:33:45.158 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\2_1_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799309278325
-2024-08-14 18:33:45.158 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 2: C:attachments\2_1_EmbeddedFile_testData.png
-2024-08-14 18:33:45.158 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 2
-2024-08-14 18:33:45.158 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 2 with current step index 2
-2024-08-14 18:33:46.083 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment created successfully for file C:attachments\2_2_EmbeddedFile_testData.png: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/799309278339
-2024-08-14 18:33:46.083 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 2: C:attachments\2_2_EmbeddedFile_testData.png
-2024-08-14 18:33:46.083 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:46.083 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 2
-2024-08-14 18:33:46.083 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_1_EmbeddedFile_expectedResult.png does not match the current step index 2
-2024-08-14 18:33:46.083 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment step number from filename: 1
-2024-08-14 18:33:46.083 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Comparing attachment step number 1 with current step index 2
-2024-08-14 18:33:46.083 [main] DEBUG com.optum.coe.automation.rally.RallyOperation - Attachment 1_2_EmbeddedFile_expectedResult.png does not match the current step index 2
-2024-08-14 18:33:46.242 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Successfully created test step in Rally with OID: 799309278351 for TestCase: https
+package com.optum.coe.automation.rally;
+
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.rallydev.rest.RallyRestApi;
+import java.net.URI;
+
+public class RunnerClass {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+        Gson gson = new Gson();
+        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
+
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+
+        for (String key : testcaseKeys) {
+            jiraTestCase.setKey(key);
+            logger.info("Processing " + jiraTestCase.getKey());
+            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            
+            RallyOperation rallyOperation = new RallyOperation();
+
+            // Download and attach testcase level attachments
+            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+
+            if (rallyTestcaseOID != null) {
+                if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
+                    rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                }
+            } else {
+                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+                break;
+            }
+
+            // Handle 	Test Step Attachments
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+
+            // Create a map to hold the embedded attachments for each step
+            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<Integer, List<String>>();
+            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+            List<JiraTestStep> testSteps = new ArrayList<>();
+
+            for (int i = 0; i < stepsArray.size(); i++) {
+                JsonElement element = stepsArray.get(i);
+                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+                testSteps.add(step);
+
+                // Download and map embedded attachments for the current test step
+                List<String> embeddedAttachmentPaths = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+                if (!embeddedAttachmentPaths.isEmpty()) {
+                    embeddedAttachmentsMap.put(i , embeddedAttachmentPaths);
+                }
+            }
+
+            rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, embeddedAttachmentsMap);
+
+           Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+            embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
+        }
+    }
+}
