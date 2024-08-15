@@ -1,4 +1,56 @@
-2024-08-15 15:59:26.354 [main] INFO  com.optum.coe.automation.rally.RallyOperation - AttachmentContentRef: https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/799370423079
-2024-08-15 15:59:26.533 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Error creating Attachment for file Attachments\TestStep_Attachments\2_2_EmbeddedFile_testData.png: Cannot parse object reference from "/testcase/null"
-2024-08-15 15:59:26.533 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Invalid URL format for OID extraction: null
-2024-08-15 15:59:26.724 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step in Rally: [Ljava.lang.String;@37fef327
+private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
+    if (testCaseId == null || testCaseId.isEmpty()) {
+        logger.error("TestCase ID is null or empty. Cannot attach file: " + filePath);
+        return null;
+    }
+
+    byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
+    String encodedContent = Base64.getEncoder().encodeToString(fileContent);
+
+    String contentType = determineContentType(filePath);
+
+    JsonObject attachmentContent = new JsonObject();
+    attachmentContent.addProperty("Content", encodedContent);
+
+    CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
+    CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+
+    // Log the attachment content response
+    if (!attachmentContentResponse.wasSuccessful()) {
+        logger.error("Error creating AttachmentContent for file " + filePath + ": " + String.join(", ", attachmentContentResponse.getErrors()));
+        return null;
+    }
+
+    String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+    logger.info("AttachmentContentRef: " + attachmentContentRef);
+    if (attachmentContentRef == null || attachmentContentRef.isEmpty()) {
+        logger.error("AttachmentContentRef is null or empty for file " + filePath);
+        return null;
+    }
+
+    JsonObject attachment = new JsonObject();
+    attachment.addProperty("Artifact", "/testcase/" + testCaseId);
+    attachment.addProperty("Content", attachmentContentRef);
+    attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
+    attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
+    attachment.addProperty("ContentType", contentType);
+    attachment.addProperty("Size", fileContent.length);
+
+    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+    CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+
+    // Log the attachment creation response
+    if (!attachmentResponse.wasSuccessful()) {
+        logger.error("Error creating Attachment for file " + filePath + ": " + String.join(", ", attachmentResponse.getErrors()));
+        return null;
+    }
+
+    String attachmentURL = attachmentResponse.getObject().get("_ref").getAsString();
+    logger.info("Attachment URL: " + attachmentURL);
+    if (attachmentURL == null || attachmentURL.isEmpty()) {
+        logger.error("Attachment URL is null or empty after creation for file " + filePath);
+        return null;
+    }
+
+    return attachmentURL;
+}
