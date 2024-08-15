@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.google.gson.JsonObject;
@@ -16,10 +19,8 @@ import java.net.URI;
 
 public class RunnerClass {
 
-    // Logger Initialization for Runner Class
     private static final Logger logger = LogManager.getLogger();
 
-    // Main method
     public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
         Gson gson = new Gson();
         String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
@@ -31,93 +32,50 @@ public class RunnerClass {
         ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
 
         for (String key : testcaseKeys) {
-            boolean rallyTestcaseCreationStatus = false;
-            boolean rallyOverallTestStepAttachmentsStatus = false;
             jiraTestCase.setKey(key);
             logger.info("Processing " + jiraTestCase.getKey());
             JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+            
             RallyOperation rallyOperation = new RallyOperation();
 
+            // Download and attach testcase level attachments
             List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
-
             String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
 
             if (rallyTestcaseOID != null) {
-                rallyTestcaseCreationStatus = true;
+                if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
+                    rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+                }
             } else {
                 logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
                 break;
             }
 
-            List<String> testcaseAttachmentOIDs = new ArrayList<>();
+            // Handle 	Test Step Attachments
+            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
 
-            if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
-                logger.info("Attachment paths are found in the list.");
-                testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-                if (!testcaseAttachmentOIDs.isEmpty()) {
-                    rallyOverallTestStepAttachmentsStatus = true;
-                } else {
-                    logger.error("The Jira testcase is not created in Rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in Rally.");
-                    return;
-                }
-            } else {
-                logger.info("No Attachment path found for Testcase level.");
-            }
-
-            // Handle Test Step File Attachments
-            if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                logger.info("Test Step file attachments paths are found in the list.");
-                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
-               Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
-                if (!testStepAttachmentOIDs.isEmpty()) {
-                    rallyOverallTestStepAttachmentsStatus = true;
-                    testcaseAttachmentOIDs.addAll(testStepAttachmentOIDs);
-                } else {
-                    logger.error("The Jira test step file attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
-                    return;
-                }
-            } else {
-                logger.info("No Attachment path found for Test Step file level.");
-            }
-
-            // Handle Test Step Embedded Attachments
-            if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                logger.info("Test Step embedded attachments paths are found in the list.");
-                List<String> embeddedAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, embeddedAttachmentDownloadPathsTestStepLevel);
-                Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
-                if (!embeddedAttachmentOIDs.isEmpty()) {
-                    rallyOverallTestStepAttachmentsStatus = true;
-                    testcaseAttachmentOIDs.addAll(embeddedAttachmentOIDs);
-                } else {
-                    logger.error("The Jira test step embedded attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
-                    return;
-                }
-            } else {
-                logger.info("No Attachment path found for Test Step embedded level.");
-            }
-
+            // Create a map to hold the embedded attachments for each step
+            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<Integer, List<String>>();
             JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
             List<JiraTestStep> testSteps = new ArrayList<>();
 
-            for (JsonElement element : stepsArray) {
+            for (int i = 0; i < stepsArray.size(); i++) {
+                JsonElement element = stepsArray.get(i);
                 JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
                 testSteps.add(step);
+
+                // Download and map embedded attachments for the current test step
+                List<String> embeddedAttachmentPaths = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+                if (!embeddedAttachmentPaths.isEmpty()) {
+                    embeddedAttachmentsMap.put(i , embeddedAttachmentPaths);
+                }
             }
 
-            rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, testcaseAttachmentOIDs);
+            rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, embeddedAttachmentsMap);
 
-            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                System.out.println("Rally Testcase Creation Status is true");
-            } else {
-                logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
-            }
-
-            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                // Call method to update "Testcase Migrated" and "Test Folder Migrated" check boxes in Jira
-            }
+           Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+            embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
         }
     }
 }
