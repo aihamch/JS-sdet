@@ -1,199 +1,208 @@
-
-
-master 
-package com.optum.coe.automation.rally;
-
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.GsonBuilder;
 import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.util.QueryFilter;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 
-public class RunnerClass {
+import java.io.IOException;
+import java.net.URI;
 
-	// Logger Initialization for Runner Class
-	private static final Logger logger = LogManager.getLogger();
+public class FoldersTestCase2 {
 
-	// Main method
-	public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
-		
-		
-		
-		  Gson gson = new Gson();
-	        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-	        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-	        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
-		
-		
-		
-		
-		
-		
-		
-	    /* Main method calls below functionalities from com.optum.coe.automation.rally package
-	     * 1. Get Jira non migrated testcase keys 
-	     * 2. Get Jira Testcase details for the given testcase key. It is an iterative process
-	     * 3. Create the testcase in Rally using the Jira testcase details
-	     * 4. Validate if the testcase is created successfully ; Future implementation is required. US7440061*/
-				
-		JiraTestCase jiraTestCase = new JiraTestCase();
-		JiraOperation jiraOperation = new JiraOperation();
-		ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-		boolean rallyTestcaseCreationStatus  ,rallyOverallTestCaseAttachmentsStatus  ,jiraDownloadTCFileAttachmentStatus  ,jiraDownloadTSFileAttachmentStatus ,jiraDownloadTSEmbeddedAttachmentStatus ,jiraOverallAttachmentdownloadStatus  ;
-		for (int i = 0 ; i < testcaseKeys.size() ; i++) {
-			 rallyTestcaseCreationStatus = false;
-			 rallyOverallTestCaseAttachmentsStatus = false;
-			 jiraDownloadTCFileAttachmentStatus = false;
-			 jiraDownloadTSFileAttachmentStatus = false;
-			 jiraDownloadTSEmbeddedAttachmentStatus = false;
-			 jiraOverallAttachmentdownloadStatus = false;
-			String rallyTestcaseOID = null;
-			jiraTestCase.setKey(testcaseKeys.get(i));
-			logger.info("Processing " + jiraTestCase.getKey());
-			JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-			RallyOperation rallyOperation = new RallyOperation();
-			// Start the downloading processing of attachments from Jira to Local and Verify them
-					
-			           List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-						jiraDownloadTCFileAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(fileAttachmentDownloadPathsTestcaseLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
-					//	List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-						
-						  // Handle 	Test Step Attachments
-			            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+    public static void main(String[] args) throws Exception {
+        String testCaseId = "CC2-T54746";
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+        String projectRef = "789325818991";
 
-			            // Create a map to hold the embedded attachments for each step
-			            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<Integer, List<String>>();
-			            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-			            List<JiraTestStep> testSteps = new ArrayList<>();
+        // Send the GET request to JIRA using HttpClient
+        HttpClient client = HttpClients.createDefault();
+        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+        request.setHeader("Authorization", "Bearer " + authToken);
+        request.setHeader("Accept", "application/json");
 
-			            for (int i1 = 0; i1 < stepsArray.size(); i1++) {
-			                JsonElement element = stepsArray.get(i1);
-			                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
-			                testSteps.add(step);
+        HttpResponse response = client.execute(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
 
-			                // Download and map embedded attachments for the current test step
-			                List<String> embeddedAttachmentPaths = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
-			                if (!embeddedAttachmentPaths.isEmpty()) {
-			                    embeddedAttachmentsMap.put(i1 , embeddedAttachmentPaths);
-			                }
-			            }
+        System.out.println("Pretty Response: " + responseBody);
 
-			            rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, embeddedAttachmentsMap);
+        // Parse the JIRA response
+        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
 
-			           Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
-			            embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						jiraDownloadTSFileAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(fileAttachmentDownloadPathsTestStepLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
-						List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
-						jiraDownloadTSEmbeddedAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(embeddedAttachmentDownloadPathsTestStepLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
-						
-						if ((jiraDownloadTCFileAttachmentStatus) && (jiraDownloadTSFileAttachmentStatus) && (jiraDownloadTSEmbeddedAttachmentStatus)) {
-							jiraOverallAttachmentdownloadStatus = true; // This boolean value is used for over all validation	to mark "Testcase Migrated" check box in Jira
-							rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+        // Create the Rally JSON object
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", projectRef);
 
-						
-						} else {
-							
-							logger.error("Error while downloading the attachements from Jira to Local while processing " + jiraTestCase.getKey() + "; boolean status are below\n Download testcase file attachments - " + jiraDownloadTCFileAttachmentStatus
-									+ "\nDownload teststep file attachments - " + jiraDownloadTSFileAttachmentStatus
-									+ "\nDownload testsetp embedded attachments - " + jiraDownloadTSEmbeddedAttachmentStatus);
-							return;
-							
-						}
+        // Create a new test case
+        JsonObject testCase = new JsonObject();
 
-						// Check whether rally testcase is created successfully with available boolean values. The rallyTestcaseCreationStatus will be true for successful rally test case creation
-						if (rallyTestcaseOID != null ) {
-							rallyTestcaseCreationStatus = true; // This boolean value is used for over all validation	to mark "Testcase Migrated" check box in Jira
-							System.out.println("Rally testcase is successfully created with Jira equivalent testcase for the Jira testcase key " + jiraTestCase.getKey() );
-							logger.info("Rally testcase is successfully created with Jira equivalent testcase for the Jira testcase key " + jiraTestCase.getKey());
-						} else { // If testcase is not created in Rally, then log the error and break the flow.
-							logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
-							return;	
-						}
-									
-						/* If attachments are downloaded are successfully to Local, then advance to upload them to the corresponding testcase.
-						 * Call attachFilesToRallyTestcase method for this action and return testcase attachment OID for further processing. If any attachment is not uploaded to the testcase, then it will return empty list
-						 * Once the the file attachments are successfully upload to rally testcase, then delete the attachments from local.
-						 * */
-						if ((fileAttachmentDownloadPathsTestcaseLevel != null) && (!fileAttachmentDownloadPathsTestcaseLevel.contains("error"))) {
-							
-							logger.info("Attachment paths are found in the list for testcase file attachments.");
-							List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-							Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-							
-							if (!testcaseAttachmentOIDs.isEmpty()) { // Check if testcase OID is created successfully 
-								
-								logger.info("Test atatchment OID is created successfully in Rally for the testcase "  + jiraTestCase.getKey());
-								rallyOverallTestCaseAttachmentsStatus = true; // This boolean value is used for over all validation	to mark "Testcase Migrated" check box in Jira
-							} else { // Throw error when test case is not created successfully in rally and break the flow.
-								
-								logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
-								+ " is not created in rally");
-								return;
-							}
-							/* If fileAttachmentDownloadPathsTestcaseLevel is empty then, no attachment URL is found 
-							 * for the testcase key at testcase level*/	
-						} else if (fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) { 
-							
-							logger.info("No Attachment URL found for Testcase level while processing the testcase " + jiraTestCase.getKey());
-						} 
+        // Add name
+        JsonElement nameElement = jiraJson.get("name");
+        if (nameElement != null && !nameElement.isJsonNull()) {
+            testCase.addProperty("Name", nameElement.getAsString());
+        } else {
+            testCase.addProperty("Name", "Default Test Case Name"); // default value
+        }
 
-						// Test Step creation and Test Step Attachments implementation place holder.
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						
-						//
-						//
-						//
-						
-					
-						/* Over all validation for Jira Testcase migration to Rally. US7440061: Create implementation for ValidateRallyTestcaseContent */
-						if (jiraOverallAttachmentdownloadStatus == true && rallyTestcaseCreationStatus == true && rallyOverallTestCaseAttachmentsStatus == true  ) {
-							
-								System.out.println("OverAll Status: Rally Testcase is created successfully with required testcase level attachments");
-								/*
-								 * Needs to be added calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
-								 */
-						} 
+        // Add method
+        testCase.addProperty("Method", "Manual"); // Assuming a default value
 
+        // Add priority
+        JsonElement priorityElement = jiraJson.get("priority");
+        if (priorityElement != null && !priorityElement.isJsonNull()) {
+            String priority = priorityElement.getAsString();
+            if (priority.equalsIgnoreCase("Normal")) {
+                testCase.addProperty("Priority", "Useful");
+            } else {
+                testCase.addProperty("Priority", priority);
+            }
+        } else {
+            testCase.addProperty("Priority", "Default Priority"); // default value
+        }
 
-						
-					}
+        // Add owner
+        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
 
-				}
+        // Add status
+        JsonElement statusElement = jiraJson.get("status");
+        if (statusElement != null && !statusElement.isJsonNull()) {
+            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        } else {
+            testCase.addProperty("Ready", false); // default value
+        }
 
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        // Add Tags dynamically from JIRA labels
+        JsonArray labelsArray = jiraJson.getAsJsonArray("labels");
+        JsonArray tagsArray = new JsonArray();
+        if (labelsArray != null) {
+            for (JsonElement label : labelsArray) {
+                JsonObject tagObject = findOrCreateTag(restApi, label.getAsString());
+                if (tagObject != null) {
+                    JsonObject tagRefObject = new JsonObject();
+                    tagRefObject.addProperty("_ref", tagObject.get("_ref").getAsString());
+                    tagsArray.add(tagRefObject);
+                }
+            }
+        }
+        testCase.add("Tags", tagsArray);
+
+        // Get folder hierarchy from JIRA response
+        String folderPath = jiraJson.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+
+        // Create TestFolder based on folder hierarchy
+        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
+        if (testFolder == null) {
+            System.out.println("Failed to create or retrieve TestFolder.");
+            return; // Exit the method or handle accordingly
+        }
+        // Add TestFolder to the test case
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        rallyJson.add("testCase", testCase);
+
+        // Save the transformed JSON to a variable
+        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+        // Print the transformed JSON string
+        System.out.println("Transformed JSON: " + rallyJsonString);
+
+        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+        // Extract values from JSON:
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+        try {
+            // Create a new test case
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", projectRef);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+            // Add Tags to the test case from the JSON file
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                JsonArray newTagsArray = new JsonArray();
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagObjectFromJson.get("_ref").getAsString());
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+
+            // Add TestFolder to the test case from the JSON file
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+    }
+
+    private static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) throws IOException {
+        // Check if the tag already exists
+        QueryRequest tagRequest = new QueryRequest("Tag");
+        tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
+        QueryResponse tagResponse = restApi.query(tagRequest);
+
+        if (tagResponse.getResults().size() > 0) {
+            return tagResponse.getResults().get(0).getAsJsonObject();
+        }
+
+        // If the tag doesn't exist, create it
+        JsonObject newTag = new JsonObject();
+        newTag.addProperty("Name", tagName);
+
+        CreateRequest createTagRequest = new CreateRequest("Tag", newTag);
+        CreateResponse createTagResponse = restApi.create(createTagRequest);
+
+        if (createTagResponse.wasSuccessful()) {
+            return createTagResponse.getObject();
+        } else {
+            System.out.println("Error occurred creating tag:");
+            for (String error : createTagResponse.getErrors()) {
+                System.out.println(error);
+            }
+            return null;
+        }
+    }
+
+    private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
+        // Implementation of createTestFolder goes here
+        return new JsonObject(); // Placeholder return statement
+    }
 }
