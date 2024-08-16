@@ -1,9 +1,14 @@
-package com.optum.coe.automation.rally;
+Given your `JiraAttachment` class, you don't currently have a method to directly retrieve the file path, but you have the necessary details like `url` and `fileName`. To download the file from Jira using the `url` and to save it locally, you can add a method to your `JiraAttachment` class or handle it directly in the `RallyOperation` class.
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
+### Updating `JiraAttachment` Class
+
+If you want to keep the logic simple, you can add a method in the `JiraAttachment` class to help retrieve and save the file locally, returning the local file path:
+
+```java
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.net.URL;
 
 public class JiraAttachment {
@@ -54,31 +59,68 @@ public class JiraAttachment {
         this.fileSize = fileSize;
     }
 
-    // Method to download the attachment and return the file path
-    public String downloadAttachment(String downloadDirectory, String jiraApiKey) throws Exception {
-        String filePath = downloadDirectory + File.separator + fileName;
-        URL url = new URL(this.url);
+    // Method to download the file from Jira and return the local file path
+    public String downloadFile(String downloadDirectory) throws IOException {
+        URL downloadUrl = new URL(this.url);
+        String localFilePath = Paths.get(downloadDirectory, this.fileName).toString();
 
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestProperty("Authorization", "Basic " + jiraApiKey);
-        connection.connect();
+        // Download the file from the URL and save it locally
+        Files.copy(downloadUrl.openStream(), Paths.get(localFilePath), StandardCopyOption.REPLACE_EXISTING);
 
-        if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-            throw new Exception("Failed to download attachment: " + fileName + " from URL: " + this.url);
-        }
-
-        try (InputStream in = connection.getInputStream();
-             FileOutputStream out = new FileOutputStream(filePath)) {
-
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-            }
-        } finally {
-            connection.disconnect();
-        }
-
-        return filePath;
+        return localFilePath;
     }
 }
+```
+
+### Explanation:
+
+1. **Download Method**: The `downloadFile` method takes a `downloadDirectory` as a parameter, which is where you want to save the file locally. It uses the `url` field to download the file from Jira and returns the local file path.
+
+2. **File Saving**: The method uses `Files.copy()` to download and save the file, replacing any existing file with the same name.
+
+### Using the `downloadFile` Method in `RallyOperation`
+
+You can now use this method in your `RallyOperation` class to handle the file download and migration:
+
+```java
+public void migrateFileAttachmentsFromTestStepsToTestCase(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, String downloadDirectory) {
+    if (rallyTestCaseOID == null || rallyTestCaseOID.isEmpty()) {
+        logger.error("Rally TestCase ID is null or empty. Cannot migrate file attachments.");
+        return;
+    }
+
+    for (JiraTestStep jiraTestStep : jiraTestSteps) {
+        List<JiraAttachment> fileAttachments = jiraTestStep.getAttachments();
+
+        if (fileAttachments != null && !fileAttachments.isEmpty()) {
+            for (JiraAttachment attachment : fileAttachments) {
+                try {
+                    // Download the file locally
+                    String localFilePath = attachment.downloadFile(downloadDirectory);
+                    // Attach the file to the Rally test case
+                    String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, localFilePath);
+                    if (attachmentOID != null) {
+                        logger.info("Successfully migrated attachment from Test Step to Test Case level for file: " + localFilePath);
+                    } else {
+                        logger.error("Failed to migrate attachment for file: " + localFilePath);
+                    }
+                } catch (IOException e) {
+                    logger.error("IO Exception occurred while migrating file attachment from Test Step to Test Case level", e);
+                }
+            }
+        }
+    }
+}
+```
+
+### Explanation:
+
+1. **Download and Save**: The method now calls `downloadFile(downloadDirectory)` on each `JiraAttachment` object to download the file and get its local path.
+
+2. **Attach to Rally**: The local file path is then passed to the `attachFileToRallyTestCase` method to migrate the attachment to the Rally test case.
+
+### Summary
+
+By adding the `downloadFile` method to your `JiraAttachment` class, you've integrated the file download process into your existing framework. This allows you to seamlessly migrate file attachments from Jira test steps to Rally test cases. 
+
+If you need further adjustments or additional methods, let me know!
