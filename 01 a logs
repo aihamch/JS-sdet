@@ -1,7 +1,10 @@
 package com.optum.coe.automation.rally;
 
-//import org.apache.logging.log4j.LogManager;
-//import org.apache.logging.log4j.Logger;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class JiraAttachment {
 
@@ -49,5 +52,33 @@ public class JiraAttachment {
 
     public void setFileSize(long fileSize) {
         this.fileSize = fileSize;
+    }
+
+    // Method to download the attachment and return the file path
+    public String downloadAttachment(String downloadDirectory, String jiraApiKey) throws Exception {
+        String filePath = downloadDirectory + File.separator + fileName;
+        URL url = new URL(this.url);
+
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestProperty("Authorization", "Basic " + jiraApiKey);
+        connection.connect();
+
+        if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            throw new Exception("Failed to download attachment: " + fileName + " from URL: " + this.url);
+        }
+
+        try (InputStream in = connection.getInputStream();
+             FileOutputStream out = new FileOutputStream(filePath)) {
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+        } finally {
+            connection.disconnect();
+        }
+
+        return filePath;
     }
 }
