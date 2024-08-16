@@ -124,3 +124,15 @@ public void migrateFileAttachmentsFromTestStepsToTestCase(String rallyTestCaseOI
 By adding the `downloadFile` method to your `JiraAttachment` class, you've integrated the file download process into your existing framework. This allows you to seamlessly migrate file attachments from Jira test steps to Rally test cases. 
 
 If you need further adjustments or additional methods, let me know!
+
+
+
+
+
+
+
+
+
+// Assuming rallyTestCaseOID and rallyApi have been initialized
+rallyOperation.migrateFileAttachmentsFromTestStepsToTestCase(rallyTestCaseOID, testSteps, rallyRestApi);
+
