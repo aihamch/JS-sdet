@@ -1,58 +1,66 @@
-public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
+public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap, List<String> testCaseLevelAttachments) {
     Set<String> processedAttachments = new HashSet<>();
 
+    // Upload file attachments to the test case level
+    for (String filePath : testCaseLevelAttachments) {
+        if (!processedAttachments.contains(filePath)) {
+            String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
+            String attachmentOID = extractOID(attachmentURL);
+            if (attachmentOID != null) {
+                logger.info("File attachment uploaded to test case level: " + filePath);
+            }
+            processedAttachments.add(filePath);  // Mark this file attachment as processed
+        }
+    }
+
+    // Process each test step, including handling embedded attachments
     for (JiraTestStep jiraTestStep : jiraTestSteps) {
         try {
             JsonObject newTestStep = new JsonObject();
             newTestStep.addProperty("TestCase", rallyTestCaseOID);
             newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
-
+            
             String inputField = cleanText((jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
                                 (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : ""));
             newTestStep.addProperty("Input", inputField);
-
+            
             String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
             newTestStep.addProperty("ExpectedResult", expectedResultField);
 
+            // Handle embedded attachments specific to this test step
             List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
             if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
                 for (String embeddedPath : stepEmbeddedAttachments) {
                     if (!processedAttachments.contains(embeddedPath)) {
                         String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
                         String[] attachmentParts = filename.split("_");
+
                         if (attachmentParts.length > 0) {
-                            int attachmentStepNumber = filename.startsWith("TS_") ? -1 : Integer.parseInt(attachmentParts[0]);  // Identify non-step specific attachments
-                            if (attachmentStepNumber == jiraTestStep.getIndex() + 1 || filename.startsWith("TS_")) {
-                                String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                                String attachmentOID = extractOID(attachmentURL);
-                                if (attachmentOID != null) {
-                                    if (!filename.startsWith("TS_")) {
-                                        // Regular handling for embedded attachments
-                                        updateTestStepWithAttachment(newTestStep, attachmentOID, filename);
-                                    } else {
-                                        // Log info about non-specific step attachments uploaded to the test case
-                                        logger.info("Non-step-specific attachment uploaded to test case: " + embeddedPath);
+                            try {
+                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
+                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
+                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                                    String attachmentOID = extractOID(attachmentURL);
+                                    if (attachmentOID != null) {
+                                        if (filename.contains("testData") || filename.contains("description")) {
+                                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Embedded attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        } else if (filename.contains("expectedResult")) {
+                                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Embedded attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        }
                                     }
+                                    processedAttachments.add(embeddedPath);  // Mark this embedded attachment as processed
                                 }
-                                processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                            } catch (NumberFormatException e) {
+                                logger.error("Failed to parse step number from attachment name: " + filename, e);
                             }
                         }
                     }
                 }
             }
-        } catch (NumberFormatException e) {
-            logger.error("Error processing attachment filenames: ", e);
+        } catch (Exception e) {
+            logger.error("Error processing test step: " + jiraTestStep.getIndex(), e);
         }
-    }
-}
-
-private void updateTestStepWithAttachment(JsonObject newTestStep, String attachmentOID, String filename) {
-    // Determine whether the attachment belongs to Input or ExpectedResult
-    if (filename.contains("testData") || filename.contains("description")) {
-        newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-        logger.info("Attachment added to Input field for Test Step: " + filename);
-    } else if (filename.contains("expectedResult")) {
-        newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-        logger.info("Attachment added to Expected Result field for Test Step: " + filename);
     }
 }
