@@ -1,27 +1,53 @@
-public void migrateFileAttachmentsFromTestStepsToTestCase(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi) {
-    if (rallyTestCaseOID == null || rallyTestCaseOID.isEmpty()) {
-        logger.error("Rally TestCase ID is null or empty. Cannot migrate file attachments.");
-        return;
+package com.optum.coe.automation.rally;
+
+//import org.apache.logging.log4j.LogManager;
+//import org.apache.logging.log4j.Logger;
+
+public class JiraAttachment {
+
+    private String id;
+    private String url;
+    private String fileName;
+    private long fileSize;
+
+    // Constructor, getters, and setters
+
+    public JiraAttachment(String id, String url, String fileName, long fileSize) {
+        this.id = id;
+        this.url = url;
+        this.fileName = fileName;
+        this.fileSize = fileSize;
     }
 
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        List<JiraAttachment> fileAttachments = jiraTestStep.getAttachments(); // Retrieve file attachments for each step
+    public String getId() {
+        return id;
+    }
 
-        if (fileAttachments != null && !fileAttachments.isEmpty()) {
-            for (JiraAttachment attachment : fileAttachments) {
-                try {
-                    // Assuming you have a method to get the file path from JiraAttachment
-                    String filePath = attachment.getFilePath(); // Adjust this based on your actual method to retrieve file path
-                    String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
-                    if (attachmentOID != null) {
-                        logger.info("Successfully migrated attachment from Test Step to Test Case level for file: " + filePath);
-                    } else {
-                        logger.error("Failed to migrate attachment for file: " + filePath);
-                    }
-                } catch (IOException e) {
-                    logger.error("IO Exception occurred while migrating file attachment from Test Step to Test Case level", e);
-                }
-            }
-        }
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public long getFileSize() {
+        return fileSize;
+    }
+
+    public void setFileSize(long fileSize) {
+        this.fileSize = fileSize;
     }
 }
