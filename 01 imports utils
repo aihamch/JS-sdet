@@ -1,81 +1,10 @@
-package com.optum.coe.automation.rally;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import com.google.gson.JsonObject;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.rallydev.rest.RallyRestApi;
-import java.net.URI;
-
-public class RunnerClass {
-
-    private static final Logger logger = LogManager.getLogger();
-
-    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
-        Gson gson = new Gson();
-        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
-
-        JiraTestCase jiraTestCase = new JiraTestCase();
-        JiraOperation jiraOperation = new JiraOperation();
-        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
-
-        for (String key : testcaseKeys) {
-            jiraTestCase.setKey(key);
-            logger.info("Processing " + jiraTestCase.getKey());
-            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-            
-            RallyOperation rallyOperation = new RallyOperation();
-
-            // Download and attach testcase level attachments
-            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
-
-            if (rallyTestcaseOID != null) {
-                if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
-                    rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-                    Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-                }
-            } else {
-                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
-                break;
-            }
-
-            // Handle 	Test Step Attachments
-            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-
-            // Create a map to hold the embedded attachments for each step
-            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<Integer, List<String>>();
-            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-            List<JiraTestStep> testSteps = new ArrayList<>();
-
-            for (int i = 0; i < stepsArray.size(); i++) {
-                JsonElement element = stepsArray.get(i);
-                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
-                testSteps.add(step);
-
-                // Download and map embedded attachments for the current test step
-                List<String> embeddedAttachmentPaths = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
-                if (!embeddedAttachmentPaths.isEmpty()) {
-                    embeddedAttachmentsMap.put(i , embeddedAttachmentPaths);
-                }
-            }
-
-            rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, embeddedAttachmentsMap);
-
-           Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
-            embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
-        }
-    }
-}
+java.io.IOException: HTTP/1.1 502 Bad Gateway
+	at com.rallydev.rest.client.HttpClient.executeRequest(HttpClient.java:163) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.client.HttpClient.doRequest(HttpClient.java:145) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.client.ApiKeyClient.doRequest(ApiKeyClient.java:37) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.client.HttpClient.doPost(HttpClient.java:179) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.RallyRestApi.create(RallyRestApi.java:125) ~[rally-rest-api-2.2.1.jar:?]
+	at com.optum.coe.automation.rally.RallyOperation.attachFileToRallyTestCase(RallyOperation.java:485) ~[classes/:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:652) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:146) [classes/:?]
