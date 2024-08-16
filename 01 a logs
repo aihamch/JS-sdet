@@ -33,32 +33,47 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                 for (String embeddedPath : stepEmbeddedAttachments) {
                     if (!processedAttachments.contains(embeddedPath)) {
                         String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
-                        String[] attachmentParts = filename.split("_");
+                        
+                        // Handle TS_ prefixed attachments separately
+                        if (filename.startsWith("TS_")) {
+                            String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                            String attachmentOID = extractOID(attachmentURL);
+                            if (attachmentOID != null) {
+                                // Add TS_ prefixed attachment to test case level
+                                logger.info("TS_ prefixed attachment added to test case level: " + embeddedPath);
+                                processedAttachments.add(embeddedPath);  // Mark this embedded attachment as processed
+                            }
+                        } else {
+                            // Handle other attachments based on filename content
+                            String[] attachmentParts = filename.split("_");
 
-                        if (attachmentParts.length > 0) {
-                            try {
-                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
-                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
-                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                                    String attachmentOID = extractOID(attachmentURL);
-                                    if (attachmentOID != null) {
-                                        if (filename.contains("testData") || filename.contains("description")) {
-                                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Embedded attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                        } else if (filename.contains("expectedResult")) {
-                                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Embedded attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                            if (attachmentParts.length > 0) {
+                                try {
+                                    int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
+                                    if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
+                                        String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                                        String attachmentOID = extractOID(attachmentURL);
+                                        if (attachmentOID != null) {
+                                            if (filename.contains("testData") || filename.contains("description")) {
+                                                newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                                logger.info("Embedded attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                            } else if (filename.contains("expectedResult")) {
+                                                newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                                logger.info("Embedded attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                            }
                                         }
+                                        processedAttachments.add(embeddedPath);  // Mark this embedded attachment as processed
                                     }
-                                    processedAttachments.add(embeddedPath);  // Mark this embedded attachment as processed
+                                } catch (NumberFormatException e) {
+                                    logger.error("Failed to parse step number from attachment name: " + filename, e);
                                 }
-                            } catch (NumberFormatException e) {
-                                logger.error("Failed to parse step number from attachment name: " + filename, e);
                             }
                         }
                     }
                 }
             }
+            // Add the test step to Rally
+            // Note: You will need to call the method to add the test step to Rally here.
         } catch (Exception e) {
             logger.error("Error processing test step: " + jiraTestStep.getIndex(), e);
         }
