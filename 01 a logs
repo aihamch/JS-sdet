@@ -1,48 +1,22 @@
-To ensure that only files following the naming convention starting with `TS_` are migrated, you can modify the method to check the file name before attempting to attach it to the Rally test case.
-
-Here’s the updated method:
-
-### **Updated Method:**
-```java
-public void migrateFileAttachmentsFromTestStepsToTestCase(String rallyTestCaseOID, List<String> fileAttachmentPaths, RallyRestApi rallyApi) {
-    if (rallyTestCaseOID == null || rallyTestCaseOID.isEmpty()) {
-        logger.error("Rally TestCase ID is null or empty. Cannot migrate file attachments.");
-        return;
-    }
-
-    for (String filePath : fileAttachmentPaths) {
-        File file = new File(filePath);
-        if (file.getName().startsWith("TS_")) {
-            try {
-                // Attach the file to the Rally test case
-                String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
-                if (attachmentOID != null) {
-                    logger.info("Successfully migrated attachment to Test Case level for file: " + filePath);
-                } else {
-                    logger.error("Failed to migrate attachment for file: " + filePath);
-                }
-            } catch (IOException e) {
-                logger.error("IO Exception occurred while migrating file attachment to Test Case level", e);
-            }
-        } else {
-            logger.info("Skipped file " + filePath + " as it does not follow the naming convention.");
-        }
-    }
-}
-```
-
-### **Explanation:**
-- **File Name Check:** The method checks if the file name starts with `TS_` before processing it.
-- **Logging:** If a file doesn’t follow the naming convention, it logs that the file was skipped.
-  
-### **Usage in `RunnerClass`:**
-
-```java
-// After you have downloaded the file attachments locally:
-List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-
-// Now call the method to migrate only those files following the naming convention
-rallyOperation.migrateFileAttachmentsFromTestStepsToTestCase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel, rallyRestApi);
-```
-
-This ensures that only files with names starting with `TS_` are migrated from the test steps to the test case level in Rally.
+https://qa.rte-clearanceedi.awsnonprod.healthcareit.net	
+https://qa.sso.services.awsnonprod.healthcareit.net
+https://qa.services.awsnonprod.healthcareit.net
+https://qa.collaborationcompass.awsnonprod.healthcareit.net
+https://qa.gateway.assuranceedi.awsnonprod.healthcareit.net
+https://qa.physician.connectcenter.awsnonprod.healthcareit.net
+https://qa.connectcenter.awsnonprod.healthcareit.net
+https://qa.payer.connectcenter.awsnonprod.healthcareit.net
+https://qa.arm.connectcenter.awsnonprod.healthcareit.net
+https://qa.infoexchange.awsnonprod.healthcareit.net
+https://qa2.physician.connectcenter.awsnonprod.healthcareit.net
+https://qa2.payer.connectcenter.awsnonprod.healthcareit.net
+https://qa2.arm.connectcenter.awsnonprod.healthcareit.net
+https://qa3.connectcenter.awsnonprod.healthcareit.net
+https://qa3.physician.connectcenter.awsnonprod.healthcareit.net
+https://qa3.payer.connectcenter.awsnonprod.healthcareit.net
+https://qa3.arm.connectcenter.awsnonprod.healthcareit.net
+https://qa2.connectcenter.awsnonprod.healthcareit.net
+https://qa.local-sm-services.awsnonprod.healthcareit.net
+https://mftemfccvq.awsnonprod.healthcareit.net
+https://mftemfccvd.awsnonprod.healthcareit.net
+https://qa.emf.awsnonprod.healthcareit.net
