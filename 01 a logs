@@ -27,6 +27,8 @@ public class RunnerClass {
         String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
         RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
 
+        String testStepFileAttachmentLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
+
         JiraTestCase jiraTestCase = new JiraTestCase();
         JiraOperation jiraOperation = new JiraOperation();
         ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
@@ -143,7 +145,7 @@ public class RunnerClass {
             }
 
             rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, embeddedAttachmentsMap);
-            rallyOperation.migrateFileAttachmentsFromTestStepsToTestCase(rallyTestcaseOID, testSteps, rallyRestApi );//fix here
+            rallyOperation.migrateFileAttachmentsFromTestStepsToTestCase(rallyTestcaseOID, testSteps, rallyRestApi, testStepFileAttachmentLocation);
             Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
             embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
             
@@ -163,5 +165,3 @@ public class RunnerClass {
         }
     }
 }
-
-
