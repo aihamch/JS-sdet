@@ -1,138 +1,167 @@
-Given your `JiraAttachment` class, you don't currently have a method to directly retrieve the file path, but you have the necessary details like `url` and `fileName`. To download the file from Jira using the `url` and to save it locally, you can add a method to your `JiraAttachment` class or handle it directly in the `RallyOperation` class.
+package com.optum.coe.automation.rally;
 
-### Updating `JiraAttachment` Class
-
-If you want to keep the logic simple, you can add a method in the `JiraAttachment` class to help retrieve and save the file locally, returning the local file path:
-
-```java
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.net.URL;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class JiraAttachment {
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.rallydev.rest.RallyRestApi;
+import java.net.URI;
 
-    private String id;
-    private String url;
-    private String fileName;
-    private long fileSize;
+public class RunnerClass {
 
-    // Constructor, getters, and setters
+    private static final Logger logger = LogManager.getLogger();
 
-    public JiraAttachment(String id, String url, String fileName, long fileSize) {
-        this.id = id;
-        this.url = url;
-        this.fileName = fileName;
-        this.fileSize = fileSize;
-    }
+    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
+        Gson gson = new Gson();
+        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
+        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
+        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
 
-    public String getId() {
-        return id;
-    }
+        JiraTestCase jiraTestCase = new JiraTestCase();
+        JiraOperation jiraOperation = new JiraOperation();
+        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+		boolean rallyTestcaseCreationStatus  ,rallyOverallTestCaseAttachmentsStatus  ,jiraDownloadTCFileAttachmentStatus  ,jiraDownloadTSFileAttachmentStatus ,jiraDownloadTSEmbeddedAttachmentStatus ,jiraOverallAttachmentdownloadStatus  ;
+		String rallyTestcaseOID ;
+		
+        for (String key : testcaseKeys) {
+        	 rallyTestcaseCreationStatus = false;
+			 rallyOverallTestCaseAttachmentsStatus = false;
+			 jiraDownloadTCFileAttachmentStatus = false;
+			 jiraDownloadTSFileAttachmentStatus = false;
+			 jiraDownloadTSEmbeddedAttachmentStatus = false;
+			 jiraOverallAttachmentdownloadStatus = false;
+			 rallyTestcaseOID = null;
+        	
+        	
+        	
+        	
+            jiraTestCase.setKey(key);
+            logger.info("Processing " + jiraTestCase.getKey());
+            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
+  
+            RallyOperation rallyOperation = new RallyOperation();
+            
+            
+        	List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
+			jiraDownloadTCFileAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(fileAttachmentDownloadPathsTestcaseLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
+			List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
+			jiraDownloadTSFileAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(fileAttachmentDownloadPathsTestStepLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
+			List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+			jiraDownloadTSEmbeddedAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(embeddedAttachmentDownloadPathsTestStepLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
+			
+			if ((jiraDownloadTCFileAttachmentStatus) && (jiraDownloadTSFileAttachmentStatus) && (jiraDownloadTSEmbeddedAttachmentStatus)) {
+				jiraOverallAttachmentdownloadStatus = true; // This boolean value is used for over all validation	to mark "Testcase Migrated" check box in Jira
+				rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
 
-    public void setId(String id) {
-        this.id = id;
-    }
+			
+			} else {
+				
+				logger.error("Error while downloading the attachements from Jira to Local while processing " + jiraTestCase.getKey() + "; boolean status are below\n Download testcase file attachments - " + jiraDownloadTCFileAttachmentStatus
+						+ "\nDownload teststep file attachments - " + jiraDownloadTSFileAttachmentStatus
+						+ "\nDownload testsetp embedded attachments - " + jiraDownloadTSEmbeddedAttachmentStatus);
+				return;
+				
+			}
 
-    public String getUrl() {
-        return url;
-    }
+     
+         //   rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+            
+            
+            
+            
+          // Check whether rally testcase is created successfully with available boolean values. The rallyTestcaseCreationStatus will be true for successful rally test case creation
+         			if (rallyTestcaseOID != null ) {
+         				rallyTestcaseCreationStatus = true; // This boolean value is used for over all validation	to mark "Testcase Migrated" check box in Jira
+         				System.out.println("Rally testcase is successfully created with Jira equivalent testcase for the Jira testcase key " + jiraTestCase.getKey() );
+         				logger.info("Rally testcase is successfully created with Jira equivalent testcase for the Jira testcase key " + jiraTestCase.getKey());
+         			} else { // If testcase is not created in Rally, then log the error and break the flow.
+         				logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
+         				return;	
+         			}
+         			
+         			
+         			/* If attachments are downloaded are successfully to Local, then advance to upload them to the corresponding testcase.
+					 * Call attachFilesToRallyTestcase method for this action and return testcase attachment OID for further processing. If any attachment is not uploaded to the testcase, then it will return empty list
+					 * Once the the file attachments are successfully upload to rally testcase, then delete the attachments from local.
+					 * */
+         			if ((fileAttachmentDownloadPathsTestcaseLevel != null) && (!fileAttachmentDownloadPathsTestcaseLevel.contains("error"))) {
+						
+						logger.info("Attachment paths are found in the list for testcase file attachments.");
+						List<String> testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
+						Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+						
+						if (!testcaseAttachmentOIDs.isEmpty()) { // Check if testcase OID is created successfully 
+							
+							logger.info("Test atatchment OID is created successfully in Rally for the testcase "  + jiraTestCase.getKey());
+							rallyOverallTestCaseAttachmentsStatus = true; // This boolean value is used for over all validation	to mark "Testcase Migrated" check box in Jira
+						} else { // Throw error when test case is not created successfully in rally and break the flow.
+							
+							logger.error("The Jira testcase is not created in rally. Jira Testcase key is " + jiraTestCase.getKey()
+							+ " is not created in rally");
+							return;
+						}
+						/* If fileAttachmentDownloadPathsTestcaseLevel is empty then, no attachment URL is found 
+						 * for the testcase key at testcase level*/	
+					} else if (fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) { 
+						
+						logger.info("No Attachment URL found for Testcase level while processing the testcase " + jiraTestCase.getKey());
+					} 
 
-    public void setUrl(String url) {
-        this.url = url;
-    }
 
-    public String getFileName() {
-        return fileName;
-    }
+         			
+    
+            // Handle 	Test Step Attachments
 
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
 
-    public long getFileSize() {
-        return fileSize;
-    }
+            // Create a map to hold the embedded attachments for each step
+            Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<Integer, List<String>>();
+            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+            List<JiraTestStep> testSteps = new ArrayList<>();
+            
 
-    public void setFileSize(long fileSize) {
-        this.fileSize = fileSize;
-    }
 
-    // Method to download the file from Jira and return the local file path
-    public String downloadFile(String downloadDirectory) throws IOException {
-        URL downloadUrl = new URL(this.url);
-        String localFilePath = Paths.get(downloadDirectory, this.fileName).toString();
+            for (int i = 0; i < stepsArray.size(); i++) {
+                JsonElement element = stepsArray.get(i);
+                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+                testSteps.add(step);
 
-        // Download the file from the URL and save it locally
-        Files.copy(downloadUrl.openStream(), Paths.get(localFilePath), StandardCopyOption.REPLACE_EXISTING);
-
-        return localFilePath;
-    }
-}
-```
-
-### Explanation:
-
-1. **Download Method**: The `downloadFile` method takes a `downloadDirectory` as a parameter, which is where you want to save the file locally. It uses the `url` field to download the file from Jira and returns the local file path.
-
-2. **File Saving**: The method uses `Files.copy()` to download and save the file, replacing any existing file with the same name.
-
-### Using the `downloadFile` Method in `RallyOperation`
-
-You can now use this method in your `RallyOperation` class to handle the file download and migration:
-
-```java
-public void migrateFileAttachmentsFromTestStepsToTestCase(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, String downloadDirectory) {
-    if (rallyTestCaseOID == null || rallyTestCaseOID.isEmpty()) {
-        logger.error("Rally TestCase ID is null or empty. Cannot migrate file attachments.");
-        return;
-    }
-
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        List<JiraAttachment> fileAttachments = jiraTestStep.getAttachments();
-
-        if (fileAttachments != null && !fileAttachments.isEmpty()) {
-            for (JiraAttachment attachment : fileAttachments) {
-                try {
-                    // Download the file locally
-                    String localFilePath = attachment.downloadFile(downloadDirectory);
-                    // Attach the file to the Rally test case
-                    String attachmentOID = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, localFilePath);
-                    if (attachmentOID != null) {
-                        logger.info("Successfully migrated attachment from Test Step to Test Case level for file: " + localFilePath);
-                    } else {
-                        logger.error("Failed to migrate attachment for file: " + localFilePath);
-                    }
-                } catch (IOException e) {
-                    logger.error("IO Exception occurred while migrating file attachment from Test Step to Test Case level", e);
+                // Download and map embedded attachments for the current test step
+                List<String> embeddedAttachmentPaths = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+                if (!embeddedAttachmentPaths.isEmpty()) {
+                    embeddedAttachmentsMap.put(i , embeddedAttachmentPaths);
                 }
             }
+
+            rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, rallyRestApi, embeddedAttachmentsMap);
+            rallyOperation.migrateFileAttachmentsFromTestStepsToTestCase(rallyTestcaseOID, testSteps, rallyRestApi );//fix here
+            Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
+            embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
+            
+            
+            if (jiraOverallAttachmentdownloadStatus == true && rallyTestcaseCreationStatus == true && rallyOverallTestCaseAttachmentsStatus == true  ) {
+				
+				System.out.println("OverAll Status: Rally Testcase is created successfully with required testcase level attachments");
+				/*
+				 * Needs to be added calling method to check "Testcase Migrated" and "Test Folder Migrated" the check box in Jira
+				 */
+		} 
+
+ 
+            
+            
+            
         }
     }
 }
-```
 
-### Explanation:
-
-1. **Download and Save**: The method now calls `downloadFile(downloadDirectory)` on each `JiraAttachment` object to download the file and get its local path.
-
-2. **Attach to Rally**: The local file path is then passed to the `attachFileToRallyTestCase` method to migrate the attachment to the Rally test case.
-
-### Summary
-
-By adding the `downloadFile` method to your `JiraAttachment` class, you've integrated the file download process into your existing framework. This allows you to seamlessly migrate file attachments from Jira test steps to Rally test cases. 
-
-If you need further adjustments or additional methods, let me know!
-
-
-
-
-
-
-
-
-
-// Assuming rallyTestCaseOID and rallyApi have been initialized
-rallyOperation.migrateFileAttachmentsFromTestStepsToTestCase(rallyTestCaseOID, testSteps, rallyRestApi);
 
