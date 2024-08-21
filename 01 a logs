@@ -9,3 +9,6 @@ if (createResponse.wasSuccessful()) {
     String[] errors = createResponse.getErrors();
     logger.error("Failed to create test step in Rally: " + String.join(", ", errors));
 }
+
+
+ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step in Rally: Validation error: TestCase.input length is greater than the maximum length of 2048, Validation error: TestCase.expectedResult length is greater than the maximum length of 2048
