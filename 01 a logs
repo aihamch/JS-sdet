@@ -1,293 +1,155 @@
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.rallydev.rest.RallyRestApi;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.request.QueryRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.response.QueryResponse;
-import com.rallydev.rest.request.CreateRequest;
-import com.rallydev.rest.response.CreateResponse;
-import com.rallydev.rest.util.Fetch;
-import com.rallydev.rest.util.*;
+public static void main(String[] args) throws Exception {
+    String testCaseId = "CC2-T13";
+    String jiraBaseUri = "https://jira.healthcareit.net/";
+    String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+    String projectRef = "789325818991";
 
+    // Send the GET request to JIRA using HttpClient
+    HttpClient client = HttpClients.createDefault();
+    HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+    request.setHeader("Authorization", "Bearer " + authToken);
+    request.setHeader("Accept", "application/json");
 
-import java.net.URI;
+    HttpResponse response = client.execute(request);
+    String responseBody = EntityUtils.toString(response.getEntity());
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+    System.out.println("Pretty Response: " + responseBody);
 
-public class FoldersTestCase {
+    // Parse the JIRA response
+    JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
 
-    public static void main(String[] args) throws Exception {
-        String testCaseId = "CC2-T13";
-        String jiraBaseUri = "https://jira.healthcareit.net/";
-        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
-        String projectRef = "789325818991";
+    // Create the Rally JSON object
+    JsonObject rallyJson = new JsonObject();
+    rallyJson.addProperty("projectRef", projectRef);
 
-        // Send the GET request to JIRA using HttpClient
-        HttpClient client = HttpClients.createDefault();
-        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
-        request.setHeader("Authorization", "Bearer " + authToken);
-        request.setHeader("Accept", "application/json");
+    // Create a new test case
+    JsonObject testCase = new JsonObject();
 
-        HttpResponse response = client.execute(request);
-        String responseBody = EntityUtils.toString(response.getEntity());
-
-        System.out.println("Pretty Response: " + responseBody);
-
-        // Parse the JIRA response
-        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
-
-        // Create the Rally JSON object
-        JsonObject rallyJson = new JsonObject();
-        rallyJson.addProperty("projectRef", projectRef);
-
-        // Create a new test case
-        JsonObject testCase = new JsonObject();
-
-        // Add name
-        JsonElement nameElement = jiraJson.get("name");
-        if (nameElement != null && !nameElement.isJsonNull()) {
-            testCase.addProperty("Name", nameElement.getAsString());
-        } else {
-            testCase.addProperty("Name", "Default Test Case Name"); // default value
-        }
-
-        // Add method
-        testCase.addProperty("Method", "Manual"); // Assuming a default value
-
-        // Add priority
-        JsonElement priorityElement = jiraJson.get("priority");
-        if (priorityElement != null && !priorityElement.isJsonNull()) {
-            String priority = priorityElement.getAsString();
-            if (priority.equalsIgnoreCase("Normal")) {
-                testCase.addProperty("Priority", "Useful");
-            } else {
-                testCase.addProperty("Priority", priority);
-            }
-        } else {
-            testCase.addProperty("Priority", "Default Priority"); // default value
-        }
-
-        // Add owner
-        testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
-
-        // Add status
-        JsonElement statusElement = jiraJson.get("status");
-        if (statusElement != null && !statusElement.isJsonNull()) {
-            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
-        } else {
-            testCase.addProperty("Ready", false); // default value
-        }
-
-        // Add Tags
-        JsonArray tagsArray = new JsonArray();
-        JsonObject tagObject = new JsonObject();
-        tagObject.addProperty("_ref", "/tag/56011614555");
-        tagObject.addProperty("Name", "Billing and Eligibility");
-        tagsArray.add(tagObject);
-        testCase.add("Tags", tagsArray);
-
-        // Get folder hierarchy from JIRA response
-        String folderPath = jiraJson.get("folder").getAsString();
-        String[] folderHierarchy = folderPath.split("/");
-
-        // Create TestFolder based on folder hierarchy
-        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
-        if (testFolder == null) {
-            System.out.println("Failed to create or retrieve TestFolder.");
-            return; // Exit the method or handle accordingly
-        }
-        // Add TestFolder to the test case
-        rallyJson.add("TestFolder", testFolder);
-
-        // Add the testCase object to the rallyJson
-        rallyJson.add("testCase", testCase);
-
-        // Save the transformed JSON to a variable
-        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
-
-        // Print the transformed JSON string
-        System.out.println("Transformed JSON: " + rallyJsonString);
-
-        // Initialize Rally API
-        RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
-        restApi.setApplicationName("CreateTestCaseApp");
-
-        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
-
-        // Extract values from JSON:
-        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
-        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
-
-        try {
-            // Create a new test case
-            JsonObject newTestCase = new JsonObject();
-            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
-            newTestCase.addProperty("Project", projectRef);
-            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
-            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
-            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
-            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
-
-            // Add Tags to the test case from the JSON file
-            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
-            if (tagsArrayFromJson != null) {
-                JsonArray newTagsArray = new JsonArray();
-                for (JsonElement tagElement : tagsArrayFromJson) {
-                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
-                    String tagRef = tagObjectFromJson.get("_ref").getAsString();
-                    JsonObject newTagObject = new JsonObject();
-                    newTagObject.addProperty("_ref", tagRef);
-                    newTagsArray.add(newTagObject);
-                }
-                newTestCase.add("Tags", newTagsArray);
-            }
-
-            // Add TestFolder to the test case from the JSON file
-            String testFolderRef = testFolderData.get("_ref").getAsString();
-            newTestCase.addProperty("TestFolder", testFolderRef);
-
-            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
-            CreateResponse createResponse = restApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
-            } else {
-                System.out.println("Error occurred creating test case:");
-                for (String error : createResponse.getErrors()) {
-                    System.out.println(error);
-                }
-            }
-        } finally {
-            // Release resources
-            restApi.close();
-        }
+    // Add name
+    JsonElement nameElement = jiraJson.get("name");
+    if (nameElement != null && !nameElement.isJsonNull()) {
+        testCase.addProperty("Name", nameElement.getAsString());
+    } else {
+        testCase.addProperty("Name", "Default Test Case Name"); // default value
     }
 
+    // Add method
+    testCase.addProperty("Method", "Manual"); // Assuming a default value
 
-  
+    // Add priority
+    JsonElement priorityElement = jiraJson.get("priority");
+    if (priorityElement != null && !priorityElement.isJsonNull()) {
+        String priority = priorityElement.getAsString();
+        if (priority.equalsIgnoreCase("Normal")) {
+            testCase.addProperty("Priority", "Useful");
+        } else {
+            testCase.addProperty("Priority", priority);
+        }
+    } else {
+        testCase.addProperty("Priority", "Default Priority"); // default value
+    }
 
-    private static JsonObject createTestFolder(String[] folderHierarchy, String projectRef) {
-        JsonObject lastFolder = null;
-        String lastFolderRef = null;
+    // Add owner
+    testCase.addProperty("Owner", "/user/775698509283"); // Assuming a default value
 
-        RallyRestApi restApi = null;
-        try {
-            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_YourAPIKeyHere_");
-            restApi.setApplicationName("CreateTestCaseApp");
+    // Add status
+    JsonElement statusElement = jiraJson.get("status");
+    if (statusElement != null && !statusElement.isJsonNull()) {
+        testCase.addProperty("Ready", statusElement.getAsString().equals("Approved"));
+    } else {
+        testCase.addProperty("Ready", false); // default value
+    }
 
-            if (folderHierarchy == null || folderHierarchy.length == 0) {
-                // If no folder hierarchy is provided, use a default folder named "None"
-                folderHierarchy = new String[] {"None"};
+    // Add Tags
+    JsonArray tagsArray = new JsonArray();
+    JsonObject tagObject = new JsonObject();
+    tagObject.addProperty("_ref", "/tag/56011614555");
+    tagObject.addProperty("Name", "Billing and Eligibility");
+    tagsArray.add(tagObject);
+    testCase.add("Tags", tagsArray);
+
+    // Get folder hierarchy from JIRA response
+    JsonElement folderElement = jiraJson.get("folder");
+    String[] folderHierarchy;
+
+    if (folderElement != null && !folderElement.isJsonNull()) {
+        String folderPath = folderElement.getAsString();
+        folderHierarchy = folderPath.split("/");
+    } else {
+        // If no folder is provided, use "None" as the default folder
+        folderHierarchy = new String[]{"None"};
+    }
+
+    // Create TestFolder based on folder hierarchy
+    JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
+    if (testFolder == null) {
+        System.out.println("Failed to create or retrieve TestFolder. Proceeding with default 'None' folder.");
+        testFolder = createTestFolder(new String[]{"None"}, projectRef);
+    }
+
+    // Add TestFolder to the test case
+    rallyJson.add("TestFolder", testFolder);
+
+    // Add the testCase object to the rallyJson
+    rallyJson.add("testCase", testCase);
+
+    // Save the transformed JSON to a variable
+    String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+    // Print the transformed JSON string
+    System.out.println("Transformed JSON: " + rallyJsonString);
+
+    // Initialize Rally API
+    RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_YourAPIKeyHere_");
+    restApi.setApplicationName("CreateTestCaseApp");
+
+    JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+    // Extract values from JSON:
+    JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+    JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+    try {
+        // Create a new test case
+        JsonObject newTestCase = new JsonObject();
+        newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+        newTestCase.addProperty("Project", projectRef);
+        newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+        newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+        newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+        newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+        // Add Tags to the test case from the JSON file
+        JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+        if (tagsArrayFromJson != null) {
+            JsonArray newTagsArray = new JsonArray();
+            for (JsonElement tagElement : tagsArrayFromJson) {
+                JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                String tagRef = tagObjectFromJson.get("_ref").getAsString();
+                JsonObject newTagObject = new JsonObject();
+                newTagObject.addProperty("_ref", tagRef);
+                newTagsArray.add(newTagObject);
             }
+            newTestCase.add("Tags", newTagsArray);
+        }
 
-            for (int i = 0; i < folderHierarchy.length; i++) {
-                String folderName = folderHierarchy[i];
-                if (folderName == null || folderName.trim().isEmpty()) {
-                    System.out.println("Invalid folder name encountered: '" + folderName + "'");
-                    continue;
-                }
+        // Add TestFolder to the test case from the JSON file
+        String testFolderRef = testFolderData.get("_ref").getAsString();
+        newTestCase.addProperty("TestFolder", testFolderRef);
 
-                // If it's the top-level folder, ensure it is created as a parent folder
-                if (i == 0) {
-                    // Check if the folder exists as a parent folder
-                    QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
-                    parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
-                    parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+        CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+        CreateResponse createResponse = restApi.create(createRequest);
 
-                    QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
-
-                    if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
-                        // Folder exists as a parent folder
-                        lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
-                        lastFolderRef = lastFolder.get("_ref").getAsString();
-                        System.out.println("Parent folder already exists: " + lastFolderRef);
-                    } else {
-                        // Folder does not exist as a parent folder, create it
-                        JsonObject newFolder = new JsonObject();
-                        newFolder.addProperty("Name", folderName.trim());
-                        newFolder.addProperty("Project", projectRef);
-
-                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                        if (createFolderResponse.wasSuccessful()) {
-                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                            newFolder.addProperty("_ref", lastFolderRef);
-                            lastFolder = newFolder;
-                            System.out.println("Successfully created parent folder: " + lastFolderRef);
-                        } else {
-                            System.out.println("Error occurred creating parent folder:");
-                            for (String error : createFolderResponse.getErrors()) {
-                                System.out.println(error);
-                            }
-                            break;
-                        }
-                    }
-                } else {
-                    // For subfolders, check and create under the last folder
-                    QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
-                    subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", lastFolderRef)));
-                    subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
-
-                    QueryResponse subQueryResponse = restApi.query(subFolderExistenceRequest);
-
-                    if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
-                        // Folder exists as a subfolder
-                        lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
-                        lastFolderRef = lastFolder.get("_ref").getAsString();
-                        System.out.println("Subfolder already exists: " + lastFolderRef);
-                    } else {
-                        // Folder does not exist, create it as a subfolder
-                        JsonObject newFolder = new JsonObject();
-                        newFolder.addProperty("Name", folderName.trim());
-                        newFolder.addProperty("Project", projectRef);
-                        newFolder.addProperty("Parent", lastFolderRef);
-
-                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                        if (createFolderResponse.wasSuccessful()) {
-                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                            newFolder.addProperty("_ref", lastFolderRef);
-                            lastFolder = newFolder;
-                            System.out.println("Successfully created subfolder: " + lastFolderRef);
-                        } else {
-                            System.out.println("Error occurred creating subfolder:");
-                            for (String error : createFolderResponse.getErrors()) {
-                                System.out.println(error);
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            return lastFolder;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        } finally {
-            if (restApi != null) {
-                try {
-                    restApi.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+        if (createResponse.wasSuccessful()) {
+            System.out.println("Successfully created test case: " + createResponse.getObject().get("_ref").getAsString());
+        } else {
+            System.out.println("Error occurred creating test case:");
+            for (String error : createResponse.getErrors()) {
+                System.out.println(error);
             }
         }
+    } finally {
+        // Release resources
+        restApi.close();
     }
 }
-
-Pretty Response: {"owner":"JIRAUSER109514","updatedBy":"JIRAUSER109514","customFields":{"Automation Status":"Automated Scheduled - P1","Migrate Test to Rally":true},"keyNumber":13,"updatedOn":"2024-08-21T15:54:08.372Z","priority":"Normal","majorVersion":1,"createdOn":"2022-02-01T04:32:01.631Z","component":"Provider: Manage, Find, Use","projectKey":"CC2","latestVersion":true,"createdBy":"JIRAUSER109514","testScript":{"id":343173,"type":"STEP_BY_STEP","steps":[{"expectedResult":"","index":0,"description":"","id":3803355}]},"lastTestResultStatus":"Fail","name":"Gherkin1: Verify the set default provider label is displayed in Provider management","parameters":{"variables":[],"entries":[]},"key":"CC2-T13","status":"Approved"}
-Exception in thread "main" java.lang.NullPointerException: Cannot invoke "com.google.gson.JsonElement.getAsString()" because the return value of "com.google.gson.JsonObject.get(String)" is null
-	at FoldersTestCase.main(FoldersTestCase.java:98)
-
