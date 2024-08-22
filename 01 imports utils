@@ -82,9 +82,11 @@ private String stripFormatting(String input) {
     return input.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim();
 }
 
-
-
-Exception in thread "main" java.lang.NullPointerException: Cannot invoke "String.replaceAll(String, String)" because "input" is null
-	at com.optum.coe.automation.rally.RallyOperation.stripFormatting(RallyOperation.java:682)
-	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:618)
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:146)
+// Helper method to strip formatting from text (removes HTML tags and styles)
+private String stripFormatting(String input) {
+    if (input == null) {
+        return ""; // Return an empty string if input is null
+    }
+    // Remove any HTML tags
+    return input.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim();
+}
