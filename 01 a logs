@@ -508,3 +508,28 @@ public String removeHtmlTagsPreservingNewlines(String input) {
     return cleanedText.trim();
 }
 
+
+
+
+
+
+
+
+
+
+
+
+private String removeHtmlTagsAndPreserveWhitespace(String input) {
+    // Replace <br> and <p> tags with newline characters
+    input = input.replaceAll("(?i)<br\\s*/?>", "\n").replaceAll("(?i)<p\\s*/?>", "\n");
+    
+    // Parse the input with Jsoup and get the text while preserving line breaks
+    String cleanedText = Jsoup.parse(input).text();
+    
+    // Replace multiple spaces with a single space to avoid extra spaces
+    cleanedText = cleanedText.replaceAll("\\s+", " ");
+    
+    // Return the cleaned text, preserving the line breaks
+    return cleanedText;
+}
+
