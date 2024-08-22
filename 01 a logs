@@ -1,18 +1,75 @@
-i got this error : 
-2024-08-22 10:07:00.236 [main] WARN  com.optum.coe.automation.rally.RallyOperation - Input field length exceeds 2048 characters. Truncating to fit the allowed limit.
-2024-08-22 10:07:01.073 [main] INFO  com.optum.coe.automation.rally.RallyOperation - AttachmentContentRef: https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/801053048647
-2024-08-22 10:07:01.661 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment URL: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/801053048657
-2024-08-22 10:07:01.661 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Extracted OID: 801053048657
-2024-08-22 10:07:01.661 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 3: Attachments\TestStep_Attachments\3_1_EmbeddedFile_description.png
-2024-08-22 10:07:02.460 [main] INFO  com.optum.coe.automation.rally.RallyOperation - AttachmentContentRef: https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/801053048669
-2024-08-22 10:07:03.061 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment URL: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/801053048671
-2024-08-22 10:07:03.061 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Extracted OID: 801053048671
-2024-08-22 10:07:03.061 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 3: Attachments\TestStep_Attachments\3_2_EmbeddedFile_description.png
-2024-08-22 10:07:03.320 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step in Rally: Validation error: TestCase.input length is greater than the maximum length of 2048, Validation error: TestCase.expectedResult length is greater than the maximum length of 2048
-2024-08-22 10:07:03.320 [main] WARN  com.optum.coe.automation.rally.RallyOperation - Input field length exceeds 2048 characters. Truncating to fit the allowed limit.
-2024-08-22 10:07:04.076 [main] INFO  com.optum.coe.automation.rally.RallyOperation - AttachmentContentRef: https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/801053048697
-2024-08-22 10:07:04.649 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment URL: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/801053048785
+            String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
+            expectedResultField = truncateField(expectedResultField, 2048, "ExpectedResult");
 
+            newTestStep.addProperty("Input", inputField);
+            newTestStep.addProperty("ExpectedResult", expectedResultField);
+
+            // Handle embedded attachments specific to this test step
+            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
+            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
+                for (String embeddedPath : stepEmbeddedAttachments) {
+                    if (!processedAttachments.contains(embeddedPath)) {
+                        // Extract the filename from the full path
+                        String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
+                        String[] attachmentParts = filename.split("_");
+
+                        if (attachmentParts.length > 0) {
+                            try {
+                                // Extract the step number from the first part of the filename
+                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
+
+                                // Check if this attachment corresponds to the current step
+                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {
+                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                                    String attachmentOID = extractOID(attachmentURL);
+                                    if (attachmentOID != null) {
+                                        // Determine whether the attachment belongs to Input or ExpectedResult
+                                        if (filename.contains("testData") || filename.contains("description")) {
+                                            inputField = truncateField(inputField + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>", 2048, "Input with attachment");
+                                            newTestStep.addProperty("Input", inputField);
+                                            logger.info("Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        } else if (filename.contains("expectedResult")) {
+                                            expectedResultField = truncateField(expectedResultField + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>", 2048, "ExpectedResult with attachment");
+                                            newTestStep.addProperty("ExpectedResult", expectedResultField);
+                                            logger.info("Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        } else {
+                                            logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+                                        }
+                                    }
+                                    processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                                }
+                            } catch (NumberFormatException e) {
+                                logger.error("Failed to parse step number from attachment name: " + filename, e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
+            CreateResponse createResponse = rallyApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                String testStepURL = createResponse.getObject().get("_ref").getAsString();
+                String testStepOID = extractOID(testStepURL);
+                logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
+            } else {
+                String[] errors = createResponse.getErrors();
+                logger.error("Failed to create test step in Rally: " + String.join(", ", errors));
+            }
+        } catch (IOException e) {
+            logger.error("Exception occurred while creating test step in Rally", e);
+        }
+    }
+}
+
+private String truncateField(String field, int maxLength, String fieldName) {
+    if (field != null && field.length() > maxLength) {
+        logger.warn(fieldName + " field length exceeds " + maxLength + " characters. Truncating to fit the allowed limit.");
+        return field.substring(0, maxLength);
+    }
+    return field;
+}
 
 
 
