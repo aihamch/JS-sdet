@@ -108,3 +108,23 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
         }
     }
 }
+private String truncateWithPreservedLines(String input) {
+    if (input == null) {
+        return "";
+    }
+
+    StringBuilder result = new StringBuilder();
+    String[] lines = input.split("\n");
+    int currentLength = 0;
+
+    for (String line : lines) {
+        if (currentLength + line.length() > 2048) {
+            break;
+        }
+        result.append(line).append("\n");
+        currentLength += line.length();
+    }
+
+    // Trim any trailing newline and return the result
+    return result.toString().trim();
+}
