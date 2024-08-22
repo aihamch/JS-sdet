@@ -424,3 +424,36 @@ public String removeHtmlTagsPreservingNewlines(String input) {
 
 
 
+
+
+
+
+
+import org.jsoup.Jsoup;
+
+public String removeHtmlTagsPreservingNewlines(String input) {
+    if (input == null || input.isEmpty()) {
+        return input;
+    }
+
+    // Replace block-level tags with newlines
+    input = input.replaceAll("(?i)<br[^>]*>", "\n");
+    input = input.replaceAll("(?i)<p[^>]*>", "\n");
+    input = input.replaceAll("(?i)</p>", "\n");
+    input = input.replaceAll("(?i)<div[^>]*>", "\n");
+    input = input.replaceAll("(?i)</div>", "\n");
+    input = input.replaceAll("(?i)<li[^>]*>", "\n- ");
+    input = input.replaceAll("(?i)</li>", "\n");
+    input = input.replaceAll("(?i)<ul[^>]*>", "\n");
+    input = input.replaceAll("(?i)</ul>", "\n");
+    input = input.replaceAll("(?i)<ol[^>]*>", "\n");
+    input = input.replaceAll("(?i)</ol>", "\n");
+
+    // Parse the modified HTML to remove any remaining tags
+    String cleanedText = Jsoup.parse(input).text();
+
+    // Replace multiple newlines with a single newline
+    cleanedText = cleanedText.replaceAll("\n+", "\n");
+
+    return cleanedText.trim();
+}
