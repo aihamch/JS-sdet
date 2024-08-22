@@ -112,3 +112,15 @@ private String removeHtmlTagsAndPreserveWhitespace(String input) {
     // Return the cleaned text, preserving the line breaks
     return cleanedText;
 }
+
+
+
+
+
+
+
+
+Exception in thread "main" java.lang.NullPointerException: Cannot invoke "String.replaceAll(String, String)" because "input" is null
+	at com.optum.coe.automation.rally.RallyOperation.removeHtmlTags(RallyOperation.java:798)
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:711)
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:146)
