@@ -81,3 +81,10 @@ private String stripFormatting(String input) {
     // Remove any HTML tags
     return input.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim();
 }
+
+
+
+Exception in thread "main" java.lang.NullPointerException: Cannot invoke "String.replaceAll(String, String)" because "input" is null
+	at com.optum.coe.automation.rally.RallyOperation.stripFormatting(RallyOperation.java:682)
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:618)
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:146)
