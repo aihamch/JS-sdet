@@ -1,4 +1,21 @@
-            String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
+
+public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
+    Set<String> processedAttachments = new HashSet<>();
+
+    for (JiraTestStep jiraTestStep : jiraTestSteps) {
+        try {
+            JsonObject newTestStep = new JsonObject();
+            newTestStep.addProperty("TestCase", rallyTestCaseOID);
+            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
+
+            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
+            String inputField = cleanText((jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
+                                          (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : ""));
+            inputField = truncateField(inputField, 2048, "Input");
+
+            // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
+
+String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
             expectedResultField = truncateField(expectedResultField, 2048, "ExpectedResult");
 
             newTestStep.addProperty("Input", inputField);
