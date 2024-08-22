@@ -1,10 +1,3 @@
-The issue you're describing is that line breaks and whitespace formatting are being lost during the migration process. To ensure that the migration preserves the line breaks and whitespace as closely as possible to the original, we need to carefully handle the way text is processed, especially when removing HTML tags.
-
-Here’s how to update the code to better preserve the formatting:
-
-### Updated `removeHtmlTagsAndPreserveWhitespace` Method:
-
-```java
 private String removeHtmlTagsAndPreserveWhitespace(String input) {
     if (input == null) {
         return "";
@@ -18,16 +11,11 @@ private String removeHtmlTagsAndPreserveWhitespace(String input) {
     // Parse the text using Jsoup to remove any remaining tags
     String cleanedText = Jsoup.parse(input).text();
 
-    // Normalize multiple spaces to a single space but preserve newlines
-    cleanedText = cleanedText.replaceAll(" {2,}", " ").replaceAll("\\n+", "\n");
+    // Normalize whitespace but preserve newlines
+    cleanedText = cleanedText.replaceAll(" +", " ").replaceAll("\\n+", "\n");
 
     return cleanedText.trim();
 }
-```
-
-### Revised `migrateTestStepsWithAttachments` Method:
-
-```java
 public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
     Set<String> processedAttachments = new HashSet<>();
 
@@ -49,7 +37,7 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                 logger.warn("Input field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
                 inputField = removeHtmlTagsAndPreserveWhitespace(inputField); // Remove formatting
                 if (inputField.length() > 2048) {
-                    inputField = inputField.substring(0, 2048); // Truncate if still too long
+                    inputField = truncateWithPreservedLines(inputField); // Truncate if still too long
                 }
             }
             newTestStep.addProperty("Input", inputField);
@@ -59,7 +47,7 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                 logger.warn("Expected result field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
                 expectedResultField = removeHtmlTagsAndPreserveWhitespace(expectedResultField); // Remove formatting
                 if (expectedResultField.length() > 2048) {
-                    expectedResultField = expectedResultField.substring(0, 2048); // Truncate if still too long
+                    expectedResultField = truncateWithPreservedLines(expectedResultField); // Truncate if still too long
                 }
             }
             newTestStep.addProperty("ExpectedResult", expectedResultField);
@@ -120,12 +108,3 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
         }
     }
 }
-```
-
-### Key Points:
-
-1. **Line Break Preservation**: This method replaces `<br>` and `<p>` tags with newlines before removing other HTML tags, which should help preserve the format during migration.
-  
-2. **Handling Long Fields**: If the fields exceed 2048 characters, they are truncated after removing the HTML tags while still attempting to preserve as much of the structure as possible.
-
-This approach should more accurately migrate your test steps and expected results, maintaining the format you expect.
