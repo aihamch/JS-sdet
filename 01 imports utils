@@ -9,13 +9,28 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
             newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
 
             // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-            String inputField = cleanText((jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : ""));
-            newTestStep.addProperty("Input", stripFormatting(inputField)); // Remove formatting
+            StringBuilder inputFieldBuilder = new StringBuilder();
+            String step = jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "";
+            String testData = jiraTestStep.getTestData() != null ? jiraTestStep.getTestData() : "";
 
-            // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
+            // Append step and test data to the input field
+            if (!step.isEmpty()) {
+                inputFieldBuilder.append(step).append("\n"); // Add step with a newline
+            }
+            if (!testData.isEmpty()) {
+                inputFieldBuilder.append(testData).append("\n"); // Add test data with a newline
+            }
+
+            // Set the input field to the final value
+            String inputField = inputFieldBuilder.toString();
+            if (inputField.length() > 2048) {
+                inputField = stripFormatting(inputField); // Strip formatting if it exceeds 2048 characters
+            }
+            newTestStep.addProperty("Input", inputField.trim()); // Trim any trailing newlines
+
+            // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
             String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
-            newTestStep.addProperty("ExpectedResult", stripFormatting(expectedResultField)); // Remove formatting
+            newTestStep.addProperty("ExpectedResult", expectedResultField); // Add expected result without formatting
 
             // Handle embedded attachments specific to this test step
             List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
@@ -74,12 +89,6 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
             logger.error("Exception occurred while creating test step in Rally", e);
         }
     }
-}
-
-// Helper method to strip formatting from text (removes HTML tags and styles)
-private String stripFormatting(String input) {
-    // Remove any HTML tags
-    return input.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim();
 }
 
 // Helper method to strip formatting from text (removes HTML tags and styles)
