@@ -1,18 +1,131 @@
-this is how it should be migrated:
-1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e)
+The issue you're describing is that line breaks and whitespace formatting are being lost during the migration process. To ensure that the migration preserves the line breaks and whitespace as closely as possible to the original, we need to carefully handle the way text is processed, especially when removing HTML tags.
 
-             User ID: TAM-111224   Password: Keepout!1                                                                                                          CC2-9074                                      
+Here’s how to update the code to better preserve the formatting:
 
- Given an External User logs into CCtr
+### Updated `removeHtmlTagsAndPreserveWhitespace` Method:
 
-and access Claims > Create a Claim > Institutional
+```java
+private String removeHtmlTagsAndPreserveWhitespace(String input) {
+    if (input == null) {
+        return "";
+    }
 
-When the user goes to UB04 Form tab > 74 Principal Procedure Code field
+    // Replace specific HTML tags with newlines
+    input = input.replaceAll("(?i)<br\\s*/?>", "\n")
+                 .replaceAll("(?i)<p\\s*/?>", "\n")
+                 .replaceAll("(?i)</p>", "\n");
 
-Then the field has a lookup functionality to allow the user to search by code or description
+    // Parse the text using Jsoup to remove any remaining tags
+    String cleanedText = Jsoup.parse(input).text();
 
-            and in a box above the field, code, then description displays, sorted by description, ascending
+    // Normalize multiple spaces to a single space but preserve newlines
+    cleanedText = cleanedText.replaceAll(" {2,}", " ").replaceAll("\\n+", "\n");
 
-            Example from Professional:
- this is how its actually migrated:
-1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e) User ID: TAM-111224 Password: Keepout!1 CC2-9074 Given an External User logs into CCtr and access Claims > Create a Claim > Institutional When the user goes to UB04 Form tab > 74 Principal Procedure Code field Then the field has a lookup functionality to allow the user to search by code or description and in a box above the field, code, then description displays, sorted by description, ascending Example from Professional: and repeat for UB04 Form tab > Other Procedure fields (74a-74e) 
+    return cleanedText.trim();
+}
+```
+
+### Revised `migrateTestStepsWithAttachments` Method:
+
+```java
+public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
+    Set<String> processedAttachments = new HashSet<>();
+
+    for (JiraTestStep jiraTestStep : jiraTestSteps) {
+        try {
+            JsonObject newTestStep = new JsonObject();
+            newTestStep.addProperty("TestCase", rallyTestCaseOID);
+            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
+
+            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
+            String inputField = cleanText((jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
+                                (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : ""));
+            
+            // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
+            String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
+
+            // Handle long input field by removing HTML tags and preserving whitespace
+            if (inputField != null && inputField.length() > 2048) {
+                logger.warn("Input field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
+                inputField = removeHtmlTagsAndPreserveWhitespace(inputField); // Remove formatting
+                if (inputField.length() > 2048) {
+                    inputField = inputField.substring(0, 2048); // Truncate if still too long
+                }
+            }
+            newTestStep.addProperty("Input", inputField);
+
+            // Handle long expected result field by removing HTML tags and preserving whitespace
+            if (expectedResultField != null && expectedResultField.length() > 2048) {
+                logger.warn("Expected result field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
+                expectedResultField = removeHtmlTagsAndPreserveWhitespace(expectedResultField); // Remove formatting
+                if (expectedResultField.length() > 2048) {
+                    expectedResultField = expectedResultField.substring(0, 2048); // Truncate if still too long
+                }
+            }
+            newTestStep.addProperty("ExpectedResult", expectedResultField);
+
+            // Handle embedded attachments specific to this test step
+            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
+            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
+                for (String embeddedPath : stepEmbeddedAttachments) {
+                    if (!processedAttachments.contains(embeddedPath)) {
+                        // Extract the filename from the full path
+                        String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
+                        String[] attachmentParts = filename.split("_");
+
+                        if (attachmentParts.length > 0) {
+                            try {
+                                // Extract the step number from the first part of the filename
+                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
+
+                                // Check if this attachment corresponds to the current step
+                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
+                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                                    String attachmentOID = extractOID(attachmentURL);
+                                    if (attachmentOID != null) {
+                                        // Determine whether the attachment belongs to Input or ExpectedResult
+                                        if (filename.contains("testData") || filename.contains("description")) {
+                                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        } else if (filename.contains("expectedResult")) {
+                                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        } else {
+                                            logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+                                        }
+                                    }
+                                    processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                                }
+                            } catch (NumberFormatException e) {
+                                logger.error("Failed to parse step number from attachment name: " + filename, e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
+            CreateResponse createResponse = rallyApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                String testStepURL = createResponse.getObject().get("_ref").getAsString();
+                String testStepOID = extractOID(testStepURL);
+                logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
+            } else {
+                String[] errors = createResponse.getErrors();
+                logger.error("Failed to create test step in Rally: " + String.join(", ", errors));
+            }
+        } catch (IOException e) {
+            logger.error("Exception occurred while creating test step in Rally", e);
+        }
+    }
+}
+```
+
+### Key Points:
+
+1. **Line Break Preservation**: This method replaces `<br>` and `<p>` tags with newlines before removing other HTML tags, which should help preserve the format during migration.
+  
+2. **Handling Long Fields**: If the fields exceed 2048 characters, they are truncated after removing the HTML tags while still attempting to preserve as much of the structure as possible.
+
+This approach should more accurately migrate your test steps and expected results, maintaining the format you expect.
