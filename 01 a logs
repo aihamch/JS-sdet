@@ -1,25 +1,10 @@
-private String removeHtmlTagsAndPreserveWhitespace(String input) {
-    if (input == null) {
-        return "";
-    }
+import org.jsoup.Jsoup;
 
-    // Replace specific HTML tags with newlines
-    input = input.replaceAll("(?i)<br\\s*/?>", "\n")
-                 .replaceAll("(?i)<p\\s*/?>", "\n")
-                 .replaceAll("(?i)</p>", "\n");
-
-    // Parse the text using Jsoup to remove any remaining tags
-    String cleanedText = Jsoup.parse(input).text();
-
-    // Normalize whitespace but preserve newlines
-    cleanedText = cleanedText.replaceAll(" +", " ").replaceAll("\\n+", "\n");
-
-    return cleanedText.trim();
-}
 public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
     Set<String> processedAttachments = new HashSet<>();
 
     for (JiraTestStep jiraTestStep : jiraTestSteps) {
+        System.out.println("Printing the Jira test steps: " + jiraTestStep);
         try {
             JsonObject newTestStep = new JsonObject();
             newTestStep.addProperty("TestCase", rallyTestCaseOID);
@@ -32,23 +17,19 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
             // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
             String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
 
-            // Handle long input field by removing HTML tags and preserving whitespace
+            // Check and adjust Input field if it exceeds 2048 characters
             if (inputField != null && inputField.length() > 2048) {
                 logger.warn("Input field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
-                inputField = removeHtmlTagsAndPreserveWhitespace(inputField); // Remove formatting
-                if (inputField.length() > 2048) {
-                    inputField = truncateWithPreservedLines(inputField); // Truncate if still too long
-                }
+                inputField = removeHtmlTags(inputField); // Remove formatting
+                inputField = truncateWithPreservedLines(inputField); // Ensure it stays within the limit while preserving lines
             }
             newTestStep.addProperty("Input", inputField);
 
-            // Handle long expected result field by removing HTML tags and preserving whitespace
+            // Check and adjust Expected Result field if it exceeds 2048 characters
             if (expectedResultField != null && expectedResultField.length() > 2048) {
                 logger.warn("Expected result field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
-                expectedResultField = removeHtmlTagsAndPreserveWhitespace(expectedResultField); // Remove formatting
-                if (expectedResultField.length() > 2048) {
-                    expectedResultField = truncateWithPreservedLines(expectedResultField); // Truncate if still too long
-                }
+                expectedResultField = removeHtmlTags(expectedResultField); // Remove formatting
+                expectedResultField = truncateWithPreservedLines(expectedResultField); // Ensure it stays within the limit while preserving lines
             }
             newTestStep.addProperty("ExpectedResult", expectedResultField);
 
@@ -75,7 +56,7 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                                         if (filename.contains("testData") || filename.contains("description")) {
                                             newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
                                             logger.info("Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                        } else if (filename.contains("expectedResult")) {
+                                        } else if (filename contains("expectedResult")) {
                                             newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
                                             logger.info("Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
                                         } else {
@@ -108,6 +89,11 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
         }
     }
 }
+
+private String removeHtmlTags(String input) {
+    return input != null ? Jsoup.parse(input).text() : "";
+}
+
 private String truncateWithPreservedLines(String input) {
     if (input == null) {
         return "";
