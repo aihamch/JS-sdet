@@ -457,3 +457,54 @@ public String removeHtmlTagsPreservingNewlines(String input) {
 
     return cleanedText.trim();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.safety.Safelist;
+
+public String removeHtmlTagsPreservingNewlines(String input) {
+    if (input == null || input.isEmpty()) {
+        return input;
+    }
+
+    // Parse the HTML input to a Jsoup Document
+    Document doc = Jsoup.parse(input);
+
+    // Replace <br>, <p>, <div>, and list item tags with newlines
+    doc.select("br").before("\\n");
+    doc.select("p").before("\\n").after("\\n");
+    doc.select("div").before("\\n").after("\\n");
+    doc.select("li").before("\\n- ").after("\\n");
+
+    // Clean up any remaining tags using a safe whitelist
+    String cleanedText = Jsoup.clean(doc.html(), "", Safelist.none(), new Document.OutputSettings().prettyPrint(false));
+
+    // Replace escaped newline sequences with actual newlines
+    cleanedText = cleanedText.replaceAll("\\\\n", "\n");
+
+    // Remove extra newlines
+    cleanedText = cleanedText.replaceAll("\n+", "\n");
+
+    return cleanedText.trim();
+}
+
