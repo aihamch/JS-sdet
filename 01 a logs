@@ -97,3 +97,30 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
 private String removeHtmlTags(String input) {
     return Jsoup.parse(input).text();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+private String removeHtmlTags(String input) {
+    if (input == null || input.isEmpty()) {
+        return input;
+    }
+
+    // Replace <br>, <p>, and <div> tags with newlines before removing other tags
+    input = input.replaceAll("(?i)<br\\s*/?>", "\n"); // Replace <br> with newline
+    input = input.replaceAll("(?i)</p>", "\n");       // Replace closing </p> with newline
+    input = input.replaceAll("(?i)</div>", "\n");     // Replace closing </div> with newline
+
+    // Remove other HTML tags
+    return Jsoup.parse(input).text();
+}
+
