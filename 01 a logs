@@ -124,3 +124,36 @@ Exception in thread "main" java.lang.NullPointerException: Cannot invoke "String
 	at com.optum.coe.automation.rally.RallyOperation.removeHtmlTags(RallyOperation.java:798)
 	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:711)
 	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:146)
+
+
+
+
+
+
+
+
+
+
+
+private String removeHtmlTagsAndPreserveWhitespace(String input) {
+    if (input == null) {
+        return "";
+    }
+
+    // Replace <br> and <p> tags with newline characters
+    input = input.replaceAll("(?i)<br\\s*/?>", "\n").replaceAll("(?i)<p\\s*/?>", "\n");
+
+    // Parse the input with Jsoup and get the text while preserving line breaks
+    Document doc = Jsoup.parse(input);
+    doc.outputSettings(new Document.OutputSettings().prettyPrint(false)); // Keep line breaks
+    doc.select("br").append("\\n"); // Replace <br> with \n
+    doc.select("p").prepend("\\n"); // Add \n before <p> tags
+    String cleanedText = doc.text().replace("\\n", "\n"); // Replace \\n with actual newlines
+
+    // Replace multiple spaces with a single space to avoid extra spaces
+    cleanedText = cleanedText.replaceAll("\\s+", " ");
+
+    // Return the cleaned text, preserving the line breaks
+    return cleanedText;
+}
+
