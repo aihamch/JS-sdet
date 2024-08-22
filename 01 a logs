@@ -1,3 +1,26 @@
+i got this error : 
+2024-08-22 10:07:00.236 [main] WARN  com.optum.coe.automation.rally.RallyOperation - Input field length exceeds 2048 characters. Truncating to fit the allowed limit.
+2024-08-22 10:07:01.073 [main] INFO  com.optum.coe.automation.rally.RallyOperation - AttachmentContentRef: https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/801053048647
+2024-08-22 10:07:01.661 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment URL: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/801053048657
+2024-08-22 10:07:01.661 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Extracted OID: 801053048657
+2024-08-22 10:07:01.661 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 3: Attachments\TestStep_Attachments\3_1_EmbeddedFile_description.png
+2024-08-22 10:07:02.460 [main] INFO  com.optum.coe.automation.rally.RallyOperation - AttachmentContentRef: https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/801053048669
+2024-08-22 10:07:03.061 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment URL: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/801053048671
+2024-08-22 10:07:03.061 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Extracted OID: 801053048671
+2024-08-22 10:07:03.061 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment added to Input field for Test Step 3: Attachments\TestStep_Attachments\3_2_EmbeddedFile_description.png
+2024-08-22 10:07:03.320 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step in Rally: Validation error: TestCase.input length is greater than the maximum length of 2048, Validation error: TestCase.expectedResult length is greater than the maximum length of 2048
+2024-08-22 10:07:03.320 [main] WARN  com.optum.coe.automation.rally.RallyOperation - Input field length exceeds 2048 characters. Truncating to fit the allowed limit.
+2024-08-22 10:07:04.076 [main] INFO  com.optum.coe.automation.rally.RallyOperation - AttachmentContentRef: https://rally1.rallydev.com/slm/webservice/v2.0/attachmentcontent/801053048697
+2024-08-22 10:07:04.649 [main] INFO  com.optum.coe.automation.rally.RallyOperation - Attachment URL: https://rally1.rallydev.com/slm/webservice/v2.0/attachment/801053048785
+
+
+
+
+
+
+
+
+
 public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
     Set<String> processedAttachments = new HashSet<>();
 
