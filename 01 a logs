@@ -209,3 +209,57 @@ public String removeHtmlTagsPreservingNewlines(String input) {
 
 
 
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+public String removeHtmlTagsPreservingNewlines(String input) {
+    if (input == null || input.isEmpty()) {
+        return input;
+    }
+
+    Document doc = Jsoup.parse(input);
+
+    // Replace <br> tags with newlines
+    Elements brElements = doc.select("br");
+    for (Element br : brElements) {
+        br.after("\n");
+    }
+
+    // Replace <p> tags with double newlines
+    Elements pElements = doc.select("p");
+    for (Element p : pElements) {
+        p.before("\n\n");
+    }
+
+    // Return the cleaned text
+    return doc.text().replaceAll("\\n{3,}", "\n\n").trim(); // Replace multiple newlines with a maximum of two
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
