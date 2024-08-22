@@ -289,6 +289,38 @@ public String removeHtmlTagsPreservingNewlines(String input) {
 
 
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+public String removeHtmlTagsPreservingNewlines(String input) {
+    if (input == null || input.isEmpty()) {
+        return input;
+    }
+
+    // Parse the HTML content
+    Document doc = Jsoup.parse(input);
+
+    // Replace <br> tags with newlines
+    Elements brElements = doc.select("br");
+    for (Element br : brElements) {
+        br.before("\\n"); // Insert a literal newline
+        br.remove(); // Remove the <br> tag after adding the newline
+    }
+
+    // Handle paragraphs and other block elements by replacing with newlines
+    Elements blockElements = doc.select("p, div, ul, ol, li, h1, h2, h3, h4, h5, h6, blockquote");
+    for (Element block : blockElements) {
+        block.before("\\n"); // Insert a newline before each block element
+        block.after("\\n");  // Insert a newline after each block element
+    }
+
+    // Get the plain text content with newlines preserved
+    String cleanedText = doc.text().replace("\\n", "\n"); // Convert literal newlines to actual newlines
+
+    return cleanedText.trim();
+}
 
 
 
