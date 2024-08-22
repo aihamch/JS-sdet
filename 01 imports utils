@@ -1,10 +1,16 @@
 
-java.io.IOException: HTTP/1.1 502 Bad Gateway
-	at com.rallydev.rest.client.HttpClient.executeRequest(HttpClient.java:163) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.client.HttpClient.doRequest(HttpClient.java:145) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.client.ApiKeyClient.doRequest(ApiKeyClient.java:37) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.client.HttpClient.doPost(HttpClient.java:179) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.RallyRestApi.create(RallyRestApi.java:125) ~[rally-rest-api-2.2.1.jar:?]
-	at com.optum.coe.automation.rally.RallyOperation.attachFileToRallyTestCase(RallyOperation.java:485) ~[classes/:?]
-	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:652) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:146) [classes/:?]
+this is how the test was migrated:
+1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e)              User ID: TAM-111224   Password: Keepout!1                                                                                                          CC2-9074                                         Given an External User logs into CCtr and access Claims > Create a Claim > Institutional When the user goes to UB04 Form tab > 74 Principal Procedure Code field Then the field has a lookup functionality to allow the user to search by code or description             and in a box above the field, code, then description displays, sorted by description, ascending             Example from Professional:                    and repeat for UB04 Form tab > Other Procedure fields (74a-74e) 
+ this is how it should be migrated:
+1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e)
+             User ID: TAM-111224   Password: Keepout!1                                                                                                          CC2-9074                                      
+ 
+Given an External User logs into CCtr
+and access Claims > Create a Claim > Institutional
+When the user goes to UB04 Form tab > 74 Principal Procedure Code field
+Then the field has a lookup functionality to allow the user to search by code or description
+            and in a box above the field, code, then description displays, sorted by description, ascending
+            Example from Professional:
+                
+ 
+and repeat for UB04 Form tab > Other Procedure fields (74a-74e)
