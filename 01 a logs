@@ -1,4 +1,7 @@
-    public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
+
+
+
+public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
         Set<String> processedAttachments = new HashSet<>();
         
 
@@ -84,3 +87,9 @@
             }
         }
     }
+
+
+i get this error  : 2024-08-22 15:23:41.633 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create test step in Rally: Validation error: TestCase.input length is greater than the maximum length of 2048, Validation error: TestCase.expectedResult length is greater than the maximum length of 2048
+
+
+i want to remove the text format from the test steps so i dont get this issue
