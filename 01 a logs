@@ -124,3 +124,35 @@ private String removeHtmlTags(String input) {
     return Jsoup.parse(input).text();
 }
 
+
+
+
+
+
+
+
+
+
+
+private String removeHtmlTags(String input) {
+    if (input == null || input.isEmpty()) {
+        return input;
+    }
+
+    // First, replace block-level tags with newlines
+    input = input.replaceAll("(?i)<br\\s*/?>", "\n");  // Replace <br> with newline
+    input = input.replaceAll("(?i)</p>", "\n");        // Replace </p> with newline
+    input = input.replaceAll("(?i)</div>", "\n");      // Replace </div> with newline
+    input = input.replaceAll("(?i)<div[^>]*>", "\n");  // Replace <div> with newline
+    input = input.replaceAll("(?i)<p[^>]*>", "\n");    // Replace <p> with newline
+
+    // Then, remove all other HTML tags
+    input = Jsoup.parse(input).text();
+
+    // Finally, replace multiple newlines with a single newline to avoid too many line breaks
+    input = input.replaceAll("\n+", "\n");
+
+    return input.trim();
+}
+
+
