@@ -11,3 +11,26 @@ private String stripFormatting(String input) {
 }
 
  
+private String stripFormatting(String input) {
+    if (input == null) {
+        return ""; // Return an empty string if input is null
+    }
+    // Remove HTML tags
+    input = input.replaceAll("<[^>]*>", "");
+
+    // Preserve existing new lines and reduce excess whitespace
+    input = input.replaceAll(" {2,}", "\n") // Replace multiple spaces with a new line
+                 .replaceAll("\\s+", " ")  // Replace all whitespace sequences with a single space
+                 .replaceAll("\\n ", "\n") // Ensure new lines remain
+                 .replaceAll("\\s{2,}", "\n") // Extra safeguard: replace multiple spaces or tabs with a new line
+                 .trim();                   // Trim leading and trailing whitespace
+    
+    // Adding explicit new lines where logical breaks might be needed
+    input = input.replaceAll("(?<=\\.)(?=\\s[A-Z])", "\n") // Add a new line after periods followed by capitalized words
+                 .replaceAll("(?<=\\))(?=\\s)", "\n")     // Add a new line after closing parentheses followed by space
+                 .replaceAll("(?<=\\d)(?=\\s[A-Z])", "\n") // Add a new line after digits followed by capitalized words
+                 .replaceAll("(?<=\\w:)(?=\\s)", "\n")     // Add a new line after colons followed by space
+                 .replaceAll("(?<=\\s{4,})", "\n");        // Convert excess spaces to new lines
+
+    return input;
+}
