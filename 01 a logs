@@ -1,45 +1,7 @@
-Formatted String: 1
-INST-Create Claim (Verify) Procedure Codes (UB04
-Form Tab Box 74a-e)             User ID:
-TAM-111224   Password:
-Keepout!1                                                                                                          CC2-9074                                       Given an External User logs into CCtrand access Claims &gt; Create a Claim &gt; InstitutionalWhen the user goes to UB04
-Form tab &gt; 74
-Principal Procedure Code fieldThen the field has a lookup functionality to allow the user to search by code or description            and in a box above the field, code, then description displays, sorted by description, ascending            Example from Professional:                 and repeat for UB04
-Form tab &gt; Other Procedure fields (74a-74e)
-import org.apache.commons.text.StringEscapeUtils;
-
-private String stripFormatting(String input) {
-    if (input == null) {
-        return ""; // Return an empty string if input is null
-    }
-
-    // Step 1: Decode HTML entities
-    input = StringEscapeUtils.unescapeHtml4(input);
-
-    // Step 2: Remove HTML tags
-    input = input.replaceAll("<[^>]*>", "");
-
-    // Step 3: Preserve new lines while normalizing whitespace
-    input = input.replaceAll("\r\n|\r|\n", "\n") // Normalize all line breaks to "\n"
-                 .replaceAll("[ ]{2,}", "\n") // Convert multiple spaces to a new line
-                 .replaceAll("\\s*\\>\\s*", " > ") // Clean up spacing around >
-                 .replaceAll("\\s*\\<\\s*", " < "); // Clean up spacing around <
-
-    // Step 4: Add explicit line breaks at logical points
-    input = input.replaceAll("(User ID:)", "\n$1")
-                 .replaceAll("(Password:)", "\n$1")
-                 .replaceAll("(Given\\s+an External User)", "\n$1")
-                 .replaceAll("(access Claims)", "\n$1")
-                 .replaceAll("(When the user)", "\n$1")
-                 .replaceAll("(Then the field)", "\n$1")
-                 .replaceAll("(Example from Professional:)", "\n$1")
-                 .replaceAll("(repeat for UB04)", "\n$1");
-
-    // Step 5: Trim any leading/trailing spaces
-    input = input.trim();
-
-    // Step 6: Log the final formatted string for review
-    System.out.println("Formatted String:\n" + input);
-
-    return input;
-}
+Formatted String:
+1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e)             
+User ID: TAM-111224   
+Password: Keepout!1                                                                                                          CC2-9074                                       Given an External User logs into CCtrand 
+access Claims > Create a Claim > InstitutionalWhen the user goes to UB04 Form tab > 74 Principal Procedure Code fieldThen the field has a lookup functionality to allow the user to search by code or description            and in a box above the field, code, then description displays, sorted by description, ascending            
+Example from Professional:                 and 
+repeat for UB04 Form tab > Other Procedure fields (74a-74e)
