@@ -1,5 +1,35 @@
 
+tyt
 private String stripFormatting(String input) {
+    if (input == null) {
+        return ""; // Return an empty string if input is null
+    }
+
+    // Remove HTML tags
+    input = input.replaceAll("<[^>]*>", "");
+
+    // Replace sequences of spaces or tabs with a single space
+    input = input.replaceAll("\\s+", " ");
+
+    // Add new lines where logical breaks might be needed
+    input = input.replaceAll("\\.\\s", ".\n")      // Insert newline after periods followed by space
+                 .replaceAll("(?<=\\d)(?=\\s[A-Z])", "\n") // Insert newline after digits followed by capitalized words
+                 .replaceAll("(?<=\\w:)(?=\\s)", "\n")     // Insert newline after colons followed by space
+                 .replaceAll("\\s{2,}", "\n")              // Replace any sequence of 2+ spaces with a newline
+                 .trim();                                  // Trim leading/trailing whitespace
+
+    // Log the final string before sending it to Rally (for debugging purposes)
+    System.out.println("Formatted String: " + input);
+
+    return input;
+}
+
+
+
+
+
+
+tyt
     if (input == null) {
         return ""; // Return an empty string if input is null
     }
