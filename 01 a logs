@@ -1,50 +1,8 @@
-
-tyt
-private String stripFormatting(String input) {
-    if (input == null) {
-        return ""; // Return an empty string if input is null
-    }
-
-    // Remove HTML tags
-    input = input.replaceAll("<[^>]*>", "");
-
-    // Replace sequences of spaces or tabs with a single space
-    input = input.replaceAll("\\s+", " ");
-
-    // Add new lines where logical breaks might be needed
-    input = input.replaceAll("\\.\\s", ".\n")      // Insert newline after periods followed by space
-                 .replaceAll("(?<=\\d)(?=\\s[A-Z])", "\n") // Insert newline after digits followed by capitalized words
-                 .replaceAll("(?<=\\w:)(?=\\s)", "\n")     // Insert newline after colons followed by space
-                 .replaceAll("\\s{2,}", "\n")              // Replace any sequence of 2+ spaces with a newline
-                 .trim();                                  // Trim leading/trailing whitespace
-
-    // Log the final string before sending it to Rally (for debugging purposes)
-    System.out.println("Formatted String: " + input);
-
-    return input;
-}
-
-
-
-
-
-
-tyt
-    if (input == null) {
-        return ""; // Return an empty string if input is null
-    }
-
-    // Remove HTML tags
-    input = input.replaceAll("<[^>]*>", "");
-
-    // Ensure that sequences of spaces or tabs are converted into single spaces
-    input = input.replaceAll("\\s+", " ");
-
-    // Replace specific logical breaks with a newline
-    input = input.replaceAll("\\.\\s", ".\n")      // Add newline after periods followed by space
-                 .replaceAll("(?<=\\d)(?=\\s[A-Z])", "\n") // Add newline after digits followed by capitalized words
-                 .replaceAll("(?<=\\w:)(?=\\s)", "\n")     // Add newline after colons followed by space
-                 .replaceAll("\\s{2,}", "\n");             // Replace any sequence of 2 or more spaces with a newline
-
-    return input.trim(); // Trim any leading or trailing whitespace
-}
+Formatted String: 1
+INST-Create Claim (Verify) Procedure Codes (UB04
+Form Tab Box 74a-e)             User ID:
+TAM-111224   Password:
+Keepout!1                                                                                                          CC2-9074                                       Given an External User logs into CCtrand access Claims &gt; Create a Claim &gt; InstitutionalWhen the user goes to UB04
+Form tab &gt; 74
+Principal Procedure Code fieldThen the field has a lookup functionality to allow the user to search by code or description            and in a box above the field, code, then description displays, sorted by description, ascending            Example from Professional:                 and repeat for UB04
+Form tab &gt; Other Procedure fields (74a-74e)
