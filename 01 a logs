@@ -8,9 +8,39 @@ private String stripFormatting(String input) {
                 .replaceAll(" +", " ")    // Replace multiple spaces with a single space
                 .replaceAll("\\s{2,}", "\n") // Replace sequences of whitespace (2+ spaces) with a new line
                 .trim();                   // Trim leading and trailing whitespace
+}y
+
+
+
+
+@@@@
+private String stripFormatting(String input) {
+    if (input == null) {
+        return ""; // Return an empty string if input is null
+    }
+    // Preserve new lines, remove HTML tags, and clean up spaces
+    input = input.replaceAll("<[^>]*>", ""); // Remove HTML tags
+    
+    // Replace multiple spaces (but not newlines) with a single space
+    input = input.replaceAll("[ ]{2,}", " ");
+    
+    // Add new lines where appropriate, for example after periods or specific patterns
+    input = input.replaceAll("\\.\\s", ".\n") // Insert newline after periods followed by a space
+                 .replaceAll("\\s{4,}", "\n") // Convert sequences of 4 or more spaces into a newline
+                 .replaceAll("(\\S)([A-Z])", "$1\n$2"); // Insert newline before a capital letter following a non-space character
+    
+    return input.trim(); // Trim any leading or trailing spaces
 }
 
- 
+
+
+
+
+
+
+
+
+ @@@@
 private String stripFormatting(String input) {
     if (input == null) {
         return ""; // Return an empty string if input is null
