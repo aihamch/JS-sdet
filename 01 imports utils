@@ -1,101 +1,148 @@
-public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
-    Set<String> processedAttachments = new HashSet<>();
+ 	// Modified migrateTestStepsWithAttachments method
+    public boolean migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, Map<Integer, List<String>> embeddedAttachmentsMap) throws URISyntaxException {
+    	RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
+    	Set<String> processedAttachments = new HashSet<>();
+    	String testStepOID = null;
+    	String testStepURL = null;
+    	boolean rallyTestStepCreationStatus = false;
+    	for (JiraTestStep jiraTestStep : jiraTestSteps) {
+            try {
+            	rallyTestStepCreationStatus = false;
+            	JsonObject newTestStep = new JsonObject();
+                newTestStep.addProperty("TestCase", rallyTestCaseOID);
+                newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
+                
+                // Combine "Step" and "Test Data" fields into the "Input" field in Rally
+                String inputField = Utils.cleanText((jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
+                                    (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : ""));
+              //  newTestStep.addProperty("Input", inputField);
+                
+                // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
+                String expectedResultField = Utils.cleanText(jiraTestStep.getExpectedResult());
+             //   newTestStep.addProperty("ExpectedResult", expectedResultField);
 
-    for (JiraTestStep jiraTestStep : jiraTestSteps) {
-        System.out.println("Printing the jira test steps on line 609 " + jiraTestStep);
-        try {
-            JsonObject newTestStep = new JsonObject();
-            newTestStep.addProperty("TestCase", rallyTestCaseOID);
-            newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
 
-            // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-            StringBuilder inputFieldBuilder = new StringBuilder();
-            String step = jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "";
-            String testData = jiraTestStep.getTestData() != null ? jiraTestStep.getTestData() : "";
 
-            // Append step and test data to the input field
-            if (!step.isEmpty()) {
-                inputFieldBuilder.append(step).append("\n"); // Add step with a newline
-            }
-            if (!testData.isEmpty()) {
-                inputFieldBuilder.append(testData).append("\n"); // Add test data with a newline
-            }
 
-            // Set the input field to the final value
-            String inputField = inputFieldBuilder.toString();
-            if (inputField.length() > 2048) {
-                inputField = stripFormatting(inputField); // Strip formatting if it exceeds 2048 characters
-            }
-            newTestStep.addProperty("Input", inputField.trim()); // Trim any trailing newlines
+ 
+                // Check and adjust Input field if it exceeds 2048 characters
+                if (inputField != null && inputField.length() > 2048) {
+                    logger.warn("Input field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
+                    inputField = removeHtmlTags(inputField); // Remove formatting
+                    if (inputField.length() > 2048) {
+                        inputField = inputField.substring(0, 2048); // Truncate if still too long
+                    }
+                }
+                newTestStep.addProperty("Input", inputField);
+ 
+                // Check and adjust Expected Result field if it exceeds 2048 characters
+                if (expectedResultField != null && expectedResultField.length() > 2048) {
+                    logger.warn("Expected result field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
+                    expectedResultField = removeHtmlTags(expectedResultField); // Remove formatting
+                    if (expectedResultField.length() > 2048) {
+                        expectedResultField = expectedResultField.substring(0, 2048); // Truncate if still too long
+                    }
+                }
+                newTestStep.addProperty("ExpectedResult", expectedResultField);
 
-            // Map "Expected Result" field from Jira directly to Rally's "Expected Result"
-            String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
-            newTestStep.addProperty("ExpectedResult", expectedResultField); // Add expected result without formatting
 
-            // Handle embedded attachments specific to this test step
-            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
-            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
-                for (String embeddedPath : stepEmbeddedAttachments) {
-                    if (!processedAttachments.contains(embeddedPath)) {
-                        // Extract the filename from the full path
-                        String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
-                        String[] attachmentParts = filename.split("_");
 
-                        if (attachmentParts.length > 0) {
-                            try {
-                                // Extract the step number from the first part of the filename
-                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
 
-                                // Check if this attachment corresponds to the current step
-                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
-                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
-                                    String attachmentOID = extractOID(attachmentURL);
-                                    if (attachmentOID != null) {
-                                        // Determine whether the attachment belongs to Input or ExpectedResult
-                                        if (filename.contains("testData") || filename.contains("description")) {
-                                            String currentInput = newTestStep.get("Input").getAsString();
-                                            newTestStep.addProperty("Input", currentInput + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                        } else if (filename.contains("expectedResult")) {
-                                            String currentExpectedResult = newTestStep.get("ExpectedResult").getAsString();
-                                            newTestStep.addProperty("ExpectedResult", currentExpectedResult + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                            logger.info("Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                        } else {
-                                            logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+
+
+                // Handle embedded attachments specific to this test step
+                List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
+                if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
+                    for (String embeddedPath : stepEmbeddedAttachments) {
+                        if (!processedAttachments.contains(embeddedPath)) {
+                            // Extract the filename from the full path
+                            String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
+                            String[] attachmentParts = filename.split("_");
+                            if (attachmentParts.length > 0) {
+                                try {
+                                    // Extract the step number from the first part of the filename
+                                    int attachmentStepNumber = Integer.parseInt(attachmentParts[2]);
+                                     // Check if this attachment corresponds to the current step
+                                    if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
+                                        String attachmentURL = attachFileToRallyTestCase(rallyRestApi, rallyTestCaseOID, embeddedPath);
+                                        String attachmentOID = Utils.extractOID(attachmentURL);
+                                        if (attachmentOID != null) {
+                                            // Determine whether the attachment belongs to Input or ExpectedResult
+                                            if (filename.contains("testData") || filename.contains("description")) {
+//                                                String formatedString = newTestStep.get("Input").getAsString();
+//                                                JsonElement jsonElementToRemoveFormat = JsonParser.parseString(formatedString);
+//                                                JsonObject jsonObjectoRemoveFormat = jsonElementToRemoveFormat.getAsJsonObject();
+                                               String testStepInputValue = newTestStep.get("Input").getAsString();
+//                                           	String clean = Jsoup.parse(testStepInputValue).text();
+//                                           	System.out.println(clean);
+                                            	newTestStep.addProperty("Input", testStepInputValue + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                                logger.info("Embedded Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                            } else if (filename.contains("expectedResult")) {
+                                                newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                                logger.info("Embedded Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                            } else {
+                                                logger.info("Embedded Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+                                            }
                                         }
+                                        processedAttachments.add(embeddedPath);  // Mark this attachment as processed
                                     }
-                                    processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                                } catch (NumberFormatException e) {
+                                    logger.error("Failed to parse step number from attachment name: " + filename, e);
+                                    return rallyTestStepCreationStatus;
                                 }
-                            } catch (NumberFormatException e) {
-                                logger.error("Failed to parse step number from attachment name: " + filename, e);
                             }
                         }
                     }
+                } else {
+                	
+                	logger.info("No Embedded attachment is found at test step level for the jira testcase key " + rallyTestCaseOID);
+                	
                 }
-            }
+                
+                // Testing
+                
+                // for (String key : newTestStep.keySet() ) {
+				// 	System.out.println(key + ": " + newTestStep.get(key));
+				// }
+                
+                CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
+                CreateResponse createResponse = rallyRestApi.create(createRequest);
 
-            CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-            CreateResponse createResponse = rallyApi.create(createRequest);
-
-            if (createResponse.wasSuccessful()) {
-                String testStepURL = createResponse.getObject().get("_ref").getAsString();
-                String testStepOID = extractOID(testStepURL);
-                logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
-            } else {
-                String[] errors = createResponse.getErrors();
-                logger.error("Failed to create test step in Rally: " + String.join(", ", errors));
+                if (createResponse.wasSuccessful()) {
+                    testStepURL = createResponse.getObject().get("_ref").getAsString();
+                    testStepOID = Utils.extractOID(testStepURL);
+                    if (testStepOID != null)   {
+                    	rallyTestStepCreationStatus = true;
+                    } else {
+                    	return rallyTestStepCreationStatus;
+                    }
+                    logger.info("Successfully created test step " + (jiraTestStep.getIndex() + 1)  + " in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
+                    
+                } else {
+                    logger.error("Failed to create test step in Rally for the test step : " + (jiraTestStep.getIndex() + 1) + " ; TestcaseOID is " + rallyTestCaseOID + " ; Error is " + createResponse.getErrors());
+                    return rallyTestStepCreationStatus;
+                }
+            } catch (IOException e) {
+                logger.error("Exception occurred while creating test step in Rally", e);
+                return rallyTestStepCreationStatus;
             }
-        } catch (IOException e) {
-            logger.error("Exception occurred while creating test step in Rally", e);
         }
+    	
+    	return rallyTestStepCreationStatus;
     }
-}
+ 	
 
-// Helper method to strip formatting from text (removes HTML tags and styles)
-private String stripFormatting(String input) {
-    if (input == null) {
-        return ""; // Return an empty string if input is null
-    }
-    // Remove any HTML tags
-    return input.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim();
-}
+   // Helper method  (removes HTML tags and styles)
+   //   private String removeHtmlTags(String content) {
+   //       return Jsoup.parse(content).text();
+   //   }  
+   
+   
+   private String removeHtmlTags(String input) {
+       if (input == null) {
+           return ""; // Return an empty string if input is null
+       }
+       // Remove any HTML tags
+       return input.replaceAll("<[^>]*>", "\\n").replaceAll("\\s+", "\\n").trim();
+   }
+ 	i want to adjust this method if the test step exceeded 2048 charachtars then copy the text of the test step and paste it on a text file on local C:\Git_Master\jira-to-rally-migration and then take the information from that text file (dont upload the entire file) and create the test step, this way i can get rid of the text formating
