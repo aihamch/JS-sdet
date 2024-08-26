@@ -5,3 +5,28 @@ Password: Keepout!1                                         
 access Claims > Create a Claim > InstitutionalWhen the user goes to UB04 Form tab > 74 Principal Procedure Code fieldThen the field has a lookup functionality to allow the user to search by code or description            and in a box above the field, code, then description displays, sorted by description, ascending            
 Example from Professional:                 and 
 repeat for UB04 Form tab > Other Procedure fields (74a-74e)
+private String stripFormatting(String input) {
+    if (input == null) {
+        return "";
+    }
+
+    // Step 1: Decode basic HTML entities
+    input = htmlEntityDecode(input);
+
+    // Step 2: Remove HTML tags
+    input = input.replaceAll("<[^>]*>", "");
+
+    // Step 3: Replace new lines with <br> tags as a fallback if Rally supports HTML
+    // or keep using \n if plain text is needed.
+    input = input.replaceAll("\\r\\n|\\r|\\n", "<br>"); // Try "<br>" instead of "\n" if HTML is supported
+    
+    // Optional: If Rally supports Markdown, you could replace "\n" with "  \n" to force line breaks
+
+    // Step 4: Clean up any excessive whitespace or adjust spacing
+    input = input.replaceAll("\\s{2,}", " ").replaceAll("\\s*\\>\\s*", " > ").replaceAll("\\s*\\<\\s*", " < ");
+
+    // Step 5: Log the final formatted string for review
+    System.out.println("Formatted String:\n" + input);
+
+    return input;
+}
