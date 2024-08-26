@@ -1,8 +1,3 @@
-  import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-
 public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, RallyRestApi rallyApi, Map<Integer, List<String>> embeddedAttachmentsMap) {
     Set<String> processedAttachments = new HashSet<>();
 
@@ -20,34 +15,65 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
             // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
             String expectedResultField = cleanText(jiraTestStep.getExpectedResult());
 
-            // Handle Input field if it exceeds 2048 characters
+            // Check and handle Input field if it exceeds 2048 characters
             if (inputField != null && inputField.length() > 2048) {
-                logger.warn("Input field length exceeds 2048 characters. Saving content to file and uploading it as an attachment.");
-                String filePath = saveToFile("Input", jiraTestStep.getIndex(), inputField);
-                String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
+                String fileName = "Input_Step_" + (jiraTestStep.getIndex() + 1) + ".txt";
+                saveToFile(fileName, inputField); // Save to file locally
+                String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, "C:\\Users\\Aiham\\Documents\\RallyTestSteps\\" + fileName); // Adjust path as needed
                 String attachmentOID = extractOID(attachmentURL);
-                if (attachmentOID != null) {
-                    newTestStep.addProperty("Input", "<a href='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'>Input Content</a>");
-                }
-            } else {
-                newTestStep.addProperty("Input", inputField);
+                inputField = "Content exceeds 2048 characters, see attached file: " + fileName + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>";
             }
+            newTestStep.addProperty("Input", inputField);
 
-            // Handle Expected Result field if it exceeds 2048 characters
+            // Check and handle Expected Result field if it exceeds 2048 characters
             if (expectedResultField != null && expectedResultField.length() > 2048) {
-                logger.warn("Expected result field length exceeds 2048 characters. Saving content to file and uploading it as an attachment.");
-                String filePath = saveToFile("ExpectedResult", jiraTestStep.getIndex(), expectedResultField);
-                String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, filePath);
+                String fileName = "ExpectedResult_Step_" + (jiraTestStep.getIndex() + 1) + ".txt";
+                saveToFile(fileName, expectedResultField); // Save to file locally
+                String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, "C:\\Users\\Aiham\\Documents\\RallyTestSteps\\" + fileName); // Adjust path as needed
                 String attachmentOID = extractOID(attachmentURL);
-                if (attachmentOID != null) {
-                    newTestStep.addProperty("ExpectedResult", "<a href='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'>Expected Result Content</a>");
-                }
-            } else {
-                newTestStep.addProperty("ExpectedResult", expectedResultField);
+                expectedResultField = "Content exceeds 2048 characters, see attached file: " + fileName + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>";
             }
+            newTestStep.addProperty("ExpectedResult", expectedResultField);
 
-            // Handle embedded attachments specific to this test step (unchanged code)
-            // ...
+            // Handle embedded attachments specific to this test step
+            List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
+            if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
+                for (String embeddedPath : stepEmbeddedAttachments) {
+                    if (!processedAttachments.contains(embeddedPath)) {
+                        // Extract the filename from the full path
+                        String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
+                        String[] attachmentParts = filename.split("_");
+
+                        if (attachmentParts.length > 0) {
+                            try {
+                                // Extract the step number from the first part of the filename
+                                int attachmentStepNumber = Integer.parseInt(attachmentParts[0]);
+
+                                // Check if this attachment corresponds to the current step
+                                if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
+                                    String attachmentURL = attachFileToRallyTestCase(rallyApi, rallyTestCaseOID, embeddedPath);
+                                    String attachmentOID = extractOID(attachmentURL);
+                                    if (attachmentOID != null) {
+                                        // Determine whether the attachment belongs to Input or ExpectedResult
+                                        if (filename.contains("testData") || filename.contains("description")) {
+                                            newTestStep.addProperty("Input", newTestStep.get("Input").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        } else if (filename.contains("expectedResult")) {
+                                            newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
+                                            logger.info("Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
+                                        } else {
+                                            logger.warn("Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
+                                        }
+                                    }
+                                    processedAttachments.add(embeddedPath);  // Mark this attachment as processed
+                                }
+                            } catch (NumberFormatException e) {
+                                logger.error("Failed to parse step number from attachment name: " + filename, e);
+                            }
+                        }
+                    }
+                }
+            }
 
             CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
             CreateResponse createResponse = rallyApi.create(createRequest);
@@ -61,27 +87,19 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
                 logger.error("Failed to create test step in Rally: " + String.join(", ", errors));
             }
         } catch (Exception e) {
-            logger.error("Error processing Jira test step: " + jiraTestStep.getIndex(), e);
+            logger.error("Exception while migrating test step: ", e);
         }
     }
 }
 
-private String saveToFile(String fieldType, int stepIndex, String content) throws IOException {
-    // Define the file path and name
-    String fileName = fieldType + "_Step_" + stepIndex + ".txt";
-    String filePath = "your/local/path/" + fileName;
-
-    // Write the content to a file
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-        writer.write(content);
+private void saveToFile(String fileName, String content) {
+    try {
+        File file = new File("C:\\Users\\Aiham\\Documents\\RallyTestSteps\\" + fileName); // Adjust path as needed
+        FileWriter fileWriter = new FileWriter(file);
+        fileWriter.write(content);
+        fileWriter.close();
+        logger.info("Content saved to file: " + fileName);
+    } catch (IOException e) {
+        logger.error("Failed to save content to file: " + fileName, e);
     }
-
-    logger.info("Saved " + fieldType + " content to file: " + filePath);
-    return filePath;
-}
-
-private String attachFileToRallyTestCase(RallyRestApi rallyApi, String rallyTestCaseOID, String filePath) {
-    // Your existing method for attaching files to a Rally test case
-    // ...
-    return "attachment URL"; // Replace with the actual URL returned from the attachment method
 }
