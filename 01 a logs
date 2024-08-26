@@ -29,4 +29,44 @@ private String stripFormatting(String input) {
     System.out.println("Formatted String:\n" + input);
 
     return input;
+
+
+
+
+
+
+
+
+rrrrr
+import java.util.HashMap;
+import java.util.Map;
+
+private String htmlEntityDecode(String input) {
+    if (input == null) {
+        return "";
+    }
+
+    // Basic HTML entity decoding
+    Map<String, String> entities = new HashMap<>();
+    entities.put("&gt;", ">");
+    entities.put("&lt;", "<");
+    entities.put("&amp;", "&");
+    entities.put("&quot;", "\"");
+    entities.put("&apos;", "'");
+
+    for (Map.Entry<String, String> entry : entities.entrySet()) {
+        input = input.replace(entry.getKey(), entry.getValue());
+    }
+
+    return input;
 }
+
+
+rrrrrrrro
+
+
+
+
+
+
+
