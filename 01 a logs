@@ -3,64 +3,18 @@ private String stripFormatting(String input) {
     if (input == null) {
         return ""; // Return an empty string if input is null
     }
-    // Preserve existing new lines, remove HTML tags, and trim
-    return input.replaceAll("<[^>]*>", "") // Remove HTML tags
-                .replaceAll(" +", " ")    // Replace multiple spaces with a single space
-                .replaceAll("\\s{2,}", "\n") // Replace sequences of whitespace (2+ spaces) with a new line
-                .trim();                   // Trim leading and trailing whitespace
-}y
 
-
-
-
-@@@@
-private String stripFormatting(String input) {
-    if (input == null) {
-        return ""; // Return an empty string if input is null
-    }
-    // Preserve new lines, remove HTML tags, and clean up spaces
-    input = input.replaceAll("<[^>]*>", ""); // Remove HTML tags
-    
-    // Replace multiple spaces (but not newlines) with a single space
-    input = input.replaceAll("[ ]{2,}", " ");
-    
-    // Add new lines where appropriate, for example after periods or specific patterns
-    input = input.replaceAll("\\.\\s", ".\n") // Insert newline after periods followed by a space
-                 .replaceAll("\\s{4,}", "\n") // Convert sequences of 4 or more spaces into a newline
-                 .replaceAll("(\\S)([A-Z])", "$1\n$2"); // Insert newline before a capital letter following a non-space character
-    
-    return input.trim(); // Trim any leading or trailing spaces
-}
-
-
-
-
-
-
-
-
-
- @@@@
-private String stripFormatting(String input) {
-    if (input == null) {
-        return ""; // Return an empty string if input is null
-    }
     // Remove HTML tags
     input = input.replaceAll("<[^>]*>", "");
 
-    // Preserve existing new lines and reduce excess whitespace
-    input = input.replaceAll(" {2,}", "\n") // Replace multiple spaces with a new line
-                 .replaceAll("\\s+", " ")  // Replace all whitespace sequences with a single space
-                 .replaceAll("\\n ", "\n") // Ensure new lines remain
-                 .replaceAll("\\s{2,}", "\n") // Extra safeguard: replace multiple spaces or tabs with a new line
-                 .trim();                   // Trim leading and trailing whitespace
-    
-    // Adding explicit new lines where logical breaks might be needed
-    input = input.replaceAll("(?<=\\.)(?=\\s[A-Z])", "\n") // Add a new line after periods followed by capitalized words
-                 .replaceAll("(?<=\\))(?=\\s)", "\n")     // Add a new line after closing parentheses followed by space
-                 .replaceAll("(?<=\\d)(?=\\s[A-Z])", "\n") // Add a new line after digits followed by capitalized words
-                 .replaceAll("(?<=\\w:)(?=\\s)", "\n")     // Add a new line after colons followed by space
-                 .replaceAll("(?<=\\s{4,})", "\n");        // Convert excess spaces to new lines
+    // Ensure that sequences of spaces or tabs are converted into single spaces
+    input = input.replaceAll("\\s+", " ");
 
-    return input;
+    // Replace specific logical breaks with a newline
+    input = input.replaceAll("\\.\\s", ".\n")      // Add newline after periods followed by space
+                 .replaceAll("(?<=\\d)(?=\\s[A-Z])", "\n") // Add newline after digits followed by capitalized words
+                 .replaceAll("(?<=\\w:)(?=\\s)", "\n")     // Add newline after colons followed by space
+                 .replaceAll("\\s{2,}", "\n");             // Replace any sequence of 2 or more spaces with a newline
+
+    return input.trim(); // Trim any leading or trailing whitespace
 }
