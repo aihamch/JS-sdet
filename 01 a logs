@@ -1,67 +1,13 @@
-this method:
 
-is coverting this string:
-
- private String stripFormatting(String input) {
-    	    if (input == null) {
-    	        return ""; // Return an empty string if input is null
-    	    }
-    	    // Remove any HTML tags
-    	    return input.replaceAll("<[^>]*>", "\r\n").replaceAll("\\s+", "\r\n").trim();
-    	}
-    
-
-
- 1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e)
-
-             User ID: TAM-111224   Password: Keepout!1                                                                                                          CC2-9074                                      
+private String stripFormatting(String input) {
+    if (input == null) {
+        return ""; // Return an empty string if input is null
+    }
+    // Preserve existing new lines, remove HTML tags, and trim
+    return input.replaceAll("<[^>]*>", "") // Remove HTML tags
+                .replaceAll(" +", " ")    // Replace multiple spaces with a single space
+                .replaceAll("\\s{2,}", "\n") // Replace sequences of whitespace (2+ spaces) with a new line
+                .trim();                   // Trim leading and trailing whitespace
+}
 
  
-
-Given an External User logs into CCtr
-
-and access Claims > Create a Claim > Institutional
-
-When the user goes to UB04 Form tab > 74 Principal Procedure Code field
-
-Then the field has a lookup functionality to allow the user to search by code or description
-
-            and in a box above the field, code, then description displays, sorted by description, ascending
-
-            Example from Professional:
-
-
-to this :
-
-1 INST- Create Claim (Verify)  Procedure Codes (UB04 Form Tab Box 74a-e )              User ID: TAM-111224   Password: Keepout!1                                                                                                          CC2-9074                                         Given  an External User logs into CCtr and  access Claims > Create a Claim > Institutional When  the user goes to UB04 Form tab > 74 Principal Procedure Code field Then  the field has a lookup functionality to allow the user to search by code or description             and in a box above the field, code, then description displays, sorted by description, ascending              Example from Professional:                     and  repeat for UB04 Form tab > Other Procedure fields (74a-74e) 
- i want it to keep the the string in the same way when it comes to spaces and new lines
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e)
-             User ID: TAM-111224   Password: Keepout!1                                                                                                          CC2-9074                                      
- 
-Given an External User logs into CCtr
-and access Claims > Create a Claim > Institutional
-When the user goes to UB04 Form tab > 74 Principal Procedure Code field
-Then the field has a lookup functionality to allow the user to search by code or description
-            and in a box above the field, code, then description displays, sorted by description, ascending
-            Example from Professional:
-                
- 
-and repeat for UB04 Form tab > Other Procedure fields (74a-74e)
