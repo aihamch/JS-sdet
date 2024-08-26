@@ -1,72 +1,33 @@
-Formatted String:
-1 INST-Create Claim (Verify) Procedure Codes (UB04 Form Tab Box 74a-e)             
-User ID: TAM-111224   
-Password: Keepout!1                                                                                                          CC2-9074                                       Given an External User logs into CCtrand 
-access Claims > Create a Claim > InstitutionalWhen the user goes to UB04 Form tab > 74 Principal Procedure Code fieldThen the field has a lookup functionality to allow the user to search by code or description            and in a box above the field, code, then description displays, sorted by description, ascending            
-Example from Professional:                 and 
-repeat for UB04 Form tab > Other Procedure fields (74a-74e)
-private String stripFormatting(String input) {
-    if (input == null) {
-        return "";
+public class StringFormatter {
+
+    private String stripFormatting(String input) {
+        if (input == null) {
+            return "";
+        }
+
+        // Remove HTML-like formatting tags (e.g., <b>, <i>, <u>)
+        input = input.replaceAll("<[^>]*>", "");
+
+        // Optionally, you can also remove extra spaces if necessary, but preserve new lines
+        // Remove extra spaces while preserving new lines
+        input = input.replaceAll("\\s{2,}", " ");
+
+        // Trim leading and trailing spaces
+        input = input.trim();
+
+        return input;
     }
 
-    // Step 1: Decode basic HTML entities
-    input = htmlEntityDecode(input);
+    public static void main(String[] args) {
+        StringFormatter formatter = new StringFormatter();
+        
+        // Example string to test
+        String exampleInput = "1 INST-<b>Create Claim</b> (Verify) <i>Procedure Codes</i> (UB04 Form Tab Box 74a-e) <u>User ID:</u> TAM-111224 <b>Password:</b> Keepout!1";
 
-    // Step 2: Remove HTML tags
-    input = input.replaceAll("<[^>]*>", "");
-
-    // Step 3: Replace new lines with <br> tags as a fallback if Rally supports HTML
-    // or keep using \n if plain text is needed.
-    input = input.replaceAll("\\r\\n|\\r|\\n", "<br>"); // Try "<br>" instead of "\n" if HTML is supported
-    
-    // Optional: If Rally supports Markdown, you could replace "\n" with "  \n" to force line breaks
-
-    // Step 4: Clean up any excessive whitespace or adjust spacing
-    input = input.replaceAll("\\s{2,}", " ").replaceAll("\\s*\\>\\s*", " > ").replaceAll("\\s*\\<\\s*", " < ");
-
-    // Step 5: Log the final formatted string for review
-    System.out.println("Formatted String:\n" + input);
-
-    return input;
-
-
-
-
-
-
-
-
-rrrrr
-import java.util.HashMap;
-import java.util.Map;
-
-private String htmlEntityDecode(String input) {
-    if (input == null) {
-        return "";
+        // Format the string
+        String formattedString = formatter.stripFormatting(exampleInput);
+        
+        // Output the result
+        System.out.println("Formatted String:\n" + formattedString);
     }
-
-    // Basic HTML entity decoding
-    Map<String, String> entities = new HashMap<>();
-    entities.put("&gt;", ">");
-    entities.put("&lt;", "<");
-    entities.put("&amp;", "&");
-    entities.put("&quot;", "\"");
-    entities.put("&apos;", "'");
-
-    for (Map.Entry<String, String> entry : entities.entrySet()) {
-        input = input.replace(entry.getKey(), entry.getValue());
-    }
-
-    return input;
 }
-
-
-rrrrrrrro
-
-
-
-
-
-
-
