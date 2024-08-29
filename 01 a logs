@@ -1,12 +1,1 @@
-CreateResponse createResponse = rallyApi.create(createRequest);
-
-if (createResponse.wasSuccessful()) {
-    String testStepURL = createResponse.getObject().get("_ref").getAsString();
-    String testStepOID = extractOID(testStepURL);
-    logger.info("Successfully created test step in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
-} else {
-    String[] errors = createResponse.getErrors();
-    logger.error("Failed to create test step in Rally for the test step: " + (jiraTestStep.getIndex() + 1) 
-                 + "; TestcaseOID is " + rallyTestCaseOID 
-                 + "; Error is " + Arrays.toString(errors));
-}
+Error is [Concurrency conflict: [Object has been modified since being read for update in this context] - ConcurrencyConflictException : Modified since read on update : Object Class : com.f4tech.slm.domain.TestCase : ObjectID : 804420243951]
