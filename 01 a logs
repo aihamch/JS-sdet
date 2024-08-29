@@ -103,3 +103,7 @@ public void migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTe
         }
     }
 }
+Failed to create test step in Rally for the test step : 4 ; TestcaseOID is https://rally1.rallydev.com/slm/webservice/v2.0/testcase/804413351997 ; Error is [Ljava.lang.String;@7b7683d4
+
+
+how to fine out what is Error is [Ljava.lang.String;@7b7683d4
