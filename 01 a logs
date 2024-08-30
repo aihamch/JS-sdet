@@ -1,1 +1,11 @@
-Error is [Concurrency conflict: [Object has been modified since being read for update in this context] - ConcurrencyConflictException : Modified since read on update : Object Class : com.f4tech.slm.domain.TestCase : ObjectID : 804420243951]
+2024-08-30 10:33:11.513 [main] INFO  com.optum.coe.automation.rally.RallyOperation - No Embedded attachment is found at test step level for the jira testcase key https://rally1.rallydev.com/slm/webservice/v2.0/testcase/804763779475
+2024-08-30 10:33:11.757 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Exception occurred while creating test step in Rally
+java.io.IOException: HTTP/1.1 403 Forbidden
+	at com.rallydev.rest.client.HttpClient.executeRequest(HttpClient.java:163) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.client.HttpClient.doRequest(HttpClient.java:145) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.client.ApiKeyClient.doRequest(ApiKeyClient.java:37) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.client.HttpClient.doPost(HttpClient.java:179) ~[rally-rest-api-2.2.1.jar:?]
+	at com.rallydev.rest.RallyRestApi.create(RallyRestApi.java:125) ~[rally-rest-api-2.2.1.jar:?]
+	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:626) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:180) [classes/:?]
+2024-08-30 10:33:11.760 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Total TC's
