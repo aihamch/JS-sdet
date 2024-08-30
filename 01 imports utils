@@ -1,148 +1,762 @@
- 	// Modified migrateTestStepsWithAttachments method
-    public boolean migrateTestStepsWithAttachments(String rallyTestCaseOID, List<JiraTestStep> jiraTestSteps, Map<Integer, List<String>> embeddedAttachmentsMap) throws URISyntaxException {
-    	RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyBaseURL), rallyApiKey);
-    	Set<String> processedAttachments = new HashSet<>();
-    	String testStepOID = null;
-    	String testStepURL = null;
-    	boolean rallyTestStepCreationStatus = false;
-    	for (JiraTestStep jiraTestStep : jiraTestSteps) {
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.util.Fetch;
+import com.rallydev.rest.util.QueryFilter;
+
+import com.rallydev.rest.request.UpdateRequest;
+import com.rallydev.rest.response.UpdateResponse;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.net.HttpURLConnection;
+import java.net.URI;
+
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+
+
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.request.UpdateRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.response.UpdateResponse;
+import com.rallydev.rest.util.Fetch;
+import com.rallydev.rest.util.QueryFilter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+class FoldersTestCase2 {
+
+    public static void main(String[] args) throws Exception {
+        String testCaseId = "CC2-T13";
+        String jiraBaseUri = "https://jira.healthcareit.net/";
+        String authToken = "NjYwNzM3MzEyMzczOqpitrVg77VQlPFPBwSZ+cMq37S5";
+        String projectRef = "789325818991";
+
+        // Send the GET request to JIRA using HttpClient
+        HttpClient client = HttpClients.createDefault();
+        HttpGet request = new HttpGet(jiraBaseUri + "/rest/atm/1.0/testcase/" + testCaseId);
+        request.setHeader("Authorization", "Bearer " + authToken);
+        request.setHeader("Accept", "application/json");
+
+        HttpResponse response = client.execute(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+
+        System.out.println("Pretty Response: " + responseBody);
+
+        // Parse the JIRA response
+        JsonObject jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+
+        // Create the Rally JSON object
+        JsonObject rallyJson = new JsonObject();
+        rallyJson.addProperty("projectRef", projectRef);
+
+        // Create a new test case
+        JsonObject testCase = new JsonObject();
+
+        // Add name
+        JsonElement nameElement = jiraJson.get("name");
+        if (nameElement != null && !nameElement.isJsonNull()) {
+            testCase.addProperty("Name", nameElement.getAsString());
+        } else {
+            testCase.addProperty("Name", "Default Test Case Name"); // default value
+        }
+
+        // Add method
+        testCase.addProperty("Method", "Manual"); // Assuming a default value
+
+        // Add priority
+        JsonElement priorityElement = jiraJson.get("priority");
+        if (priorityElement != null && !priorityElement.isJsonNull()) {
+            String priority = priorityElement.getAsString();
+            if (priority.equalsIgnoreCase("Normal")) {
+                testCase.addProperty("Priority", "Useful");
+            } else {
+                testCase.addProperty("Priority", priority);
+            }
+        } else {
+            testCase.addProperty("Priority", "Default Priority"); // default value
+        }
+
+        // Add owner
+        testCase.addProperty("Owner", "/user/783605835347"); // Assuming a default value
+
+        // Add status
+        JsonElement statusElement = jiraJson.get("status");
+        if (statusElement != null && !statusElement.isJsonNull()) {
+            testCase.addProperty("Ready", statusElement.getAsString().equals("Ready"));
+        } else {
+            testCase.addProperty("Ready", false); // default value
+        }
+
+        // Initialize Rally API
+        RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        // Add Tags dynamically from JIRA labels
+        JsonArray labelsArray = jiraJson.getAsJsonArray("labels");
+        JsonArray tagsArray = new JsonArray();
+        if (labelsArray != null) {
+            for (JsonElement label : labelsArray) {
+                JsonObject tagObject = findOrCreateTag(restApi, label.getAsString());
+                if (tagObject != null) {
+                    JsonObject tagRefObject = new JsonObject();
+                    tagRefObject.addProperty("_ref", tagObject.get("_ref").getAsString());
+                    tagsArray.add(tagRefObject);
+                }
+            }
+        }
+        testCase.add("Tags", tagsArray);
+
+        // Get folder hierarchy from JIRA response
+        String folderPath = jiraJson.get("folder").getAsString();
+        String[] folderHierarchy = folderPath.split("/");
+
+        // Create TestFolder based on folder hierarchy
+        JsonObject testFolder = createTestFolder(folderHierarchy, projectRef);
+        if (testFolder == null) {
+            System.out.println("Failed to create or retrieve TestFolder.");
+            return; // Exit the method or handle accordingly
+        }
+        // Add TestFolder to the test case
+        rallyJson.add("TestFolder", testFolder);
+
+        // Add the testCase object to the rallyJson
+        rallyJson.add("testCase", testCase);
+
+        // Save the transformed JSON to a variable
+        String rallyJsonString = new GsonBuilder().setPrettyPrinting().create().toJson(rallyJson);
+
+        // Print the transformed JSON string
+        System.out.println("Transformed JSON: " + rallyJsonString);
+
+        JsonObject jsonData = JsonParser.parseString(rallyJsonString).getAsJsonObject();
+
+        // Extract values from JSON:
+        JsonObject testCaseData = jsonData.getAsJsonObject("testCase");
+        JsonObject testFolderData = jsonData.getAsJsonObject("TestFolder");
+
+        try {
+            // Create a new test case
+            JsonObject newTestCase = new JsonObject();
+            newTestCase.addProperty("Name", testCaseData.get("Name").getAsString());
+            newTestCase.addProperty("Project", projectRef);
+            newTestCase.addProperty("Method", testCaseData.get("Method").getAsString());
+            newTestCase.addProperty("Priority", testCaseData.get("Priority").getAsString());
+            newTestCase.addProperty("Owner", testCaseData.get("Owner").getAsString());
+            newTestCase.addProperty("Ready", testCaseData.get("Ready").getAsBoolean());
+
+            // Add Tags to the test case from the JSON file
+            JsonArray tagsArrayFromJson = testCaseData.getAsJsonArray("Tags");
+            if (tagsArrayFromJson != null) {
+                JsonArray newTagsArray = new JsonArray();
+                for (JsonElement tagElement : tagsArrayFromJson) {
+                    JsonObject tagObjectFromJson = tagElement.getAsJsonObject();
+                    JsonObject newTagObject = new JsonObject();
+                    newTagObject.addProperty("_ref", tagObjectFromJson.get("_ref").getAsString());
+                    newTagsArray.add(newTagObject);
+                }
+                newTestCase.add("Tags", newTagsArray);
+            }
+            
+            
+            
+            
+            
+            
+           // RallyRestApi restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_YourAPIKeyHere_");
+            restApi.setApplicationName("AttachmentUploadTest");
+
             try {
-            	rallyTestStepCreationStatus = false;
-            	JsonObject newTestStep = new JsonObject();
-                newTestStep.addProperty("TestCase", rallyTestCaseOID);
-                newTestStep.addProperty("StepIndex", jiraTestStep.getIndex() + 1);  // Adjust the index to start from 1
-                
-                // Combine "Step" and "Test Data" fields into the "Input" field in Rally
-                String inputField = Utils.cleanText((jiraTestStep.getStep() != null ? jiraTestStep.getStep() : "") +
-                                    (jiraTestStep.getTestData() != null ? "\n" + jiraTestStep.getTestData() : ""));
-              //  newTestStep.addProperty("Input", inputField);
-                
-                // Map "Expected Result" field from Jira directly to Rally's "Expected Result" after cleaning the text
-                String expectedResultField = Utils.cleanText(jiraTestStep.getExpectedResult());
-             //   newTestStep.addProperty("ExpectedResult", expectedResultField);
+                CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+
+                CreateResponse createResponse = restApi.create(createRequest);
+
+            	String   testCaseRef = createResponse.getObject().get("_ref").getAsString();
+                System.out.println("AAAAAAA" + testCaseRef);
+            	
+            	
+            	
+            	
+            	
 
 
+                // Call the method with Base64 encoded content
+                String attachmentRef = uploadBase64AttachmentToRally(restApi, testCaseRef);
 
-
- 
-                // Check and adjust Input field if it exceeds 2048 characters
-                if (inputField != null && inputField.length() > 2048) {
-                    logger.warn("Input field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
-                    inputField = removeHtmlTags(inputField); // Remove formatting
-                    if (inputField.length() > 2048) {
-                        inputField = inputField.substring(0, 2048); // Truncate if still too long
-                    }
+                if (attachmentRef != null) {
+                    System.out.println("Successfully uploaded attachment: " + attachmentRef);
+                } else {
+                    System.out.println("Failed to upload attachment.");
                 }
-                newTestStep.addProperty("Input", inputField);
- 
-                // Check and adjust Expected Result field if it exceeds 2048 characters
-                if (expectedResultField != null && expectedResultField.length() > 2048) {
-                    logger.warn("Expected result field length exceeds 2048 characters. Removing formatting to fit the allowed limit.");
-                    expectedResultField = removeHtmlTags(expectedResultField); // Remove formatting
-                    if (expectedResultField.length() > 2048) {
-                        expectedResultField = expectedResultField.substring(0, 2048); // Truncate if still too long
-                    }
+            } finally {
+                restApi.close();
+            }
+        
+        
+        
+            // Add TestFolder to the test case from the JSON file
+            String testFolderRef = testFolderData.get("_ref").getAsString();
+            newTestCase.addProperty("TestFolder", testFolderRef);
+
+            CreateRequest createRequest = new CreateRequest("testcase", newTestCase);
+            CreateResponse createResponse = restApi.create(createRequest);
+
+            if (createResponse.wasSuccessful()) {
+                String testCaseRef = createResponse.getObject().get("_ref").getAsString();
+                System.out.println("Successfully created test case: " + testCaseRef);
+
+                // Now migrate the test steps
+                migrateTestSteps(jiraJson, restApi, testCaseRef);
+
+                // Now migrate the test step attachments
+                migrateTestStepAttachments(jiraJson, restApi, testCaseRef, jiraBaseUri, authToken);
+
+            } else {
+                System.out.println("Error occurred creating test case:");
+                for (String error : createResponse.getErrors()) {
+                    System.out.println(error);
                 }
-                newTestStep.addProperty("ExpectedResult", expectedResultField);
+            }
+        } finally {
+            // Release resources
+            restApi.close();
+        }
+    }
 
+    private static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) throws IOException {
+        // Check if the tag already exists
+        QueryRequest tagRequest = new QueryRequest("Tag");
+        tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
+        QueryResponse tagResponse = restApi.query(tagRequest);
 
+        if (tagResponse.getResults().size() > 0) {
+            return tagResponse.getResults().get(0).getAsJsonObject();
+        }
 
+        // If the tag doesn't exist, create it
+        JsonObject newTag = new JsonObject();
+        newTag.addProperty("Name", tagName);
 
+        CreateRequest createTagRequest = new CreateRequest("Tag", newTag);
+        CreateResponse createTagResponse = restApi.create(createTagRequest);
 
+        if (createTagResponse.wasSuccessful()) {
+            return createTagResponse.getObject();
+        } else {
+            System.out.println("Error occurred creating tag:");
+            for (String error : createTagResponse.getErrors()) {
+                System.out.println(error);
+            }
+            return null;
+        }
+    }
 
-                // Handle embedded attachments specific to this test step
-                List<String> stepEmbeddedAttachments = embeddedAttachmentsMap.get(jiraTestStep.getIndex());
-                if (stepEmbeddedAttachments != null && !stepEmbeddedAttachments.isEmpty()) {
-                    for (String embeddedPath : stepEmbeddedAttachments) {
-                        if (!processedAttachments.contains(embeddedPath)) {
-                            // Extract the filename from the full path
-                            String filename = embeddedPath.substring(embeddedPath.lastIndexOf("\\") + 1);
-                            String[] attachmentParts = filename.split("_");
-                            if (attachmentParts.length > 0) {
-                                try {
-                                    // Extract the step number from the first part of the filename
-                                    int attachmentStepNumber = Integer.parseInt(attachmentParts[2]);
-                                     // Check if this attachment corresponds to the current step
-                                    if (attachmentStepNumber == jiraTestStep.getIndex() + 1) {  // Ensure the matching is correct
-                                        String attachmentURL = attachFileToRallyTestCase(rallyRestApi, rallyTestCaseOID, embeddedPath);
-                                        String attachmentOID = Utils.extractOID(attachmentURL);
-                                        if (attachmentOID != null) {
-                                            // Determine whether the attachment belongs to Input or ExpectedResult
-                                            if (filename.contains("testData") || filename.contains("description")) {
-//                                                String formatedString = newTestStep.get("Input").getAsString();
-//                                                JsonElement jsonElementToRemoveFormat = JsonParser.parseString(formatedString);
-//                                                JsonObject jsonObjectoRemoveFormat = jsonElementToRemoveFormat.getAsJsonObject();
-                                               String testStepInputValue = newTestStep.get("Input").getAsString();
-//                                           	String clean = Jsoup.parse(testStepInputValue).text();
-//                                           	System.out.println(clean);
-                                            	newTestStep.addProperty("Input", testStepInputValue + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                                logger.info("Embedded Attachment added to Input field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                            } else if (filename.contains("expectedResult")) {
-                                                newTestStep.addProperty("ExpectedResult", newTestStep.get("ExpectedResult").getAsString() + " <img src='https://rally1.rallydev.com/slm/attachment/" + attachmentOID + "/content'/>");
-                                                logger.info("Embedded Attachment added to Expected Result field for Test Step " + (jiraTestStep.getIndex() + 1) + ": " + embeddedPath);
-                                            } else {
-                                                logger.info("Embedded Attachment name does not contain a recognized field identifier (testData, description, expectedResult): " + embeddedPath);
-                                            }
-                                        }
-                                        processedAttachments.add(embeddedPath);  // Mark this attachment as processed
-                                    }
-                                } catch (NumberFormatException e) {
-                                    logger.error("Failed to parse step number from attachment name: " + filename, e);
-                                    return rallyTestStepCreationStatus;
-                                }
+    private static JsonObject createTestFolder(String[] folderHierarchy
+
+, String projectRef) {
+        JsonObject lastFolder = null;
+        String lastFolderRef = null;
+
+        RallyRestApi restApi = null;
+        try {
+            restApi = new RallyRestApi(new URI("https://rally1.rallydev.com"), "_UWk01XQOyRPk2ctMLiR9PAM1nBE6spnDEmSj1pk");
+            restApi.setApplicationName("CreateTestCaseApp");
+
+            for (int i = 0; i < folderHierarchy.length; i++) {
+                String folderName = folderHierarchy[i];
+                if (folderName == null || folderName.trim().isEmpty()) {
+                    System.out.println("Invalid folder name encountered: '" + folderName + "'");
+                    continue;
+                }
+
+                // If it's the top-level folder, ensure it is created as a parent folder
+                if (i == 0) {
+                    // Check if the folder exists as a parent folder
+                    QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
+                    parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
+                    parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+
+                    QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
+
+                    if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
+                        // Folder exists as a parent folder
+                        lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
+                        lastFolderRef = lastFolder.get("_ref").getAsString();
+                        System.out.println("Parent folder already exists: " + lastFolderRef);
+                    } else {
+                        // Folder does not exist as a parent folder, create it
+                        JsonObject newFolder = new JsonObject();
+                        newFolder.addProperty("Name", folderName.trim());
+                        newFolder.addProperty("Project", projectRef);
+
+                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                        if (createFolderResponse.wasSuccessful()) {
+                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                            newFolder.addProperty("_ref", lastFolderRef);
+                            lastFolder = newFolder;
+                            System.out.println("Successfully created parent folder: " + lastFolderRef);
+                        } else {
+                            System.out.println("Error occurred creating parent folder:");
+                            for (String error : createFolderResponse.getErrors()) {
+                                System.out.println(error);
                             }
+                            break;
                         }
                     }
                 } else {
-                	
-                	logger.info("No Embedded attachment is found at test step level for the jira testcase key " + rallyTestCaseOID);
-                	
-                }
-                
-                // Testing
-                
-                // for (String key : newTestStep.keySet() ) {
-				// 	System.out.println(key + ": " + newTestStep.get(key));
-				// }
-                
-                CreateRequest createRequest = new CreateRequest("TestcaseStep", newTestStep);
-                CreateResponse createResponse = rallyRestApi.create(createRequest);
+                    // For subfolders, check and create under the last folder
+                    QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
+                    subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", lastFolderRef)));
+                    subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
 
-                if (createResponse.wasSuccessful()) {
-                    testStepURL = createResponse.getObject().get("_ref").getAsString();
-                    testStepOID = Utils.extractOID(testStepURL);
-                    if (testStepOID != null)   {
-                    	rallyTestStepCreationStatus = true;
+                    QueryResponse subQueryResponse = restApi.query(subFolderExistenceRequest);
+
+                    if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
+                        // Folder exists as a subfolder
+                        lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
+                        lastFolderRef = lastFolder.get("_ref").getAsString();
+                        System.out.println("Subfolder already exists: " + lastFolderRef);
                     } else {
-                    	return rallyTestStepCreationStatus;
+                        // Folder does not exist, create it as a subfolder
+                        JsonObject newFolder = new JsonObject();
+                        newFolder.addProperty("Name", folderName.trim());
+                        newFolder.addProperty("Project", projectRef);
+                        newFolder.addProperty("Parent", lastFolderRef);
+
+                        CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                        CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                        if (createFolderResponse.wasSuccessful()) {
+                            lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                            newFolder.addProperty("_ref", lastFolderRef);
+                            lastFolder = newFolder;
+                            System.out.println("Successfully created subfolder: " + lastFolderRef);
+                        } else {
+                            System.out.println("Error occurred creating subfolder:");
+                            for (String error : createFolderResponse.getErrors()) {
+                                System.out.println(error);
+                            }
+                            break;
+                        }
                     }
-                    logger.info("Successfully created test step " + (jiraTestStep.getIndex() + 1)  + " in Rally with OID: " + testStepOID + " for TestCase: " + rallyTestCaseOID);
-                    
-                } else {
-                    logger.error("Failed to create test step in Rally for the test step : " + (jiraTestStep.getIndex() + 1) + " ; TestcaseOID is " + rallyTestCaseOID + " ; Error is " + createResponse.getErrors());
-                    return rallyTestStepCreationStatus;
                 }
-            } catch (IOException e) {
-                logger.error("Exception occurred while creating test step in Rally", e);
-                return rallyTestStepCreationStatus;
+            }
+
+            return lastFolder;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        } finally {
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
-    	
-    	return rallyTestStepCreationStatus;
     }
- 	
 
-   // Helper method  (removes HTML tags and styles)
-   //   private String removeHtmlTags(String content) {
-   //       return Jsoup.parse(content).text();
-   //   }  
-   
-   
-   private String removeHtmlTags(String input) {
-       if (input == null) {
-           return ""; // Return an empty string if input is null
-       }
-       // Remove any HTML tags
-       return input.replaceAll("<[^>]*>", "\\n").replaceAll("\\s+", "\\n").trim();
-   }
- 	i want to adjust this method if the test step exceeded 2048 charachtars then copy the text of the test step and paste it on a text file on local C:\Git_Master\jira-to-rally-migration and then take the information from that text file (dont upload the entire file) and create the test step, this way i can get rid of the text formating
+    private static void migrateTestSteps(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef) throws IOException {
+        // Get test steps from Jira response
+        JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+        if (testScript != null) {
+            JsonArray steps = testScript.getAsJsonArray("steps");
+            if (steps != null) {
+                List<JsonObject> stepList = new ArrayList<>();
+                for (JsonElement stepElement : steps) {
+                    JsonObject step = stepElement.getAsJsonObject();
+                    JsonObject rallyStep = new JsonObject();
+
+                    rallyStep.addProperty("TestCase", testCaseRef);
+                    rallyStep.addProperty("StepIndex", step.get("index").getAsInt());
+
+                    // Migrate the description without embedded images
+                    JsonElement descriptionElement = step.get("description");
+                    String description = (descriptionElement != null && !descriptionElement.isJsonNull()) ? descriptionElement.getAsString() : "";
+                    description = removeEmbeddedImages(description);
+                    rallyStep.addProperty("Input", description);
+
+                    // Migrate the expected result without embedded images
+                    JsonElement expectedResultElement = step.get("expectedResult");
+                    String expectedResult = (expectedResultElement != null && !expectedResultElement.isJsonNull()) ? expectedResultElement.getAsString() : "";
+                    expectedResult = removeEmbeddedImages(expectedResult);
+                    rallyStep.addProperty("ExpectedResult", expectedResult);
+
+                    // Migrate the test data
+                    JsonElement testDataElement = step.get("testData");
+                    String testData = (testDataElement != null && !testDataElement.isJsonNull()) ? testDataElement.getAsString() : "";
+                    rallyStep.addProperty("ValidationInput", testData);
+
+                    stepList.add(rallyStep);
+                }
+
+                // Sort steps by StepIndex to ensure correct order
+                stepList.sort((step1, step2) -> step1.get("StepIndex").getAsInt() - step2.get("StepIndex").getAsInt());
+
+                // Create each step in Rally
+                for (JsonObject rallyStep : stepList) {
+                    CreateRequest createStepRequest = new CreateRequest("testcasestep", rallyStep);
+                    CreateResponse createStepResponse = restApi.create(createStepRequest);
+
+                    if (createStepResponse.wasSuccessful()) {
+                        System.out.println("Successfully created test step: " + rallyStep.get("StepIndex").getAsInt());
+                    } else {
+                        System.out.println("Error occurred creating test step:");
+                        for (String error : createStepResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static String removeEmbeddedImages(String content) {
+        return content.replaceAll("<img[^>]*>", "").trim();
+    }
+
+    private static void migrateTestStepAttachments(JsonObject jiraJson, RallyRestApi restApi, String testCaseRef, String baseUrl, String authToken) throws IOException {
+        // Ensure the Attachments folder exists
+        File attachmentFolder = new File("Attachments");
+        if (!attachmentFolder.exists()) {
+            attachmentFolder.mkdir();
+        }
+
+        JsonObject testScript = jiraJson.getAsJsonObject("testScript");
+        if (testScript != null) {
+            JsonArray steps = testScript.getAsJsonArray("steps");
+            if (steps != null) {
+                for (JsonElement stepElement : steps) {
+                    JsonObject step = stepElement.getAsJsonObject();
+
+                    // Handle embedded attachments (images, etc.)
+                    String description = "";
+                    if (step.has("description") && !step.get("description").isJsonNull()) {
+                        description = step.get("description").getAsString();
+                    }
+                    List<File> downloadedAttachments = downloadEmbeddedAttachments(description, baseUrl, authToken);
+
+                    // Handle file attachments (if any)
+                    JsonArray attachmentArray = step.getAsJsonArray("attachments");
+                    if (attachmentArray != null) {
+                        for (JsonElement attachmentElement : attachmentArray) {
+                            JsonObject attachmentObj = attachmentElement.getAsJsonObject();
+                            String fileUrl = attachmentObj.has("content") ? attachmentObj.get("content").getAsString() : "";
+                            String fileName = attachmentObj.has("filename") ? attachmentObj.get("filename").getAsString() : "";
+
+                            if (!fileUrl.isEmpty() && !fileName.isEmpty()) {
+                                // Download the attachment
+                                File file = downloadFile(baseUrl, fileUrl, fileName, authToken);
+                                downloadedAttachments.add(file);
+                            }
+                        }
+                    }
+
+                    // Upload attachments to Rally test case level
+                    for (File file : downloadedAttachments) {
+                        // Step 1: Upload the attachment to the test case level
+                        String attachmentRef = uploadAttachmentToRally(file, restApi, testCaseRef);
+
+                        // Step 2: Link this attachment to the specific test step
+                        if (attachmentRef != null) {
+                            linkAttachmentToTestStep(restApi, testCaseRef, step.get("index").getAsInt(), attachmentRef);
+                        }
+
+                        // Cleanup - delete the file after uploading
+                        if (file.exists()) {
+                            file.delete();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    private static List<File> downloadEmbeddedAttachments(String content, String baseUrl, String authToken) throws IOException {
+        List<File> downloadedFiles = new ArrayList<>();
+        // Use regex to extract URLs of embedded images or other attachments
+        Pattern pattern = Pattern.compile("src\\s*=\\s*\"([^\"]+)\"");
+        Matcher matcher = pattern.matcher(content);
+
+        while (matcher.find()) {
+            String url = matcher.group(1);
+            String fileName = url.substring(url.lastIndexOf('/') + 1);
+            File file = downloadFile(baseUrl, url, fileName, authToken);
+            downloadedFiles.add(file);
+        }
+        return downloadedFiles;
+    }
+    private static String uploadBase64AttachmentToRally(RallyRestApi restApi, String testCaseRef) throws IOException {
+        // Content to be uploaded
+        String testContent = "This is a test file for Rally attachment upload.";
+        byte[] fileContent = testContent.getBytes(); // Get the file content as bytes
+        String base64Content = Base64.getEncoder().encodeToString(fileContent); // Base64 encode the content
+
+        JsonObject attachment = new JsonObject();
+        attachment.addProperty("Artifact", testCaseRef); // Correctly set the reference to the test case
+        attachment.addProperty("Content", base64Content); // Base64 encoded content
+        attachment.addProperty("Name", "TestAttachment.txt"); // The name of the file
+        attachment.addProperty("ContentType", "text/plain"); // MIME type of the file
+        attachment.addProperty("Size", fileContent.length);  // Actual size in bytes of the file content
+
+        // Debug: Print the attachment JSON object
+        System.out.println("Attachment JSON: " + attachment.toString());
+
+        CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+        CreateResponse attachmentResponse = restApi.create(attachmentRequest);
+
+        if (attachmentResponse.wasSuccessful()) {
+            return attachmentResponse.getObject().get("_ref").getAsString();
+        } else {
+            // Debugging output
+            System.out.println("Error occurred creating attachment:");
+            System.out.println("Response Errors: " + Arrays.toString(attachmentResponse.getErrors()));
+            System.out.println("Response Warnings: " + Arrays.toString(attachmentResponse.getWarnings()));
+            return null;
+        }
+    }
+    private static void testSimpleAttachmentUpload(RallyRestApi restApi, String testCaseRef) throws IOException {
+        // Create a small text file for testing
+        File testFile = new File("Attachments/TestAttachment.txt");
+        if (!testFile.exists()) {
+            try (FileWriter writer = new FileWriter(testFile)) {
+                writer.write("This is a test file for Rally attachment upload.");
+            }
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+        // Upload the test file to the test case level
+        String attachmentRef = uploadBase64AttachmentToRally(restApi, testCaseRef);
+        // Check if the upload was successful
+        if (attachmentRef != null) {
+            System.out.println("Successfully uploaded test file to test case level.");
+        } else {
+            System.out.println("Failed to upload test file to test case level.");
+        }
+
+        // Clean up the test file
+        if (testFile.exists()) {
+            testFile.delete();
+        }
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    private static File downloadFile(String baseUrl, String fileUrl, String fileName, String authToken) throws IOException {
+        // Construct the full URL if the provided URL is relative
+        if (!fileUrl.startsWith("http://") && !fileUrl.startsWith("https://")) {
+            if (fileUrl.startsWith("../")) {
+                fileUrl = baseUrl + fileUrl.substring(2); // Handle relative paths that start with ../
+            } else {
+                fileUrl = baseUrl + fileUrl; // Handle other relative paths
+            }
+        }
+
+        File file = new File("Attachments/" + fileName);
+        
+        // Create a connection to the URL with the authorization header
+        URL url = new URL(fileUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestProperty("Authorization", "Bearer " + authToken);
+        
+        try (InputStream in = connection.getInputStream();
+             FileOutputStream out = new FileOutputStream(file)) {
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+        }
+        return file;
+    }
+    private static String uploadRawAttachmentToRally(RallyRestApi restApi, String testCaseRef) throws IOException {
+        // Content as a raw string (without Base64 encoding)
+        String testContent = "This is a test file for Rally attachment upload.";
+        byte[] fileContent = testContent.getBytes(); // Get the file content as bytes
+
+        JsonObject attachment = new JsonObject();
+        attachment.addProperty("Artifact", testCaseRef);
+        attachment.addProperty("Content", new String(fileContent));  // Use raw content instead of Base64
+        attachment.addProperty("Name", "TestAttachment.txt");
+        attachment.addProperty("ContentType", "text/plain");  // Try different content types if needed
+        attachment.addProperty("Size", fileContent.length);  // Actual size in bytes of the file content
+
+        // Debug: Print the attachment JSON object
+        System.out.println("Attachment JSON: " + attachment.toString());
+
+        CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+        CreateResponse attachmentResponse = restApi.create(attachmentRequest);
+
+        if (attachmentResponse.wasSuccessful()) {
+            return attachmentResponse.getObject().get("_ref").getAsString();
+        } else {
+            // Debugging output
+            System.out.println("Error occurred creating attachment:");
+            System.out.println("Response Errors: " + Arrays.toString(attachmentResponse.getErrors()));
+            System.out.println("Response Warnings: " + Arrays.toString(attachmentResponse.getWarnings()));
+            return null;
+        }
+    }
+ // Method to upload attachment to Rally
+    
+    	private static String uploadAttachmentToRally(File file, RallyRestApi restApi, String testCaseRef) throws IOException {
+    	    if (file == null || !file.exists() || testCaseRef == null || testCaseRef.isEmpty()) {
+    	        System.out.println("Invalid file or test case reference provided for attachment upload.");
+    	        return null;
+    	    }
+
+    	    // Convert file to Base64-encoded content
+    	    byte[] fileContent = java.nio.file.Files.readAllBytes(file.toPath());
+    	    String base64Content = Base64.getEncoder().encodeToString(fileContent);
+
+    	    JsonObject attachment = new JsonObject();
+    	    attachment.addProperty("Artifact", testCaseRef);
+    	    attachment.addProperty("Content", base64Content);
+    	    attachment.addProperty("Name", file.getName());
+    	    attachment.addProperty("ContentType", "text/plain");
+    	    attachment.addProperty("Size", fileContent.length);
+
+    	    // Debug: Print the attachment JSON object
+    	    System.out.println("Attachment JSON: " + attachment.toString());
+
+    	    CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+    	    CreateResponse attachmentResponse = restApi.create(attachmentRequest);
+
+    	    if (attachmentResponse.wasSuccessful()) {
+    	        return attachmentResponse.getObject().get("_ref").getAsString();
+    	    } else {
+    	        System.out.println("Error occurred creating attachment:");
+    	        System.out.println("Response Errors: " + Arrays.toString(attachmentResponse.getErrors()));
+    	        System.out.println("Response Warnings: " + Arrays.toString(attachmentResponse.getWarnings()));
+    	        return null;
+    	    }
+    	}
+    private static void linkAttachmentToTestStep(RallyRestApi restApi, String testCaseRef, int stepIndex, String attachmentRef) throws IOException {
+        // Query for the specific test step using the testCaseRef and stepIndex
+        QueryRequest stepRequest = new QueryRequest("TestCaseStep");
+        stepRequest.setQueryFilter(new QueryFilter("TestCase", "=", testCaseRef)
+                .and(new QueryFilter("StepIndex", "=", String.valueOf(stepIndex))));
+
+        QueryResponse stepResponse = restApi.query(stepRequest);
+
+        if (stepResponse.wasSuccessful() && stepResponse.getTotalResultCount() > 0) {
+            JsonObject stepObj = stepResponse.getResults().get(0).getAsJsonObject();
+            String stepRef = stepObj.get("_ref").getAsString();
+
+            // Add the attachment reference to the test step's attachments array
+            JsonArray attachmentsArray = stepObj.getAsJsonArray("Attachments");
+            if (attachmentsArray == null) {
+                attachmentsArray = new JsonArray();
+            }
+            JsonObject attachmentLink = new JsonObject();
+            attachmentLink.addProperty("_ref", attachmentRef);
+            attachmentsArray.add(attachmentLink);
+
+            stepObj.add("Attachments", attachmentsArray);
+
+            // Use the UpdateRequest to update the TestCaseStep
+            UpdateRequest updateStepRequest = new UpdateRequest(stepRef, stepObj);
+            UpdateResponse updateResponse = restApi.update(updateStepRequest);
+
+            if (updateResponse.wasSuccessful()) {
+                System.out.println("Successfully linked attachment to test step: " + stepIndex);
+            } else {
+                System.out.println("Error occurred updating test step:");
+                for (String error : updateResponse.getErrors()) {
+                    System.out.println(error);
+                }
+            }
+        } else {
+            System.out.println("Test step not found or error occurred.");
+        }
+    }
+}
+
+
+Exception in thread "main" java.lang.NullPointerException: Cannot invoke "com.google.gson.JsonElement.getAsString()" because the return value of "com.google.gson.JsonObject.get(String)" is null
+	at FoldersTestCase2.main(FoldersTestCase2.java:155)
