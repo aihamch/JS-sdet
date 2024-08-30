@@ -1,11 +1,60 @@
-2024-08-30 10:33:11.513 [main] INFO  com.optum.coe.automation.rally.RallyOperation - No Embedded attachment is found at test step level for the jira testcase key https://rally1.rallydev.com/slm/webservice/v2.0/testcase/804763779475
-2024-08-30 10:33:11.757 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Exception occurred while creating test step in Rally
-java.io.IOException: HTTP/1.1 403 Forbidden
-	at com.rallydev.rest.client.HttpClient.executeRequest(HttpClient.java:163) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.client.HttpClient.doRequest(HttpClient.java:145) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.client.ApiKeyClient.doRequest(ApiKeyClient.java:37) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.client.HttpClient.doPost(HttpClient.java:179) ~[rally-rest-api-2.2.1.jar:?]
-	at com.rallydev.rest.RallyRestApi.create(RallyRestApi.java:125) ~[rally-rest-api-2.2.1.jar:?]
-	at com.optum.coe.automation.rally.RallyOperation.migrateTestStepsWithAttachments(RallyOperation.java:626) [classes/:?]
-	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:180) [classes/:?]
-2024-08-30 10:33:11.760 [main] INFO  com.optum.coe.automation.rally.RunnerClass - Total TC's
+private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
+    if (testCaseId == null || testCaseId.isEmpty()) {
+        logger.error("TestCase ID is null or empty. Cannot attach file: " + filePath);
+        return null;
+    }
+
+    byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
+    String encodedContent = Base64.getEncoder().encodeToString(fileContent);
+
+    String contentType = determineContentType(filePath);
+
+    JsonObject attachmentContent = new JsonObject();
+    attachmentContent.addProperty("Content", encodedContent);
+
+    CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
+    
+    int retryCount = 3;
+    while (retryCount > 0) {
+        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+
+        if (attachmentContentResponse.wasSuccessful()) {
+            String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
+            logger.info("AttachmentContentRef: " + attachmentContentRef);
+
+            JsonObject attachment = new JsonObject();
+            attachment.addProperty("Artifact", "/testcase/" + testCaseId);
+            attachment.addProperty("Content", attachmentContentRef);
+            attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
+            attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
+            attachment.addProperty("ContentType", contentType);
+            attachment.addProperty("Size", fileContent.length);
+
+            CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
+            CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
+
+            if (attachmentResponse.wasSuccessful()) {
+                String attachmentURL = attachmentResponse.getObject().get("_ref").getAsString();
+                logger.info("Attachment URL: " + attachmentURL);
+                return attachmentURL;
+            } else {
+                logger.error("Error creating Attachment for file " + filePath + ": " + String.join(", ", attachmentResponse.getErrors()));
+                return null;
+            }
+        } else if (attachmentContentResponse.getErrors().toString().contains("502 Bad Gateway")) {
+            logger.warn("502 Bad Gateway error encountered. Retrying...");
+            retryCount--;
+            try {
+                Thread.sleep(5000); // wait for 5 seconds before retrying
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+        } else {
+            logger.error("Error creating AttachmentContent for file " + filePath + ": " + String.join(", ", attachmentContentResponse.getErrors()));
+            return null;
+        }
+    }
+    
+    logger.error("Failed to create AttachmentContent after retries.");
+    throw new IOException("Failed to create AttachmentContent after 3 retries due to 502 Bad Gateway.");
+}
