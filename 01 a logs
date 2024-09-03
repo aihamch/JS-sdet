@@ -1,35 +1,41 @@
 
-	public JsonObject getJiraTestCaseDetails(String key) {
-			JsonObject jiraJson = null;
+public JsonObject getJiraTestCaseDetails(String key) {
+    JsonObject jiraJson = null;
+    String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
 
-			// Jira URL string building. This URL will give the Jira testcase details for the given testcase key
-			String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
+    int maxRetries = 5;
 
-			/* Call "getJiraResponse" from Utils class. This method will return the JIRA JSON response for the given URL.
-			 * Since the URL has been built such a way that to get the testcase details for the given testcase key, the output of this method would be Jira Testcase details in a JSON format */
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+            if (response != null) {
+                String responseBody = EntityUtils.toString(response);
+                logger.info("Testcase details for the key " + key + ": " + responseBody);
+                jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+                break; // Successfully retrieved data, exit loop
+            } else {
+                logger.error("Failed to get JIRA testcase details for the key " + key + "; Response is null. Attempt: " + attempt);
+            }
+        } catch (ParseException e) {
+            logger.error("Failed to retrieve JIRA testcase details for the key " + key + "; Parser exception. Attempt: " + attempt, e);
+        } catch (IOException e) {
+            logger.error("Failed to retrieve JIRA testcase details for the key " + key + "; IO exception. Attempt: " + attempt, e);
+        }
 
-			HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-			if ( response !=  null) {
-				try {
-					// Convert the response as String and then parse the string, Return the testcase details as JsonObject
-					String responseBody = EntityUtils.toString(response);
-					logger.info("Testcase details for the key" + key + ": " + responseBody);
-					jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
+        // Wait for 2 seconds if it's the last attempt
+        if (attempt == maxRetries) {
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException ie) {
+                logger.error("Sleep interrupted on last attempt. Attempt: " + attempt, ie);
+                Thread.currentThread().interrupt(); // Restore interrupted status
+            }
+        }
+    }
 
-				// Exception handling
-				} catch (ParseException e) {
-					logger.error("Failed to retrieving JIRA testcase details for the key " + key + "; Parser exception " , e);
+    if (jiraJson == null) {
+        logger.error("Failed to retrieve JIRA testcase details for the key " + key + " after " + maxRetries + " attempts; Returning null.");
+    }
 
-				} catch (IOException e) {
-					logger.error("Failed to retrieving JIRA testcase details for the key " + key + "; IO exception " , e);
-				}
-
-
-			} else {
-
-				logger.error("failed to get jira testcase details for the key " + key + "; Returning null");
-			}
-
-		return jiraJson;
-
-	}
+    return jiraJson;
+}
