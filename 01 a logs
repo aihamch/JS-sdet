@@ -1,60 +1,35 @@
-private String attachFileToRallyTestCase(RallyRestApi rallyApi, String testCaseId, String filePath) throws IOException {
-    if (testCaseId == null || testCaseId.isEmpty()) {
-        logger.error("TestCase ID is null or empty. Cannot attach file: " + filePath);
-        return null;
-    }
 
-    byte[] fileContent = Files.readAllBytes(Paths.get(filePath));
-    String encodedContent = Base64.getEncoder().encodeToString(fileContent);
+	public JsonObject getJiraTestCaseDetails(String key) {
+			JsonObject jiraJson = null;
 
-    String contentType = determineContentType(filePath);
+			// Jira URL string building. This URL will give the Jira testcase details for the given testcase key
+			String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
 
-    JsonObject attachmentContent = new JsonObject();
-    attachmentContent.addProperty("Content", encodedContent);
+			/* Call "getJiraResponse" from Utils class. This method will return the JIRA JSON response for the given URL.
+			 * Since the URL has been built such a way that to get the testcase details for the given testcase key, the output of this method would be Jira Testcase details in a JSON format */
 
-    CreateRequest attachmentContentRequest = new CreateRequest("AttachmentContent", attachmentContent);
-    
-    int retryCount = 3;
-    while (retryCount > 0) {
-        CreateResponse attachmentContentResponse = rallyApi.create(attachmentContentRequest);
+			HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
+			if ( response !=  null) {
+				try {
+					// Convert the response as String and then parse the string, Return the testcase details as JsonObject
+					String responseBody = EntityUtils.toString(response);
+					logger.info("Testcase details for the key" + key + ": " + responseBody);
+					jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
 
-        if (attachmentContentResponse.wasSuccessful()) {
-            String attachmentContentRef = attachmentContentResponse.getObject().get("_ref").getAsString();
-            logger.info("AttachmentContentRef: " + attachmentContentRef);
+				// Exception handling
+				} catch (ParseException e) {
+					logger.error("Failed to retrieving JIRA testcase details for the key " + key + "; Parser exception " , e);
 
-            JsonObject attachment = new JsonObject();
-            attachment.addProperty("Artifact", "/testcase/" + testCaseId);
-            attachment.addProperty("Content", attachmentContentRef);
-            attachment.addProperty("Name", Paths.get(filePath).getFileName().toString());
-            attachment.addProperty("Description", "Jira to Rally Migration Automated Attachments");
-            attachment.addProperty("ContentType", contentType);
-            attachment.addProperty("Size", fileContent.length);
+				} catch (IOException e) {
+					logger.error("Failed to retrieving JIRA testcase details for the key " + key + "; IO exception " , e);
+				}
 
-            CreateRequest attachmentRequest = new CreateRequest("Attachment", attachment);
-            CreateResponse attachmentResponse = rallyApi.create(attachmentRequest);
 
-            if (attachmentResponse.wasSuccessful()) {
-                String attachmentURL = attachmentResponse.getObject().get("_ref").getAsString();
-                logger.info("Attachment URL: " + attachmentURL);
-                return attachmentURL;
-            } else {
-                logger.error("Error creating Attachment for file " + filePath + ": " + String.join(", ", attachmentResponse.getErrors()));
-                return null;
-            }
-        } else if (attachmentContentResponse.getErrors().toString().contains("502 Bad Gateway")) {
-            logger.warn("502 Bad Gateway error encountered. Retrying...");
-            retryCount--;
-            try {
-                Thread.sleep(5000); // wait for 5 seconds before retrying
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
-        } else {
-            logger.error("Error creating AttachmentContent for file " + filePath + ": " + String.join(", ", attachmentContentResponse.getErrors()));
-            return null;
-        }
-    }
-    
-    logger.error("Failed to create AttachmentContent after retries.");
-    throw new IOException("Failed to create AttachmentContent after 3 retries due to 502 Bad Gateway.");
-}
+			} else {
+
+				logger.error("failed to get jira testcase details for the key " + key + "; Returning null");
+			}
+
+		return jiraJson;
+
+	}
