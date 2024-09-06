@@ -1,41 +1,7 @@
+when i run this query 
+https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+%22Migrate+Test+to+Rally%22+%3D+true  
 
-public JsonObject getJiraTestCaseDetails(String key) {
-    JsonObject jiraJson = null;
-    String url = jiraBaseURL + "/rest/atm/1.0/testcase/" + key;
+i get this message
 
-    int maxRetries = 5;
-
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            HttpEntity response = Utils.getJiraResponse(url, jiraApiKey);
-            if (response != null) {
-                String responseBody = EntityUtils.toString(response);
-                logger.info("Testcase details for the key " + key + ": " + responseBody);
-                jiraJson = JsonParser.parseString(responseBody).getAsJsonObject();
-                break; // Successfully retrieved data, exit loop
-            } else {
-                logger.error("Failed to get JIRA testcase details for the key " + key + "; Response is null. Attempt: " + attempt);
-            }
-        } catch (ParseException e) {
-            logger.error("Failed to retrieve JIRA testcase details for the key " + key + "; Parser exception. Attempt: " + attempt, e);
-        } catch (IOException e) {
-            logger.error("Failed to retrieve JIRA testcase details for the key " + key + "; IO exception. Attempt: " + attempt, e);
-        }
-
-        // Wait for 2 seconds if it's the last attempt
-        if (attempt == maxRetries) {
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException ie) {
-                logger.error("Sleep interrupted on last attempt. Attempt: " + attempt, ie);
-                Thread.currentThread().interrupt(); // Restore interrupted status
-            }
-        }
-    }
-
-    if (jiraJson == null) {
-        logger.error("Failed to retrieve JIRA testcase details for the key " + key + " after " + maxRetries + " attempts; Returning null.");
-    }
-
-    return jiraJson;
-}
+{"errorMessages":["The query statement is not valid: projectKey = RHPQA AND \"Migrate Test to Rally\" = true"]}
+even tho i have checked Migrate Test to Rally in the jira test case 
