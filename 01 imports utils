@@ -1,39 +1,49 @@
 
-Since the general query for the `RHPQA` project is working and returning test case keys, it confirms that the project key filter is functioning as expected. This narrows down the issue to how the custom field "Migrate Test to Rally" is being queried.
+Since using the custom field ID (`cf[9264]`) is not working, but the field is clearly present in the `RHPQA` project based on the API response, the issue likely lies in how Jira is interpreting the query or field configuration within the project. Let's focus on other potential ways to address this:
 
-### Here's a troubleshooting checklist to further resolve the issue:
+### Steps to Resolve:
 
-1. **Verify Field Values in RHPQA**:
-   - Run the working query without the custom field filter:
-     ```plaintext
-     https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key,customFieldValues&maxResults=10&query=projectKey+%3D+RHPQA
-     ```
-   - This query will return all test cases, including their `customFieldValues`, which should show whether "Migrate Test to Rally" is set to `true` for the returned test cases. You can manually check if this field is indeed set to `true` for some test cases in the `RHPQA` project.
-
-2. **Query with Custom Field ID**:
-   Since `"Migrate Test to Rally"` exists as a custom field and has been shown to work in other projects, ensure that you are querying it correctly by using its **field ID** (`id: 9264`) instead of the name.
-
-   Adjust the query to target this custom field by its ID:
-   ```plaintext
-   https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+cf[9264]+%3D+true
-   ```
-   This ensures that you are referencing the correct field, as sometimes field names can cause issues in JQL queries, while field IDs are always precise.
-
-3. **Check if Field Values Are Set Properly**:
-   If there are no test cases where "Migrate Test to Rally" is set to `true`, the query will return no results. Manually inspect a few test cases in `RHPQA` to ensure that the field is indeed set to `true`.
-
-4. **Field Context**:
-   If querying by field ID still doesn't work, the issue might be related to the field's **context** in the `RHPQA` project. Field context defines where and how a custom field is applicable (e.g., specific issue types or projects). Contact a Jira admin to confirm that the "Migrate Test to Rally" field is properly configured for use in the `RHPQA` project.
-
-### Recap of Query:
-1. **With Custom Field ID**:
-   ```plaintext
-   https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+cf[9264]+%3D+true
-   ```
-
-2. **Without Custom Field Filter (to verify data)**:
+1. **Verify Field Values via API**:
+   Use the following query to list test cases with **custom field values**:
+   
    ```plaintext
    https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key,customFieldValues&maxResults=10&query=projectKey+%3D+RHPQA
    ```
+   
+   This will return both the `key` and the `customFieldValues` for each test case. Check whether the "Migrate Test to Rally" field is present and what values are being returned. This will help confirm if there are indeed any test cases where this field is `true`.
 
-Try the above and let me know what results you get!
+2. **Try Using the Field Name Directly in the Query**:
+   Since the ID isn't working, continue using the **field name** "Migrate Test to Rally" directly in your query. Jira may allow querying by field name if the field is correctly configured for the project:
+
+   ```plaintext
+   https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+"Migrate+Test+to+Rally"+%3D+true
+   ```
+
+   Make sure the field name matches exactly what is used in Jira (case sensitivity might play a role). Test both with and without quotes around the field name.
+
+3. **Manual Check via Jira UI**:
+   - Search for test cases in the `RHPQA` project that are supposed to have "Migrate Test to Rally" set to `true` in the Jira UI.
+   - Manually verify that there are test cases where the field is set to `true`. This will ensure that the field is being used as expected in this project.
+
+4. **Field Context Issue**:
+   If querying by the field name or ID still doesn’t work, the issue might be related to the **field context** in `RHPQA`. Even though the field appears in the test cases, it might not be configured to be queried in JQL for this project. You’ll need a Jira admin to:
+   - Verify that the field is properly configured for the `RHPQA` project.
+   - Ensure that it is available for all issue types within the project.
+
+5. **Try a Broader Query**:
+   To troubleshoot further, try a query that doesn’t check for `true/false` values but instead just checks for the presence of the field:
+
+   ```plaintext
+   https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+"Migrate+Test+to+Rally"+IS+NOT+EMPTY
+   ```
+
+   This will return test cases where the "Migrate Test to Rally" field is present, regardless of whether it’s `true` or `false`. This can help you confirm if the field is accessible in the project for querying.
+
+### Summary:
+- **Verify custom field values** using the first query.
+- **Use the field name directly** if querying by field ID fails.
+- **Check the Jira UI** manually to confirm the field is set to `true` for some test cases.
+- **Ensure correct field context** with the help of a Jira admin.
+- **Test with IS NOT EMPTY** to check for the presence of the field in the test cases.
+
+Let me know the results, and we can adjust the approach as needed!
