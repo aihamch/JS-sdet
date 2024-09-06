@@ -1,92 +1,39 @@
 
-    "owner": "JIRAUSER117446",
-    "testData": [],
-    "priority": {
-        "isDefault": true,
-        "color": "#ffa900",
-        "i18nKey": "TESTCASE.PRIORITY.NORMAL",
-        "name": "Normal",
-        "index": 1,
-        "id": 2511,
-        "projectId": 35925
-    },
-    "majorVersion": 1,
-    "labels": [
-        "PayerReceiveArchive"
-    ],
-    "objective": "<html><b>Objective:</b>   <br><br><br><br><br><br><b>Prerequisite:</b>  <br></html>",
-    "archived": false,
-    "folder": {
-        "fullName": "/RelayExchange_Batch/Subject/Front-End Claim Edits Website/RCO RPO Templates",
-        "id": 36612
-    },
-    "customFieldValues": [
-        {
-            "booleanValue": false,
-            "id": 12336995,
-            "customField": {
-                "archived": false,
-                "name": "RallyMigrateNeedFix",
-                "index": 84,
-                "id": 9268,
-                "type": "CHECKBOX",
-                "projectId": 35925,
-                "required": false
-            }
-        },
-        {
-            "booleanValue": true,
-            "id": 12237487,
-            "customField": {
-                "archived": false,
-                "name": "Migrate Test to Rally",
-                "index": 82,
-                "id": 9264,
-                "type": "CHECKBOX",
-                "projectId": 35925,
-                "required": false
-            }
-        },
-        {
-            "stringValue": "ALMREB-30504",
-            "id": 11630180,
-            "customField": {
-                "archived": false,
-                "name": "Original issue key",
-                "index": 0,
-                "description": "Original issue key field",
-                "id": 7315,
-                "type": "SINGLE_LINE_TEXT",
-                "projectId": 35925,
-                "required": false
-            }
-        }
-    ],
-    "latestVersion": true,
-    "testScript": {
-        "stepByStepScript": {
-            "id": 452285,
-            "steps": [
-                {
-                    "expectedResult": "",
-                    "index": 0,
-                    "description": "<html><body><div align=\"left\"><font face=\"Arial\"><span style=\"font-size:8pt\">Go to the </span></font><font face=\"Arial\"><span style=\"color:rgb(128, 0, 128);font-size:8pt\"><b><u>Remit Client Options</u></b></span></font><font face=\"Arial\"><span style=\"font-size:8pt\"> (webpage)<br /><br /></span></font><br /></div><div align=\"left\"><font face=\"Arial\"><span style=\"font-size:8pt\">Verify the field listed in the test title no longer displays.&nbsp;</span></font></div></body></html>",
-                    "id": 4250016
-                }
-            ]
-        }
-    },
-    "name": "! TMP - Field Deleted from Screen",
-    "id": 487786,
-    "parameters": [],
-    "projectId": 35925,
-    "key": "RHPQA-T29061",
-    "status": {
-        "isDefault": false,
-        "color": "#EEEEEE",
-        "name": "Manual Planned",
-        "index": 13,
-        "id": 3841,
-        "projectId": 35925
-    }
-}
+Since the general query for the `RHPQA` project is working and returning test case keys, it confirms that the project key filter is functioning as expected. This narrows down the issue to how the custom field "Migrate Test to Rally" is being queried.
+
+### Here's a troubleshooting checklist to further resolve the issue:
+
+1. **Verify Field Values in RHPQA**:
+   - Run the working query without the custom field filter:
+     ```plaintext
+     https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key,customFieldValues&maxResults=10&query=projectKey+%3D+RHPQA
+     ```
+   - This query will return all test cases, including their `customFieldValues`, which should show whether "Migrate Test to Rally" is set to `true` for the returned test cases. You can manually check if this field is indeed set to `true` for some test cases in the `RHPQA` project.
+
+2. **Query with Custom Field ID**:
+   Since `"Migrate Test to Rally"` exists as a custom field and has been shown to work in other projects, ensure that you are querying it correctly by using its **field ID** (`id: 9264`) instead of the name.
+
+   Adjust the query to target this custom field by its ID:
+   ```plaintext
+   https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+cf[9264]+%3D+true
+   ```
+   This ensures that you are referencing the correct field, as sometimes field names can cause issues in JQL queries, while field IDs are always precise.
+
+3. **Check if Field Values Are Set Properly**:
+   If there are no test cases where "Migrate Test to Rally" is set to `true`, the query will return no results. Manually inspect a few test cases in `RHPQA` to ensure that the field is indeed set to `true`.
+
+4. **Field Context**:
+   If querying by field ID still doesn't work, the issue might be related to the field's **context** in the `RHPQA` project. Field context defines where and how a custom field is applicable (e.g., specific issue types or projects). Contact a Jira admin to confirm that the "Migrate Test to Rally" field is properly configured for use in the `RHPQA` project.
+
+### Recap of Query:
+1. **With Custom Field ID**:
+   ```plaintext
+   https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+cf[9264]+%3D+true
+   ```
+
+2. **Without Custom Field Filter (to verify data)**:
+   ```plaintext
+   https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key,customFieldValues&maxResults=10&query=projectKey+%3D+RHPQA
+   ```
+
+Try the above and let me know what results you get!
