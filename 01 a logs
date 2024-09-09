@@ -1,32 +1,7 @@
-when i run this query 
-https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+%22Migrate+Test+to+Rally%22+%3D+true  
+For your Goals & Objectives (G&O) related to continuing your learning in automation tools, you can set a clear and measurable goal. Here's a suggestion you can use and modify:
 
-i get this message
+1. **Title**: Continue Learning Automation Tools
+   - **Description**: Expand my expertise in automation tools, focusing on learning new frameworks and tools that can improve efficiency in test case management and migration processes, such as Selenium, Jenkins, or other CI/CD automation tools.
+   - **Measurement Criteria**: Complete a course or certification in a new automation tool, apply the learned tool in at least one project by the end of the quarter, and demonstrate its effectiveness through improved process automation efficiency.
 
-{"errorMessages":["The query statement is not valid: projectKey = RHPQA AND \"Migrate Test to Rally\" = true"]}
-even tho i have checked Migrate Test to Rally in the jira test case 
-To form the correct query, you need to replace the custom field name `"Migrate Test to Rally"` with its internal field ID, which usually follows the format `cf[XXXX]`. Unfortunately, I cannot retrieve the exact custom field ID for you, but I can guide you to find it.
-
-Here’s how you can find the custom field ID and form the correct query:
-
-### Steps to Find the Custom Field ID:
-1. In Jira, go to **Settings** > **Issues** > **Custom Fields**.
-2. Search for the custom field "Migrate Test to Rally."
-3. Click **Edit** or **Configure** for that field, and look at the URL in your browser. You should see something like this:
-   ```
-   https://jira.healthcareit.net/secure/admin/EditCustomField!default.jspa?id=12345
-   ```
-   The number at the end (`12345`) is the custom field ID.
-
-### Full Correct Query:
-Once you have the custom field ID, replace `cf[12345]` in the query with the actual ID, as shown below:
-
-```plaintext
-https://jira.healthcareit.net/rest/atm/1.0/testcase/search?fields=key&maxResults=10&query=projectKey+%3D+RHPQA+AND+cf[12345]+%3D+true
-```
-
-### Breakdown of the Query:
-- `projectKey = RHPQA`: Filters the issues by the project with the key `RHPQA`.
-- `cf[12345] = true`: Searches for issues where the custom field "Migrate Test to Rally" is checked (true).
-
-Make sure to replace `12345` with the actual custom field ID you retrieve from Jira. This should work properly once you have the correct custom field reference.
+You can also break this down into smaller goals or focus on specific tools you're interested in learning.
