@@ -1,0 +1,72 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.optum.coe.automation.rally</groupId>
+  <artifactId>jira-to-rally-migration</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>jira-to-rally-migration</name>
+  <url>http://maven.apache.org</url>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+ <dependencies>
+	<dependency>
+		<groupId>junit</groupId>
+		<artifactId>junit</artifactId>
+		<version>4.11</version>
+		<scope>test</scope>
+	</dependency>
+
+<!-- To work on logging -->     
+    <dependency>
+		<groupId>org.apache.logging.log4j</groupId>
+		<artifactId>log4j-api</artifactId>
+		<version>2.23.1</version>
+	</dependency>
+	
+	<dependency>
+		<groupId>org.apache.logging.log4j</groupId>
+		<artifactId>log4j-core</artifactId>
+		<version>2.23.1</version>
+	</dependency>
+	
+<!-- To work on API calls for Jira -->   
+    <dependency>
+	    <groupId>org.apache.httpcomponents</groupId>
+	    <artifactId>httpclient</artifactId>
+	    <version>4.5.13</version>
+    </dependency>
+	   
+<!-- To work on basic functions in Json. -->    
+	<dependency>
+	    <groupId>org.json</groupId>
+	    <artifactId>json</artifactId>
+	    <version>20240303</version> <!-- version updated as per Craig's US7145263 workbench pom.xml addded in GitLab -->
+	</dependency>
+	
+	<dependency>
+	        <groupId>com.google.code.gson</groupId>
+	        <artifactId>gson</artifactId>
+	           <version>2.10.1</version>
+	</dependency>
+
+<!-- To work on HTML portion in Json -->
+	 <dependency>
+	    <groupId>org.jsoup</groupId>
+	    <artifactId>jsoup</artifactId>
+	    <version>1.15.3</version>
+	</dependency>
+   
+<!-- To work on API calls for Rally --> 
+    <dependency>
+	    <groupId>com.rallydev.rest</groupId>
+	    <artifactId>rally-rest-api</artifactId>
+	    <version>2.2.1</version>
+	</dependency>
+  </dependencies>
+</project>
