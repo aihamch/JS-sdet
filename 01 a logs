@@ -1,7 +1,36 @@
-For your Goals & Objectives (G&O) related to continuing your learning in automation tools, you can set a clear and measurable goal. Here's a suggestion you can use and modify:
+As a migration developer, I want to document the Jira to Rally migration process and its implementation, so that it will be useful for other teams for their Jira to Rally migration.
 
-1. **Title**: Continue Learning Automation Tools
-   - **Description**: Expand my expertise in automation tools, focusing on learning new frameworks and tools that can improve efficiency in test case management and migration processes, such as Selenium, Jenkins, or other CI/CD automation tools.
-   - **Measurement Criteria**: Complete a course or certification in a new automation tool, apply the learned tool in at least one project by the end of the quarter, and demonstrate its effectiveness through improved process automation efficiency.
 
-You can also break this down into smaller goals or focus on specific tools you're interested in learning.
+thigns to be contained in the documnet 
+Document the details:
+
+1. Source code location : https://gitlab.healthcareit.net/imncoe-automation/jira-to-rally-migration/-/tree/master
+2. Technology stack (Java, GitLab, IDE, ext,.)
+3. Config.Properties file and key values needs to be changed for other projects and rally migration service account details
+4. Jira to Rally Fields mapping
+       a) Direct fields mapping ( Example: Name, Preconditions)
+       b) Indirect/Equivalent field mapping ( Example: Labels in Jira --> Tags in Rally, Custom field values in Jira --> Notes in Rally )
+5. Pre-Requisites (Example: Migrate Test to Rally field should be checked in Jira testcase )
+5. Test folder creation in rally
+6. Testcase creation in rally
+7. TestStep Creation in rally
+8. Attachment migrations
+       a) Testcase File Attachments with its naming conversion
+        b) TestStep File Attachments with its naming conversion
+        c) TestStep Embedded Attachments with its naming conversion
+
+9. Rally Limitations and alternate solutions
+        a) 2048 chars limited in text areas
+        b) Sensitive IDs like Tax ID, SSN
+        c) Concurrency issue delt with retry blocks
+11. Hardcoded areas (Example: Get Custom field values for CC2 projects )
+12. RallyMigrateNeedFix for Triage
+13. Out of Scope
+       a) Jira Test Execution details
+        b) User Stories mapping from Jira to Rally
+        c) ??
+        d) ??
+14. Sample Execution and Screen shots
+15. Rally point of contacts
+       a) Yanicke, Steven
+        b) Van Quakebeke, Joseph A
