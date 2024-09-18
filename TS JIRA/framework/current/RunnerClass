@@ -1,123 +1,251 @@
 package com.optum.coe.automation.rally;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.time.Duration;
+import java.time.Instant;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.google.gson.JsonObject;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.rallydev.rest.RallyRestApi;
-import java.net.URI;
+import com.google.gson.JsonObject;
 
 public class RunnerClass {
 
-    // Logger Initialization for Runner Class
-    private static final Logger logger = LogManager.getLogger();
+	// Logger Initialization for Runner Class
+	private static final Logger logger = LogManager.getLogger();
 
-    // Main method
-    public static void main(String[] args) throws MalformedURLException, IOException, URISyntaxException {
-        Gson gson = new Gson();
-        String rallyUrl = ConfigLoader.getConfigValue("RALLY_BASE_URL");
-        String rallyApiKey = ConfigLoader.getConfigValue("RALLY_API_KEY");
-        RallyRestApi rallyRestApi = new RallyRestApi(new URI(rallyUrl), rallyApiKey);
+	// Main method
+	public static void main(String[] args) throws Exception {
+		
+		/*
+		 * Main method calls below functionalities from com.optum.coe.automation.rally
+		 * package 1. Get Jira non migrated testcase keys 2. Get Jira Testcase details
+		 * for the given testcase key. It is an iterative process 3. Create the testcase
+		 * in Rally using the Jira testcase details 4. Validate if the testcase is
+		 * created successfully ; Future implementation is required. US7440061
+		 */
+		
+		Instant start = Instant.now(); // Start time of the script execution
+		// System.out.println("Execution Start Time : " + start);
+		logger.info("Execution Start Time : " + start);
+		
+		Gson gson = new Gson();
+		JiraTestCase jiraTestCase = new JiraTestCase();
+		JiraOperation jiraOperation = new JiraOperation();
+		String currentJiraTestCaseKey = null;
+		JsonObject jiraTestcaseJson;
+		RallyOperation rallyOperation;
+		String tcFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_CASE_FILE_ATTACHMENT_LOCATION");
+		String tsFileAttachmentDownloadLocation = ConfigLoader.getConfigValue("TEST_STEP_FILE_ATTACHMENT_LOCATION");
+		List<String> fileAttachmentDownloadPathsTestcaseLevel;
+		List<String> fileAttachmentDownloadPathsTestStepLevel;
+		List<String> embeddedAttachmentDownloadPathsTestStepLevel;
+		List<String> testcaseAttachmentOIDs;
+		List<String> teststepFileAttachmentOIDs;
+		int counter = 0;
+		ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+		boolean rallyTestcaseCreationStatus, rallyOverallTestCaseAttachmentsStatus, rallyOverallTestStepFileAttachmentsStatus, rallyTestStepCreationStatus, jiraDownloadTCFileAttachmentStatus,jiraDownloadTSFileAttachmentStatus, jiraDownloadTSEmbeddedAttachmentStatus,jiraOverallAttachmentdownloadStatus;
+		String rallyTestcaseOID;
+		
+		// Validate if the Jira test case keys are retrieved successfully.
+		if (! testcaseKeys.isEmpty()){
+			for (String key : testcaseKeys) {
+			rallyTestcaseCreationStatus = false;
+			rallyOverallTestCaseAttachmentsStatus = false;
+			rallyOverallTestStepFileAttachmentsStatus = false;
+			rallyTestStepCreationStatus = false;
+			jiraDownloadTCFileAttachmentStatus = false;
+			jiraDownloadTSFileAttachmentStatus = false;
+			jiraDownloadTSEmbeddedAttachmentStatus = false;
+			jiraOverallAttachmentdownloadStatus = false;
+			rallyTestcaseOID = null;
+			jiraTestCase.setKey(key);
 
-        JiraTestCase jiraTestCase = new JiraTestCase();
-        JiraOperation jiraOperation = new JiraOperation();
-        ArrayList<String> testcaseKeys = jiraOperation.getJiraNonMigratedTestcaseKeys();
+			// Get the current Jira test case key value
 
-        for (String key : testcaseKeys) {
-            boolean rallyTestcaseCreationStatus = false;
-            boolean rallyOverallTestStepAttachmentsStatus = false;
-            jiraTestCase.setKey(key);
-            logger.info("Processing " + jiraTestCase.getKey());
-            JsonObject jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(jiraTestCase.getKey());
-            RallyOperation rallyOperation = new RallyOperation();
+			currentJiraTestCaseKey = jiraTestCase.getKey();
+			System.out.println((counter + 1) + ".Processing " + currentJiraTestCaseKey + "...");
+			logger.info("Processing " + currentJiraTestCaseKey);
+			jiraTestcaseJson = jiraOperation.getJiraTestCaseDetails(currentJiraTestCaseKey);
+			rallyOperation = new RallyOperation();
 
-            List<String> fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "testcase", "file");
-            List<String> fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "file");
-            List<String> embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(jiraTestCase.getKey(), "teststep", "embedded");
+			// Start the downloading processing of attachments from Jira to Local and Verify them
+			Utils.deleteFilesIfExists(tsFileAttachmentDownloadLocation);
+			Utils.deleteFilesIfExists(tcFileAttachmentDownloadLocation);
+			fileAttachmentDownloadPathsTestcaseLevel = jiraOperation.jiraAttachmentsDownload(currentJiraTestCaseKey, "testcase", "file");
+			jiraDownloadTCFileAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(fileAttachmentDownloadPathsTestcaseLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
+			fileAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(currentJiraTestCaseKey, "teststep", "file");
+			jiraDownloadTSFileAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(fileAttachmentDownloadPathsTestStepLevel); // This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
+			embeddedAttachmentDownloadPathsTestStepLevel = jiraOperation.jiraAttachmentsDownload(currentJiraTestCaseKey, "teststep", "embedded");
+			jiraDownloadTSEmbeddedAttachmentStatus = Utils.areAttachmentsDownloadedFromJira(embeddedAttachmentDownloadPathsTestStepLevel); //This call will return "error" string during failure OR "true" boolean when no attachments are found OR "true" boolean when attachments are downloaded successfully OR "false" for any cases
 
-            String rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson);
+			/*
+			 * If attachments are downloaded are successfully to Local, then advance to
+			 * upload them to the corresponding testcase. Call attachFilesToRallyTestcase
+			 * method for this action and return testcase attachment OID for further
+			 * processing. If any attachment is not uploaded to the testcase, then it will
+			 * return empty list Once the the file attachments are successfully upload to
+			 * rally testcase, then delete the attachments from local.
+			 */
+			if ((jiraDownloadTCFileAttachmentStatus) && (jiraDownloadTSFileAttachmentStatus) && (jiraDownloadTSEmbeddedAttachmentStatus)) {
+				jiraOverallAttachmentdownloadStatus = true; // This boolean value is used for over all validation to mark "Testcase Migrated" check box in Jira
+				rallyTestcaseOID = rallyOperation.createRallyTestcase(jiraTestcaseJson); // Method to create testcase in Rally.
+				
+				// Validate TC's creation in Rally.
+				if (rallyTestcaseOID != null) {
+				rallyTestcaseCreationStatus = true; // This boolean value is used for over all validation to mark "Testcase Migrated" check box in Jira
+				logger.info(
+						"Rally testcase is successfully created with Jira equivalent testcase for the Jira testcase key " + currentJiraTestCaseKey + "and Rally TC's OID is :" + rallyTestcaseOID);
 
-            if (rallyTestcaseOID != null) {
-                rallyTestcaseCreationStatus = true;
-            } else {
-                logger.error("Testcase is not created in Rally for the key " + jiraTestCase.getKey());
-                break;
-            }
+				/*
+				 * If attachments are downloaded are successfully to Local, then advance to
+				 * upload them to the corresponding testcase. Call attachFilesToRallyTestcase
+				 * method for this action and return testcase attachment OID for further
+				 * processing. If any attachment is not uploaded to the testcase, then it will
+				 * return empty list Once the the file attachments are successfully upload to
+				 * rally testcase, then delete the attachments from local.
+				 */				
+					if ((fileAttachmentDownloadPathsTestcaseLevel != null) && (!fileAttachmentDownloadPathsTestcaseLevel.contains("error"))) {
+						logger.info("Attachment paths are found in the list for testcase file attachments.");
+						testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID,fileAttachmentDownloadPathsTestcaseLevel);
+						Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
+						if (!testcaseAttachmentOIDs.isEmpty()) { // Check if testcase OID is created successfully
+							logger.info("Test attachment OID is created successfully in Rally for the testcase" + currentJiraTestCaseKey);
+							rallyOverallTestCaseAttachmentsStatus = true; // This boolean value is used for over all validation to mark "Testcase Migrated" check box in Jira
+						} else { // Throw error when test case is not created successfully in rally and break the flow.
+							logger.error("The testcase level file attachment(s) is/are not attached to rally successfully for the Jira Testcase key " + currentJiraTestCaseKey);
+							System.out.println("OverAll Status: ERROR: No Change in \"Testcase Migrated\" check box in Jira; Testcase migration is failed for the testcase " + key);
+							System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+							return;
+						}
+						/*
+						 * If fileAttachmentDownloadPathsTestcaseLevel is empty then, no attachment URL
+						 * is found for the testcase key at testcase level
+						 */
+					} else if (fileAttachmentDownloadPathsTestcaseLevel == null) {
+						rallyOverallTestCaseAttachmentsStatus = true;
+						logger.info("No Attachment URL found in Jira for Testcase level while processing the testcase " + currentJiraTestCaseKey);
+					} else if ((fileAttachmentDownloadPathsTestcaseLevel.contains("error"))){
+							logger.error("Error occured while downloding file attachment at testcase level from Jira for the Jira Testcase key " + currentJiraTestCaseKey);
+							System.out.println("OverAll Status: ERROR: No Change in \"Testcase Migrated\" check box in Jira; Testcase migration is failed for the testcase " + key);
+							System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+							return;
+					}
 
-            List<String> testcaseAttachmentOIDs = new ArrayList<>();
+					// Validate Test Step level attachment in Rally and set boolean status
+					if ((fileAttachmentDownloadPathsTestStepLevel != null) && (!fileAttachmentDownloadPathsTestStepLevel.contains("error"))) {
+						logger.info("Attachment paths are found in the list for teststep file attachments.");
+						teststepFileAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID,fileAttachmentDownloadPathsTestStepLevel);
+						Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
 
-            if (fileAttachmentDownloadPathsTestcaseLevel != null && !fileAttachmentDownloadPathsTestcaseLevel.isEmpty()) {
-                logger.info("Attachment paths are found in the list.");
-                testcaseAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestcaseLevel);
-                Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestcaseLevel);
-                if (!testcaseAttachmentOIDs.isEmpty()) {
-                    rallyOverallTestStepAttachmentsStatus = true;
-                } else {
-                    logger.error("The Jira testcase is not created in Rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in Rally.");
-                    return;
-                }
-            } else {
-                logger.info("No Attachment path found for Testcase level.");
-            }
+						if (!teststepFileAttachmentOIDs.isEmpty()) { // Check if testcase OID is created successfully
+							logger.info("Test attachment OID is created successfully for test step attachments in Rally" + currentJiraTestCaseKey);
+							rallyOverallTestStepFileAttachmentsStatus = true; // This boolean value is used for over all validation to mark "Testcase Migrated" check box in Jira
+						} else { // Throw error when test case is not created successfully in rally and break the flow.
+							logger.error("The teststep level file attachment(s) is/are not attached to rally testcase level successfully for the Jira Testcase key " + currentJiraTestCaseKey);
+							System.out.println("OverAll Status: ERROR: No Change in \"Testcase Migrated\" check box in Jira; Testcase migration is failed for the testcase " + key);
+							System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+							return;
+						}
+						/*
+						 * If fileAttachmentDownloadPathsTestcaseLevel is empty then, no attachment URL
+						 * is found for the testcase key at testcase level
+						 */
+					} else if (fileAttachmentDownloadPathsTestStepLevel == null) {
+						rallyOverallTestStepFileAttachmentsStatus = true;
+						logger.info("No Attachment URL found in Jira for Teststep level while processing the testcase " + currentJiraTestCaseKey);
+					} else if ((fileAttachmentDownloadPathsTestcaseLevel.contains("error"))){
+						logger.error("Error occured while downloding file attachment at test step level from Jira for the Jira Testcase key " + currentJiraTestCaseKey);
+						System.out.println("OverAll Status: ERROR: No Change in \"Testcase Migrated\" check box in Jira; Testcase migration is failed for the testcase " + key);
+						System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+						return;
+					}
+					
+					//  Test Step creation for the created Testcase in Rally.
+					//  Create a map to hold the embedded attachments for each step
+					
+					
+					String testScriptType = jiraTestcaseJson.getAsJsonObject("testScript").get("type").getAsString();					
+					if (testScriptType.equals("STEP_BY_STEP")) {
+						logger.info("The Test Script type is found as STEP_BY_STEP during test step creation process");
+						Map<Integer, List<String>> embeddedAttachmentsMap = new HashMap<Integer, List<String>>();
+						JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
+						List<JiraTestStep> testSteps = new ArrayList<>();
+						for (int i = 0; i < stepsArray.size(); i++) {
+							JsonElement element = stepsArray.get(i);
+							JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
+							testSteps.add(step);
+							if (!embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
+								embeddedAttachmentsMap.put(i , embeddedAttachmentDownloadPathsTestStepLevel);
+							}
+						}
 
-            // Handle Test Step File Attachments
-            if (fileAttachmentDownloadPathsTestStepLevel != null && !fileAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                logger.info("Test Step file attachments paths are found in the list.");
-                List<String> testStepAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, fileAttachmentDownloadPathsTestStepLevel);
-               Utils.deleteAttachmentFileFromLocal(fileAttachmentDownloadPathsTestStepLevel);
-                if (!testStepAttachmentOIDs.isEmpty()) {
-                    rallyOverallTestStepAttachmentsStatus = true;
-                    testcaseAttachmentOIDs.addAll(testStepAttachmentOIDs);
-                } else {
-                    logger.error("The Jira test step file attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
-                    return;
-                }
-            } else {
-                logger.info("No Attachment path found for Test Step file level.");
-            }
+						// Method to create test step in Rally.
+						rallyTestStepCreationStatus = rallyOperation.migrateTestStepsWithAttachments(rallyTestcaseOID, testSteps, embeddedAttachmentsMap, currentJiraTestCaseKey);
+						embeddedAttachmentsMap.values().forEach(Utils::deleteAttachmentFileFromLocal);
+					} else if (testScriptType.equals("BDD")) {
+						logger.info("The Test Script type is found as BDD during test step creation process");
+						rallyTestStepCreationStatus = rallyOperation.migratePlainTextBDDFromJiraTestScriptToRallyTestStep(rallyTestcaseOID, jiraTestcaseJson);
+						
+					} else if (testScriptType.equals("PLAIN_TEXT")) {						
+						rallyTestStepCreationStatus = rallyOperation.migratePlainTextBDDFromJiraTestScriptToRallyTestStep(rallyTestcaseOID, jiraTestcaseJson);
+						logger.info("The Test Script type is found as PLAIN_TEXT during test step creation process");
+					
+					} 
 
-            // Handle Test Step Embedded Attachments
-            if (embeddedAttachmentDownloadPathsTestStepLevel != null && !embeddedAttachmentDownloadPathsTestStepLevel.isEmpty()) {
-                logger.info("Test Step embedded attachments paths are found in the list.");
-                List<String> embeddedAttachmentOIDs = rallyOperation.attachFilestoRallyTestcase(rallyTestcaseOID, embeddedAttachmentDownloadPathsTestStepLevel);
-                Utils.deleteAttachmentFileFromLocal(embeddedAttachmentDownloadPathsTestStepLevel);
-                if (!embeddedAttachmentOIDs.isEmpty()) {
-                    rallyOverallTestStepAttachmentsStatus = true;
-                    testcaseAttachmentOIDs.addAll(embeddedAttachmentOIDs);
-                } else {
-                    logger.error("The Jira test step embedded attachments are not created in Rally for Testcase key " + jiraTestCase.getKey());
-                    return;
-                }
-            } else {
-                logger.info("No Attachment path found for Test Step embedded level.");
-            }
+					// Validate the status of Attachment downloads, uploads, Test case and Test step creation.
+					// Enable the checkbox "Testcase Migrated" in jira for the migrated test cases.
 
-            JsonArray stepsArray = jiraTestcaseJson.getAsJsonObject("testScript").getAsJsonArray("steps");
-            List<JiraTestStep> testSteps = new ArrayList<>();
-
-            for (JsonElement element : stepsArray) {
-                JiraTestStep step = gson.fromJson(element, JiraTestStep.class);
-                testSteps.add(step);
-            }
-
-            rallyOperation.migrateTestSteps(rallyTestcaseOID, testSteps, rallyRestApi, testcaseAttachmentOIDs);
-
-            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                System.out.println("Rally Testcase Creation Status is true");
-            } else {
-                logger.error("The Jira testcase is not created in rally. Jira Testcase key " + jiraTestCase.getKey() + " is not created in rally");
-            }
-
-            if (rallyTestcaseCreationStatus && rallyOverallTestStepAttachmentsStatus) {
-                // Call method to update "Testcase Migrated" and "Test Folder Migrated" check boxes in Jira
-            }
-        }
-    }
+					if (jiraOverallAttachmentdownloadStatus == true && rallyTestcaseCreationStatus == true && rallyOverallTestCaseAttachmentsStatus == true && rallyTestStepCreationStatus == true && rallyOverallTestStepFileAttachmentsStatus == true) {
+						JiraOperation.markCurrentJiraTestCaseMigrated(key);
+						counter += 1;
+						logger.info("OverAll Status: SUCCESS: The Jira testcase " + key + " is migrated from Jira to Rally successfully");
+						System.out.println("OverAll Status: SUCCESS: The Jira testcase " + key + " is migrated from Jira to Rally successfully.");
+					} else {
+						System.out.println("OverAll Status: ERROR: No Change in \"Testcase Migrated\" check box in Jira; Testcase migration is failed for the testcase " + key);
+						System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+						logger.info("Total TC's successfully migrated to Rally in this Run: "+ counter);
+						return;
+					}					
+				} 
+				else { // If testcase is not created in Rally, then log the error and break the flow.
+				logger.error("Testcase is not created in Rally for the key " + currentJiraTestCaseKey);
+				System.out.println("OverAll Status: ERROR: No Change in \"Testcase Migrated\" check box in Jira; Testcase migration is failed for the testcase " + key);
+				System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+				return;
+				}	
+			} else {
+				logger.error("Error while downloading the attachements from Jira to Local while processing "
+						+ currentJiraTestCaseKey + "; boolean status are below\n Download testcase file attachments - "
+						+ jiraDownloadTCFileAttachmentStatus + "\nDownload teststep file attachments - "
+						+ jiraDownloadTSFileAttachmentStatus + "\nDownload testsetp embedded attachments - "
+						+ jiraDownloadTSEmbeddedAttachmentStatus);
+				System.out.println("OverAll Status: ERROR: No Change in \"Testcase Migrated\" check box in Jira; Testcase migration is failed for the testcase " + key);
+				System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+				return;
+			}
+		}
+	}
+	else {
+			System.out.println("No Jira TC Keys retrieved, Terminating the Execution.");
+			logger.error("No Jira TC Keys retrieved, Terminating the Execution.");
+		}
+	Instant end = Instant.now();	
+	// System.out.println("Execution End Time : " + end);
+	logger.info("Execution End Time : " + end);
+	Duration timeElapsed = Duration.between(start, end);
+	int hours = timeElapsed.toHoursPart();
+    int minutes = timeElapsed.toMinutesPart();
+    int seconds = timeElapsed.toSecondsPart();
+	System.out.println("Total migration time: "+ hours + ":" + minutes + ":" + seconds +" seconds");
+	logger.info("Total migration time: "+ hours + ":" + minutes + ":" + seconds +" seconds");
+	System.out.println("Total TC's successfully migrated to Rally in this Run: "+ counter);
+	logger.info("Total TC's successfully migrated to Rally in this Run: "+ counter);
+	}
 }
