@@ -1,7 +1,11 @@
 package com.optum.coe.automation.rally;
 
-//import org.apache.logging.log4j.LogManager;
-//import org.apache.logging.log4j.Logger;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.net.URL;
 
 public class JiraAttachment {
 
@@ -49,5 +53,16 @@ public class JiraAttachment {
 
     public void setFileSize(long fileSize) {
         this.fileSize = fileSize;
+    }
+
+    // Method to download the file from Jira and return the local file path
+    public String downloadFile(String downloadDirectory) throws IOException {
+        URL downloadUrl = new URL(this.url);
+        String localFilePath = Paths.get(downloadDirectory, this.fileName).toString();
+
+        // Download the file from the URL and save it locally
+        Files.copy(downloadUrl.openStream(), Paths.get(localFilePath), StandardCopyOption.REPLACE_EXISTING);
+
+        return localFilePath;
     }
 }
