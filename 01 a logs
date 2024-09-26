@@ -14,81 +14,53 @@ public static JsonObject createTestFolder(String[] folderHierarchy, String proje
                 continue;
             }
 
-            // If it's the top-level folder, ensure it is created as a parent folder within the project
+            // Query to check folder existence within the project and under the correct parent
+            QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
+
             if (i == 0) {
-                // Check if the folder exists as a parent folder within the project
-                QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
-                parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
+                // Check if it's a top-level folder (no parent)
+                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
                         .and(new QueryFilter("Parent", "=", "null"))
                         .and(new QueryFilter("Project", "=", projectRef)));
-                parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
-
-                QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
-
-                if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
-                    // Folder exists as a parent folder in the current project
-                    lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
-                    lastFolderRef = lastFolder.get("_ref").getAsString();
-                    logger.info("Parent folder already exists in project: " + lastFolderRef);
-                } else {
-                    // Folder does not exist as a parent folder, create it
-                    JsonObject newFolder = new JsonObject();
-                    newFolder.addProperty("Name", folderName.trim());
-                    newFolder.addProperty("Project", projectRef);
-
-                    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                    if (createFolderResponse.wasSuccessful()) {
-                        lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                        newFolder.addProperty("_ref", lastFolderRef);
-                        lastFolder = newFolder;
-                        logger.info("Successfully created parent folder in project: " + lastFolderRef);
-                    } else {
-                        logger.error("Error occurred while creating parent folder.");
-                        for (String error : createFolderResponse.getErrors()) {
-                            System.out.println(error);
-                        }
-                        break;
-                    }
-                }
             } else {
-                // For subfolders, check and create under the last folder within the project
-                QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
-                subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
+                // Check if it's a subfolder (with a parent)
+                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
                         .and(new QueryFilter("Parent", "=", lastFolderRef))
                         .and(new QueryFilter("Project", "=", projectRef)));
-                subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
+            }
 
-                QueryResponse subQueryResponse = restApi.query(subFolderExistenceRequest);
+            folderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
+            QueryResponse folderQueryResponse = restApi.query(folderExistenceRequest);
 
-                if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
-                    // Folder exists as a subfolder in the current project
-                    lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
-                    lastFolderRef = lastFolder.get("_ref").getAsString();
-                    logger.info("Subfolder already exists in project: " + lastFolderRef);
+            if (folderQueryResponse.wasSuccessful() && folderQueryResponse.getTotalResultCount() > 0) {
+                // Folder already exists, no need to create it
+                lastFolder = folderQueryResponse.getResults().get(0).getAsJsonObject();
+                lastFolderRef = lastFolder.get("_ref").getAsString();
+                logger.info("Folder already exists in project: " + lastFolderRef);
+            } else {
+                // Folder does not exist, create it under the current project and parent
+                JsonObject newFolder = new JsonObject();
+                newFolder.addProperty("Name", folderName.trim());
+                newFolder.addProperty("Project", projectRef);
+
+                if (i != 0) {
+                    newFolder.addProperty("Parent", lastFolderRef); // For subfolders, set the parent
+                }
+
+                CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                if (createFolderResponse.wasSuccessful()) {
+                    lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                    newFolder.addProperty("_ref", lastFolderRef);
+                    lastFolder = newFolder;
+                    logger.info("Successfully created folder in project: " + lastFolderRef);
                 } else {
-                    // Folder does not exist, create it as a subfolder in the project
-                    JsonObject newFolder = new JsonObject();
-                    newFolder.addProperty("Name", folderName.trim());
-                    newFolder.addProperty("Project", projectRef);
-                    newFolder.addProperty("Parent", lastFolderRef);
-
-                    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-                    if (createFolderResponse.wasSuccessful()) {
-                        lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                        newFolder.addProperty("_ref", lastFolderRef);
-                        lastFolder = newFolder;
-                        logger.info("Successfully created subfolder in project: " + lastFolderRef);
-                    } else {
-                        logger.error("Error occurred while creating subfolder.");
-                        for (String error : createFolderResponse.getErrors()) {
-                            System.out.println(error);
-                        }
-                        break;
+                    logger.error("Error occurred while creating folder.");
+                    for (String error : createFolderResponse.getErrors()) {
+                        System.out.println(error);
                     }
+                    break;
                 }
             }
         }
