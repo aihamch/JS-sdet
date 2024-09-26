@@ -1,2 +1,110 @@
-Hi, my name is Peter Stabnick. I am the eFax system administrator for Optum. Today I will be discussing the value adds that have been added to accelerate the user account creation process. On average, 50 new account requests are received every 30 days.
-Before creating a Microsoft Form, it would on average take three hours of effort or 11 days turnaround time to create a user account. Resulting from limited information acquired from the ServiceNow requests, the cause of the lengthy turnaround time was identified as a result of needing additional information, this necessitated having multiple interactions with the users. to improve this process, we created a Microsoft form which takes users approximately five minutes to complete. The use of a Microsoft Form enables the use of mandatory data fields and data validation. This implementation has resulted in a faster to market response and greater user satisfaction as it has streamlined the account creation process. The expected savings from this implementation are 1,750 hours of labor or $122k annually, an overall productivity improvement of 97% Thank you for your time!
+public static JsonObject createTestFolder(String[] folderHierarchy, String projectRef, String rallyBaseUrl, String rallyApiKey) {
+    JsonObject lastFolder = null;
+    String lastFolderRef = null;
+
+    RallyRestApi restApi = null;
+    try {
+        restApi = new RallyRestApi(new URI(rallyBaseUrl), rallyApiKey);
+        restApi.setApplicationName("CreateTestCaseApp");
+
+        for (int i = 0; i < folderHierarchy.length; i++) {
+            String folderName = folderHierarchy[i];
+            if (folderName == null || folderName.trim().isEmpty()) {
+                logger.info("Invalid folder name encountered: '" + folderName + "'");
+                continue;
+            }
+
+            // If it's the top-level folder, ensure it is created as a parent folder within the project
+            if (i == 0) {
+                // Check if the folder exists as a parent folder within the project
+                QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
+                parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
+                        .and(new QueryFilter("Parent", "=", "null"))
+                        .and(new QueryFilter("Project", "=", projectRef)));
+                parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
+
+                QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
+
+                if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
+                    // Folder exists as a parent folder in the current project
+                    lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
+                    lastFolderRef = lastFolder.get("_ref").getAsString();
+                    logger.info("Parent folder already exists in project: " + lastFolderRef);
+                } else {
+                    // Folder does not exist as a parent folder, create it
+                    JsonObject newFolder = new JsonObject();
+                    newFolder.addProperty("Name", folderName.trim());
+                    newFolder.addProperty("Project", projectRef);
+
+                    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                    if (createFolderResponse.wasSuccessful()) {
+                        lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                        newFolder.addProperty("_ref", lastFolderRef);
+                        lastFolder = newFolder;
+                        logger.info("Successfully created parent folder in project: " + lastFolderRef);
+                    } else {
+                        logger.error("Error occurred while creating parent folder.");
+                        for (String error : createFolderResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                        break;
+                    }
+                }
+            } else {
+                // For subfolders, check and create under the last folder within the project
+                QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
+                subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
+                        .and(new QueryFilter("Parent", "=", lastFolderRef))
+                        .and(new QueryFilter("Project", "=", projectRef)));
+                subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
+
+                QueryResponse subQueryResponse = restApi.query(subFolderExistenceRequest);
+
+                if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
+                    // Folder exists as a subfolder in the current project
+                    lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
+                    lastFolderRef = lastFolder.get("_ref").getAsString();
+                    logger.info("Subfolder already exists in project: " + lastFolderRef);
+                } else {
+                    // Folder does not exist, create it as a subfolder in the project
+                    JsonObject newFolder = new JsonObject();
+                    newFolder.addProperty("Name", folderName.trim());
+                    newFolder.addProperty("Project", projectRef);
+                    newFolder.addProperty("Parent", lastFolderRef);
+
+                    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+                    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+                    if (createFolderResponse.wasSuccessful()) {
+                        lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+                        newFolder.addProperty("_ref", lastFolderRef);
+                        lastFolder = newFolder;
+                        logger.info("Successfully created subfolder in project: " + lastFolderRef);
+                    } else {
+                        logger.error("Error occurred while creating subfolder.");
+                        for (String error : createFolderResponse.getErrors()) {
+                            System.out.println(error);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        return lastFolder;
+
+    } catch (Exception e) {
+        logger.error("Exception occurred while creating test folder structure in Rally.", e);
+        return null;
+    } finally {
+        if (restApi != null) {
+            try {
+                restApi.close();
+            } catch (Exception e) {
+                logger.error("Exception occurred while closing Rally API resource.", e);
+            }
+        }
+    }
+}
