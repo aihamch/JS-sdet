@@ -1,82 +1,678 @@
-public static JsonObject createTestFolder(String[] folderHierarchy, String projectRef, String rallyBaseUrl, String rallyApiKey) {
-    JsonObject lastFolder = null;
-    String lastFolderRef = null;
+2024-10-09 12:19:12.644 [main] ERROR com.optum.coe.automation.rally.Utils - Exception occurred while creating test folder structure in Rally.
+java.lang.NullPointerException: Cannot invoke "com.rallydev.rest.response.QueryResponse.wasSuccessful()" because "subQueryResponse" is null
+	at com.optum.coe.automation.rally.Utils.createTestFolder(Utils.java:176) [classes/:?]
+	at com.optum.coe.automation.rally.RallyOperation.createRallyTestcase(RallyOperation.java:259) [classes/:?]
+	at com.optum.coe.automation.rally.RunnerClass.main(RunnerClass.java:105) [classes/:?]
+2024-10-09 12:19:12.652 [main] ERROR com.optum.coe.automation.rally.RallyOperation - Failed to create or retrieve TestFolder during Testcase Creation process in Rally
+2024-10-09 12:19:12.652 [main] ERROR com.optum.coe.automation.rally.RunnerClass - Testcase is not created in Rally for the key EX-T3
 
-    RallyRestApi restApi = null;
-    try {
-        restApi = new RallyRestApi(new URI(rallyBaseUrl), rallyApiKey);
-        restApi.setApplicationName("CreateTestCaseApp");
 
-        for (int i = 0; i < folderHierarchy.length; i++) {
-            String folderName = folderHierarchy[i];
-            if (folderName == null || folderName.trim().isEmpty()) {
-                logger.info("Invalid folder name encountered: '" + folderName + "'");
-                continue;
-            }
+package com.optum.coe.automation.rally;
 
-            // Query to check folder existence within the project and under the correct parent
-            QueryRequest folderExistenceRequest = new QueryRequest("testfolder");
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-            if (i == 0) {
-                // Check if it's a top-level folder (no parent)
-                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
-                        .and(new QueryFilter("Parent", "=", "null"))
-                        .and(new QueryFilter("Project", "=", projectRef)));
-            } else {
-                // Check if it's a subfolder (with a parent)
-                folderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
-                        .and(new QueryFilter("Parent", "=", lastFolderRef))
-                        .and(new QueryFilter("Project", "=", projectRef)));
-            }
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import com.google.gson.JsonObject;
+import com.rallydev.rest.RallyRestApi;
+import com.rallydev.rest.request.CreateRequest;
+import com.rallydev.rest.request.QueryRequest;
+import com.rallydev.rest.response.CreateResponse;
+import com.rallydev.rest.response.QueryResponse;
+import com.rallydev.rest.util.Fetch;
+import com.rallydev.rest.util.QueryFilter;
 
-            folderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
-            QueryResponse folderQueryResponse = restApi.query(folderExistenceRequest);
+import org.apache.http.HttpEntity;
 
-            if (folderQueryResponse.wasSuccessful() && folderQueryResponse.getTotalResultCount() > 0) {
-                // Folder already exists, no need to create it
-                lastFolder = folderQueryResponse.getResults().get(0).getAsJsonObject();
-                lastFolderRef = lastFolder.get("_ref").getAsString();
-                logger.info("Folder already exists in project: " + lastFolderRef);
-            } else {
-                // Folder does not exist, create it under the current project and parent
-                JsonObject newFolder = new JsonObject();
-                newFolder.addProperty("Name", folderName.trim());
-                newFolder.addProperty("Project", projectRef);
+public class Utils {
+                
+	// Logger Initialization for Utils Class
+                
+	private static final Logger logger = LogManager.getLogger();
+                
+	/* Create a method to establish a Jira connection.This method have two String arguments as "url" and "apiKey"
+	* ClosableHttpClient class is used to perform this operation instead HttpClient, so that a separate method is not required to close the connection each time.
+	* This method returns CloseableHttpClient's object instance once connection is established */
+                
+	public static HttpEntity getJiraResponse(String url, String apiKey) {                                                
+		CloseableHttpClient connection = HttpClients.createDefault();
+		HttpGet request = new HttpGet(url);
+		request.setHeader("Authorization", "Bearer " + apiKey);
+		CloseableHttpResponse response = null;
+		try {
+			response = connection.execute(request);
+		} catch (ClientProtocolException e) {
+			logger.error("Error occurred in Jira connection while connecting " + url, e);
+		} catch (IOException e) {
+			logger.error("Error occurred in Jira connection while connecting " + url, e);
+		}
+		HttpEntity entity = response.getEntity();
+		if (entity != null) {
+			logger.info("Successfully returned HttpEntity response for the URL " + url);
+			return entity;
+		} else {
+			logger.error("Error occurred. HttpEntity is null and no respone is recevied for the URL." + url);
+			return null;
+		}
+    }
+	
+	/*
+	* Check if the Jira folder structure is available in Rally a. If folder
+	* structure is not available in rally, then create the same Jira folder
+	* structure in rally for the testcase b. If folder structure is available in
+	* rally, no action is required
+	*/
+                
+    public static JsonObject createTestFolder(String[] folderHierarchy, String projectRef, String rallyBaseUrl, String rallyApiKey) {
+        JsonObject lastFolder = null;
+        String lastFolderRef = null;
+        RallyRestApi restApi = null;        
+        // Try start
+        try {
+            int wholeTestFolderTry = 1;
+            boolean noExceptioninTestFolder = true;
+        	while (wholeTestFolderTry <= 5 ){ // While start
+				logger.info("Rally APi instance is created " + wholeTestFolderTry);
+				restApi = new RallyRestApi(new URI(rallyBaseUrl), rallyApiKey);
+				restApi.setApplicationName("CreateTestCaseApp");
+				for (int i = 0; i < folderHierarchy.length; i++) {
+					String folderName = folderHierarchy[i];
+					if (folderName == null || folderName.trim().isEmpty()) {
+						logger.info("Invalid folder name encountered: '" + folderName + "'");
+						continue;
+					}
 
-                if (i != 0) {
-                    newFolder.addProperty("Parent", lastFolderRef); // For subfolders, set the parent
+					// If it's the top-level folder, ensure it is created as a parent folder
+					if (i == 0) {
+						// Check if the folder exists as a parent folder
+						QueryRequest parentFolderExistenceRequest = new QueryRequest("testfolder");
+	//                    parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", "null")));
+	//                    parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+						parentFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
+								.and(new QueryFilter("Parent", "=", "null"))
+								.and(new QueryFilter("Project", "=", "project/" + projectRef)));
+						parentFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
+					   
+						QueryResponse parentQueryResponse = restApi.query(parentFolderExistenceRequest);
+
+						if (parentQueryResponse.wasSuccessful() && parentQueryResponse.getTotalResultCount() > 0) {
+							// Folder exists as a parent folder
+							lastFolder = parentQueryResponse.getResults().get(0).getAsJsonObject();
+							lastFolderRef = lastFolder.get("_ref").getAsString();
+							logger.info("Parent folder already exists: " + lastFolderRef);
+						} else {
+							// Folder does not exist as a parent folder, create it
+							JsonObject newFolder = new JsonObject();
+							newFolder.addProperty("Name", folderName.trim());
+							newFolder.addProperty("Project", projectRef);
+
+							CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+							CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+							if (createFolderResponse.wasSuccessful()) {
+								lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+								newFolder.addProperty("_ref", lastFolderRef);
+								lastFolder = newFolder;
+								logger.info("Successfully created parent folder: " + lastFolderRef);
+							} else {
+								logger.error("Error occurred creating parent folder.");
+								for (String error : createFolderResponse.getErrors()) {
+									System.out.println(error);
+								}
+								break;
+							}
+						}
+					} else {
+						// For subfolders, check and create under the last folder
+						QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
+	//                    subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim()).and(new QueryFilter("Parent", "=", lastFolderRef)));
+	//                    subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent"));
+						subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
+								.and(new QueryFilter("Parent", "=", lastFolderRef))
+								.and(new QueryFilter("Project", "=", "project/" + projectRef)));
+						subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
+
+						QueryResponse subQueryResponse = null;
+						// int testfolderCreationTry = 1;
+						// while (testfolderCreationTry <= 5 ) {
+						try {
+							subQueryResponse = restApi.query(subFolderExistenceRequest);
+							 // break;                                           
+						} catch (Exception e) {
+							if(e.getMessage().contains("502 Bad Gateway") || e.getMessage().contains("HTTP/1.1 524") || e.getMessage().contains("401 Unauthorized")) {
+								logger.info("502 bad gateway or 401 Unauthorized or HTTP 524 error is occured while creatign test folder. Attempting to whole retry " + wholeTestFolderTry + " Error is " + e);
+								noExceptioninTestFolder = false;
+								wholeTestFolderTry++;
+								// testfolderCreationTry++;                                                 						   
+								if (wholeTestFolderTry == 5) {
+									logger.error("Whole retry is completed for 5 tims, but still test folder creation is failed. It is not 502 bad error " + e);
+									return null;
+								}
+							}                 
+						}
+					  //  }
+						
+						logger.info("No exception for folder values is " + noExceptioninTestFolder ) ;
+						if (noExceptioninTestFolder == true) {
+							if (subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
+								logger.info("subQueryResponse is successful");
+								// Folder exists as a subfolder
+								lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
+								lastFolderRef = lastFolder.get("_ref").getAsString();
+								logger.info("Subfolder already exists: " + lastFolderRef);
+							} else {
+								// Folder does not exist, create it as a subfolder
+								JsonObject newFolder = new JsonObject();
+								newFolder.addProperty("Name", folderName.trim());
+								newFolder.addProperty("Project", projectRef);
+								newFolder.addProperty("Parent", lastFolderRef);
+
+								CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
+								CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+
+								if (createFolderResponse.wasSuccessful()) {
+									lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
+									newFolder.addProperty("_ref", lastFolderRef);
+									lastFolder = newFolder;
+									logger.info("Successfully created subfolder: " + lastFolderRef);
+								} else {
+									logger.error("Error occurred creating subfolder");
+									for (String error : createFolderResponse.getErrors()) {
+										System.out.println(error);
+									}
+									break;
+								}
+							}
+					
+						}                
+					}
+				}
+				if (noExceptioninTestFolder == true) {
+					break;
+				}
+			}  // while end
+			return lastFolder;                
+        } catch (Exception e) {                
+			logger.error("Exception occurred while creating test folder structure in Rally.", e);
+            return null;
+        } finally {
+            if (restApi != null) {
+                try {
+                    restApi.close();
+                } catch (Exception e) {
+                    logger.error("Exception occurred while creating test folder structure in Rally. Error in closing Rally Api resource", e);
                 }
+            }
+        }
+    }
 
-                CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-                CreateResponse createFolderResponse = restApi.create(createFolderRequest);
+               
+    // Implementation to update the TestCase Migrated in Jira to "true". User story US7382197
 
-                if (createFolderResponse.wasSuccessful()) {
-                    lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-                    newFolder.addProperty("_ref", lastFolderRef);
-                    lastFolder = newFolder;
-                    logger.info("Successfully created folder in project: " + lastFolderRef);
-                } else {
-                    logger.error("Error occurred while creating folder.");
-                    for (String error : createFolderResponse.getErrors()) {
-                        System.out.println(error);
-                    }
+	public void updateTestCaseMigratedStatusinJira(boolean status) {
+
+	}
+
+	/*
+	* Implementation to get the GetAttachment URL and its Name This method will
+	* accept the Jira JSON response of a testcase key and store the attachment
+	* url:attachment filename in a Map The Map is <String,String> Generic
+	*/
+
+	public static Map<String, String> pharseJsonGetAttachmentUrlAndName(String jsonResponse) {
+		Map<String, String> attachmentMap = new HashMap<String, String>(); // Initialize the Map object to store the Attachment URL and its Name
+		JSONArray jArrayResponse = new JSONArray(jsonResponse); // Load the Jira Json response to JsonArray
+		for (int i = 0; i < jArrayResponse.length(); i++) { // Loop through the Json Array and get the attachment URL and its name. And then, put them into the Map
+			JSONObject jsonObject = jArrayResponse.getJSONObject(i);
+			String url = jsonObject.getString("url");
+			String name = jsonObject.getString("filename");
+			attachmentMap.put(url, name);
+		}
+		return attachmentMap;
+	}
+
+	/* Implementation to download the file attachments from testcase.
+	* Map<String, String> is one of the arguments which has attachment URL and atatchment name.
+	* Download location, Jira API key and testcase key are remaining parameters.
+	* Each attachment URL will be used to GET call on Jira to download the attachments
+	* This method will return downloaded location along with file name */
+
+	public static List<String> downloadFileAttachmentFromJiraTestCase(Map<String, String> attachmentMap, String tcAttachmentDownloadLocation, String jiraApiKey, String testcaseKey) throws IOException {		
+		List<String> filePaths = new ArrayList<String>(); // List to save attachment files path
+		createFolderIfNotExists(tcAttachmentDownloadLocation); // Create directories where attachments should be downloaded
+		for (Map.Entry<String, String> entry : attachmentMap.entrySet()) { // Loop through each map and get the URL and File Name for further processing
+			String fileUrl = entry.getKey();
+			String fileName = entry.getValue();
+			HttpEntity response = Utils.getJiraResponse(fileUrl, jiraApiKey); // GET call for the attachment URL
+			if (response != null) {
+				try (InputStream in = response.getContent()) {
+					try {
+						Files.copy(in, Paths.get(tcAttachmentDownloadLocation + "/" + fileName)); // Copy attachment to local 
+						filePaths.add(tcAttachmentDownloadLocation + "/" + fileName); // Add the location to the list for further processing
+						EntityUtils.consume(response);
+					} catch (IOException e) {
+						// Log error message for failures and return with error values
+						logger.error("Failed to download the file attachments from Jira Testcase level for the testcase " + testcaseKey, e);
+						filePaths.clear();
+						filePaths.add("error");
+						return filePaths;  // return error string
+					}
+					logger.info("File downloaded is from Jira testcase level to " + tcAttachmentDownloadLocation + " for the testcase " + testcaseKey + " ; File Name:" + fileName);
+				} catch (UnsupportedOperationException | IOException e1) {
+					// Log error message for failures and return with error values
+					logger.error("Failed to download the file attachment " + fileName + " from Jira Testcase level for the testcase " + testcaseKey, e1);
+					filePaths.clear();
+					filePaths.add("error");
+					return filePaths; // return error string
+				}
+			} else {
+				// Log error message for failures and return with error values
+				logger.error("Failed to download the file attachment " + fileName + " from Jira Testcase level for the testcase " + testcaseKey + ". No Entity response found");
+				filePaths.clear();
+				filePaths.add("error");
+				return filePaths;  // return error string
+			}
+		}
+		return filePaths;  // return file paths
+	}
+
+	
+	// A Method to download file attachments from test step.
+
+	public static List<String> downloadFileAttachmentFromTestStep(String jsonResponse, String apiToken, String testStepFileAttachmentLocationToBeSaved, String tC_Id, String baseURL)
+	{
+		List<String> filePaths = new ArrayList<String>(); // List to save file paths
+		JSONObject jsonObject = new JSONObject(jsonResponse); 
+		boolean attachmentFound = false;
+		String testScriptType = jsonObject.getJSONObject("testScript").get("type").toString();
+		if (testScriptType.contains("STEP_BY_STEP")) {
+			logger.info("The Test Script type is found as STEP_BY_STEP during test step file attachment download process");
+			JSONArray stepsArray = jsonObject.getJSONObject("testScript").getJSONArray("steps"); // Get Steps from Jira Json
+			createFolderIfNotExists(testStepFileAttachmentLocationToBeSaved); // Create required folders in local
+			for (int i = 0; i < stepsArray.length(); i++) { // loop through each steps 
+				JSONObject stepObject = stepsArray.getJSONObject(i);
+				int index = stepObject.getInt("index"); // get index of the step
+				int stepNumber = index + 1; // adjust the index number by adding 1 as Index number is started with 0 in steps array
+				if (stepObject.has("attachments")) { // check if attachment is available
+					JSONArray attachmentsArray = stepObject.getJSONArray("attachments");
+					for (int j = 0; j < attachmentsArray.length(); j++) { // loop through each attachments
+						JSONObject attachmentObject = attachmentsArray.getJSONObject(j);
+						int attachmentID = attachmentObject.getInt("id"); // get attachment id
+						int attachmentNumber = j + 1; 
+						logger.info(attachmentID + " is attachment ID");
+						String attachmentFileName = attachmentObject.getString("name");
+						logger.info(attachmentFileName + " is attachment file name");
+						String testStepAttachmentUrl = baseURL + "/rest/tests/1.0/attachment/" + attachmentID; // Built the attachment URL to download
+						logger.info(testStepAttachmentUrl + " is attachment URL for test step file attachment");
+						HttpEntity response = Utils.getJiraResponse(testStepAttachmentUrl, apiToken); // GET call to Jira
+						if (response != null) {
+							try (InputStream in = response.getContent()) { // get response
+								try {
+									Files.copy(in, Paths.get(testStepFileAttachmentLocationToBeSaved + "/TS_" + stepNumber + "_" + attachmentNumber + "_" + attachmentFileName)); // Copy the file content to local
+									filePaths.add(testStepFileAttachmentLocationToBeSaved + "/TS_" + stepNumber + "_" + attachmentNumber + "_" + attachmentFileName); // add the file path to list for further processing
+									EntityUtils.consume(response);
+									attachmentFound = true;
+								} catch (IOException e) { // return error string while failure
+									logger.error("Failed to download the file attachments from Jira for Teststep level. File name:" + attachmentFileName + "; Step number: " + stepNumber + "; attachment number: " + attachmentNumber, e);
+									filePaths.clear(); 
+									filePaths.add("error");
+									return filePaths;  // return error string
+								}
+								logger.info("File attachment is downloaded from Jira test step to" + testStepFileAttachmentLocationToBeSaved + " File Name:"
+																	+ attachmentFileName + "; Step number: " + stepNumber + "; attachment number: " + attachmentNumber);
+							} catch (UnsupportedOperationException | IOException e1) {  // return error string while failure
+								logger.error("Failed to download the file attachment from Jira for test step  level" + attachmentFileName + "; Step number: " + stepNumber + "; attachment number: " + attachmentNumber, e1);
+								filePaths.clear();
+								filePaths.add("error");
+								return filePaths;  // return error string
+							}
+						} else {  // return error string while failure
+							logger.error("Failed to download the file attachment from Jira for test step level. No Entity response found" + attachmentFileName + "; Step number: " + stepNumber + "; attachment number: " + attachmentNumber);
+							filePaths.clear();
+							filePaths.add("error");
+							return filePaths;  // return error string
+						}
+					}
+				} else {
+					logger.info("No File attachment is found at Test step level for the jira testcase key " + tC_Id + "at step number " + stepNumber );														
+				}
+			}
+		} else if (testScriptType.contains("BDD")) {
+			logger.info("The Test Script type is found as BDD during test step file attachment download process");
+			return filePaths = null;						
+		} else if (testScriptType.contains("PLAIN_TEXT")) {
+			logger.info("The Test Script type is found as PLAIN_TEXT during test step file attachment download process");
+			return filePaths = null;
+		} 
+		if (attachmentFound == true) {
+		return filePaths;
+		} else {
+			return filePaths = null; // return downloaded file paths
+		}
+	}
+	
+	/* A Method to download embedded attachments from test step 
+	 * One of the String argument is called "columnName" which determines where the embedded attachments will be downloaded from.
+	* The valid values for "columnType" either ""description" or "testData" or "expectedResult".
+	* */
+        
+	public static List<String> downloadTestStepEmbeddedAttachments(String jsonResponse, String apiToken,String testStepAttachmentLocationToBeSaved, String tC_Id, String baseURL, String columnName) throws IOException {
+		List<String> filePaths = new ArrayList<String>(); // List to save the file paths
+		JSONObject jsonObject = new JSONObject(jsonResponse);		
+		String testScriptType = jsonObject.getJSONObject("testScript").get("type").toString();
+		if (testScriptType.contains("STEP_BY_STEP")) {								
+			logger.info("The Test Script type is found as STEP_BY_STEP during test step embedded attachment download process");
+			JSONArray stepsArray = jsonObject.getJSONObject("testScript").getJSONArray("steps"); // get steps from Jira Json
+			createFolderIfNotExists(testStepAttachmentLocationToBeSaved); // create required folders
+			for (int i = 0; i < stepsArray.length(); i++) { // Loop through each steps
+				JSONObject stepObject = stepsArray.getJSONObject(i);
+				int index = stepObject.getInt("index");
+				int stepNumber = index + 1;
+				if ((columnName == "description") || (columnName == "testData") || (columnName == "expectedResult")) { // Check valid column name 
+					if (stepObject.has(columnName)) {
+						String htmlContent = stepObject.getString(columnName); // get the columnName content from step
+						if(htmlContent.contains("IMPORTED EMBEDDED ATTACHMENT")) {
+							logger.info("Unsupported Embedded attachment found in Jira Test step " + stepNumber + " " + columnName + " section");
+							return filePaths;
+						} 
+						Document doc = Jsoup.parse(htmlContent);
+						Elements imgElements = doc.select("img"); // Get "img" tags from columnName
+						if (!imgElements.isEmpty()) {
+							//Find all <img> tags and download images
+							int imageCount = 0;
+							for (Element img : imgElements) {
+								String imageUrl = img.attr("src");								
+								if (!imageUrl.isEmpty()) {
+									imageCount++; // Handle Image numbering to save it to local
+									String extractUrl = imageUrl.substring(2); // get Image URL which will be relative URL
+									// extractUrl = extractUrl.replace(/\le, "");
+									String absoluteUrl = baseURL + extractUrl; // Built absolute URL
+									if (!absoluteUrl.contains(".gif") && !absoluteUrl.contains("viewavatar")) {
+									HttpEntity response = Utils.getJiraResponse(absoluteUrl, apiToken); // GET call to Jira
+										if (response != null) {
+											try (InputStream in = response.getContent()) { // Get content
+												try {
+													// Copy the attachment to local
+													Files.copy(in,Paths.get(testStepAttachmentLocationToBeSaved + "/TS_" + stepNumber + "_" + imageCount + "_" + "_EmbbededFile_" + columnName + ".png"));
+													// Add file path to List
+													filePaths.add(testStepAttachmentLocationToBeSaved + "/TS_" + stepNumber + "_" + imageCount + "_" + "_EmbbededFile_" + columnName + ".png");
+													EntityUtils.consume(response);
+												} catch (IOException e) { // return error string on failure
+													logger.error("Failed to download the file attachments from Jira for test step level. File Name: TS_" + stepNumber + "_" + imageCount + "_" + "_EmbbededFile_" + columnName + ".png",e);
+													filePaths.clear();
+													filePaths.add("error");
+													return filePaths; // return error string
+												}
+												logger.info("File downloaded from Jira to tcAttachmentDownloadLocation. File Name: TS_" + stepNumber + "_" + imageCount + "_" + "_EmbbededFile_" + columnName + ".png");
+											} catch (UnsupportedOperationException | IOException e1) { // return error string on failure
+												logger.error("Failed to download the file attachment: TS_" + stepNumber + "_" + imageCount + "_" + "_EmbbededFile_" + columnName + " from Jira for Testcase level", e1);
+												filePaths.clear();
+												filePaths.add("error");
+												return filePaths; // return error string
+											}
+										} else { // return error string on failure
+											logger.error("Failed to download the file attachment: TS_" + stepNumber + "_" + imageCount + "_" + "_EmbbededFile_" + columnName + " from Jira for test step level. No Entity response found");
+											filePaths.clear();
+											filePaths.add("error");
+											return filePaths; // return error string
+										}												
+									} else {
+										logger.info("Found gif file. The attachment may be broken in Jira.");			
+									}
+								}
+							}
+						}
+					}
+				} else { // return error string on failure
+					logger.error("No Valid arugument is passed the method. it should be either description OR testData OR expectedResult");
+					filePaths.clear();
+					filePaths.add("error");
+					return filePaths; // return error string
+				}
+			}
+		} else if (testScriptType.contains("BDD")) {			
+			logger.info("The Test Script type is found as BDD during test step embedded attachment download process");;
+			return filePaths;			
+		} else if (testScriptType.contains("PLAIN_TEXT")) {							
+			logger.info("The Test Script type is found as PLAIN_TEXT during test step embedded attachment download process");
+			return filePaths;
+		}		
+		return filePaths; // return downloaded files paths
+	}
+
+	// Create a method to find or create tag
+	public static JsonObject findOrCreateTag(RallyRestApi restApi, String tagName) throws IOException {
+		QueryRequest tagRequest = new QueryRequest("Tag");
+		tagRequest.setQueryFilter(new QueryFilter("Name", "=", tagName));
+		QueryResponse tagResponse = restApi.query(tagRequest);
+
+		if (tagResponse.getResults().size() > 0) {
+			return tagResponse.getResults().get(0).getAsJsonObject();
+		}
+		JsonObject newTag = new JsonObject();
+		newTag.addProperty("Name", tagName);
+		CreateRequest createTagRequest = new CreateRequest("Tag", newTag);
+		CreateResponse createTagResponse = restApi.create(createTagRequest);
+		if (createTagResponse.wasSuccessful()) {
+			return createTagResponse.getObject();
+		} else {
+			logger.error("Error occurred creating tag:");
+			for (String error : createTagResponse.getErrors()) {
+				logger.error(error);
+			}
+			return null;
+		}
+	}
+
+	// Method to create folder if not exists
+
+	public static void createFolderIfNotExists(String tcAttachmentDownloadLocation) {
+		Path path = Paths.get(tcAttachmentDownloadLocation);
+		if (!Files.exists(path)) {
+			try {
+				Files.createDirectories(path);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	// Method to delete File Attachments from local if exists
+
+	public static void deleteAttachmentFileFromLocal(List<String> filePaths) {
+		for (String filePath : filePaths) {
+			File file = new File(filePath);
+			if (file.exists()) {
+				file.delete();
+				logger.info("The file " + filePath + " is deleted for next attachment download run.");
+			}
+		}
+	}
+
+	// When Attachments are available, A Method to check if attachments are downloaded without error
+	public static boolean areAttachmentsDownloadedFromJira(List<String> fileAttachmentDownloadPaths) {
+		boolean status = false;
+		if ((fileAttachmentDownloadPaths != null) && (!fileAttachmentDownloadPaths.contains("error"))) {
+			logger.info("Attachments are downloaded successfully");
+			status = true;
+		} else if ((fileAttachmentDownloadPaths != null) && fileAttachmentDownloadPaths.contains("error")) {
+			logger.error("Error while downloading attachments");
+		} else if ((fileAttachmentDownloadPaths == null) || (fileAttachmentDownloadPaths.isEmpty())) {
+			logger.info("No attachments available to download");
+			status = true;
+		}
+		return status;
+	}
+
+	// Util method to find out the content type and useful during attachment upload to rally
+	public static String determineContentType(String filePath) {                        
+		String attachmentType = null;
+		if(filePath.contains(".")) {
+			attachmentType = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+		} else {
+				attachmentType = "na"; 
+		}
+		switch (attachmentType) {
+			case ".png":
+				return "image/png";
+			case ".txt":
+				return "text/plain";
+			case ".jpeg":
+			case ".jpg":
+				return "image/jpeg";
+			case ".xml":
+				return "application/xml";
+			case ".gif":
+				return "image/gif";
+			case ".doc":
+		   
+				return "application/msword";
+			case ".docx":
+				return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+			case ".xls":
+				return "application/vnd.ms-excel";
+			case ".xlsx":
+				return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+			case ".zip":
+				return "application/zip";
+			default:
+				return "application/octet-stream";
+		}
+	}
+                                
+   // Util method to extract OID  from the given full url and useful during attachment upload to rally
+	public static String extractOID(String fullUrl) {
+		if (fullUrl != null && fullUrl.contains("/")) {
+			String oid = fullUrl.substring(fullUrl.lastIndexOf('/') + 1);
+			logger.info("Extracted OID: " + oid);
+			return oid;
+		} else {
+			logger.error("Invalid URL format for OID extraction: " + fullUrl);
+			return null;
+		}
+	}
+                
+	// Utility method to clean text by removing duplicates or unwanted parts
+	public static String cleanText(String text) {
+		if (text == null || text.isEmpty()) {
+			return text;
+		}
+		boolean removeAllImages = true;
+		// Option to remove all <img> tags
+		if (removeAllImages) {
+			text = text.replaceAll("<img[^>]*>", "");
+		} else {
+			// Remove duplicate image tags (assuming exact same image tags are considered duplicates)
+			text = text.replaceAll("(<img[^>]+>)(\\s*\\1)+", "$1");
+		}
+		// Remove duplicate lines of text or patterns (if applicable)
+		String[] lines = text.split("\n");
+		StringBuilder cleanedText = new StringBuilder();
+		Set<String> seenLines = new HashSet<>();
+		for (String line : lines) {
+			String trimmedLine = line.trim();
+			if (!seenLines.contains(trimmedLine)) {
+				cleanedText.append(trimmedLine).append("\n");
+				seenLines.add(trimmedLine);
+			}
+		}
+		// Remove any potential trailing whitespace or extra newlines
+		return cleanedText.toString().trim();
+	}
+                    
+	public static void textToHtmlFile(String content, String destination) {
+		String filePath = destination; // File path where the file will be created
+		// Write the string into the file using BufferedWriter
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+			writer.write(content);  // Write the content to the file
+			logger.info("Content successfully written to the html file.");
+		} catch (IOException e) {
+			logger.error("An error occurred while writing to the html file: " + e.getMessage());
+		}	
+	}    
+ 
+	public static void deleteFilesIfExists(String folderPath) {				
+		File folder = new File(folderPath);
+		if (folder.exists() && folder.isDirectory()) {
+			File[] files = folder.listFiles();
+			if (files != null && files.length > 0) {
+				for (File file : files) {
+					if (file.isFile()) {
+						boolean deleted = file.delete();
+						if (deleted) {
+							logger.info("Deleted file: " + file.getName());
+						} else {
+							logger.info("Failed to delete file: " + file.getName());
+						}
+					}
+				}
+			}
+		}				
+	}
+	
+    public static boolean findIfLimitedWordsArePresent(String inputString) {        
+        boolean isMatchFound = false;
+        // Array of ID types to check for
+        String[] idTypes = {"Tax Id", "SSN", "Subscriber ID"};
+        // Regex for matching a 9-digit number
+        String digitsRegex = "\\d{9}";
+        String ssn_digitsRegex = "\\d{3}[-.]\\d{2}[-.]\\d{4}";
+        Pattern digitsPattern = Pattern.compile(digitsRegex);
+        Pattern ssn_digitsPattern = Pattern.compile(ssn_digitsRegex);
+        // Loop through each ID type
+        for (String idType : idTypes) {
+            String idRegex = "(?i)" + idType.replace(" ", "\\s*");  // Allow spaces between words
+            Pattern idPattern = Pattern.compile(idRegex,Pattern.CASE_INSENSITIVE);
+            Matcher idMatcher = idPattern.matcher(inputString);
+            Matcher digitsMatcher = digitsPattern.matcher(inputString);
+            Matcher ssn_digitsMatcher = ssn_digitsPattern.matcher(inputString);
+            // Check if the current ID type and 9 digits are is present
+            if(ssn_digitsMatcher.find()) {
+          	  String ssn_idValue = ssn_digitsMatcher.group();
+                logger.info("SSN Format 9-digit number found. Value: " + ssn_idValue);
+                isMatchFound = true;
+                break;          	  
+            }            
+            if (idMatcher.find()) {
+                if (digitsMatcher.find()) {
+                    String idValue = digitsMatcher.group();
+                    logger.info("9-digit number for " + idType + " found. Value: " + idValue);
+                    isMatchFound = true;
                     break;
+                } else {
+                	logger.info("No 9-digit number for " + idType + " found.");
                 }
             }
+            digitsMatcher.reset();
         }
-
-        return lastFolder;
-
-    } catch (Exception e) {
-        logger.error("Exception occurred while creating test folder structure in Rally.", e);
-        return null;
-    } finally {
-        if (restApi != null) {
-            try {
-                restApi.close();
-            } catch (Exception e) {
-                logger.error("Exception occurred while closing Rally API resource.", e);
-            }
-        }
+        return isMatchFound;
     }
 }
