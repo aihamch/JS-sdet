@@ -1,47 +1,10 @@
-// For subfolders, check and create under the last folder
-QueryRequest subFolderExistenceRequest = new QueryRequest("testfolder");
-subFolderExistenceRequest.setQueryFilter(new QueryFilter("Name", "=", folderName.trim())
-        .and(new QueryFilter("Parent", "=", lastFolderRef))
-        .and(new QueryFilter("Project", "=", "project/" + projectRef)));
-subFolderExistenceRequest.setFetch(new Fetch("_ref", "Name", "Parent", "Project"));
+explain and make it work on my machine C:\Users\aalchala
+Steps to update certificate for SSL issue.
 
-QueryResponse subQueryResponse = null;
-try {
-    subQueryResponse = restApi.query(subFolderExistenceRequest);
-} catch (Exception e) {
-    logger.error("Error occurred while querying subfolder existence: " + e.getMessage(), e);
-}
-
-// Add a null check for subQueryResponse
-if (subQueryResponse != null && subQueryResponse.wasSuccessful() && subQueryResponse.getTotalResultCount() > 0) {
-    logger.info("Subfolder query was successful");
-    // Folder exists as a subfolder
-    lastFolder = subQueryResponse.getResults().get(0).getAsJsonObject();
-    lastFolderRef = lastFolder.get("_ref").getAsString();
-    logger.info("Subfolder already exists: " + lastFolderRef);
-} else if (subQueryResponse == null) {
-    logger.error("subQueryResponse is null. Failed to query subfolder existence.");
-    break;
-} else {
-    // Folder does not exist, create it as a subfolder
-    JsonObject newFolder = new JsonObject();
-    newFolder.addProperty("Name", folderName.trim());
-    newFolder.addProperty("Project", projectRef);
-    newFolder.addProperty("Parent", lastFolderRef);
-
-    CreateRequest createFolderRequest = new CreateRequest("testfolder", newFolder);
-    CreateResponse createFolderResponse = restApi.create(createFolderRequest);
-
-    if (createFolderResponse.wasSuccessful()) {
-        lastFolderRef = createFolderResponse.getObject().get("_ref").getAsString();
-        newFolder.addProperty("_ref", lastFolderRef);
-        lastFolder = newFolder;
-        logger.info("Successfully created subfolder: " + lastFolderRef);
-    } else {
-        logger.error("Error occurred creating subfolder");
-        for (String error : createFolderResponse.getErrors()) {
-            logger.error(error);
-        }
-        break;
-    }
-}
+1. Open a new command Prompt
+2. copy "C:\DEVTOOLS\REDHAT\EclipseIDEforJavaEEDevelopers_4.29\eclipse\plugins\org.eclipse.justj.openjdk.hotspot.jre.full.win32.x86_64_17.0.8.v20230831-1047\jre\lib\security\cacerts" cacerts
+3. keytool -importcert -file C:\Users\snahar2\Desktop\Rally-TC's\rallycert.cer -alias rallyCert -keystore cacerts -storepass changeit
+4. cd "C:\DEVTOOLS\REDHAT\EclipseIDEforJavaEEDevelopers_4.29\eclipse\plugins\org.eclipse.justj.openjdk.hotspot.jre.full.win32.x86_64_17.0.8.v20230831-1047\jre\lib\security"
+5. copy cacerts cacerts-backup
+6. copy "C:\Users\snahar2\cacerts" cacerts
+7. keytool -list -v -keystore cacerts -storepass changeit
